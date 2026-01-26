@@ -1,5 +1,7 @@
 {
   "name": "LIV8AI Command Center",
   "description": "AEO & Automation Orchestrator for GoHighLevel. Deploys AI staff and workflows based on brand identity.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

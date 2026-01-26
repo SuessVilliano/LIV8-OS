@@ -1,0 +1,31 @@
+
+{
+  "manifest_version": 3,
+  "name": "LIV8 OS - Command Center",
+  "version": "1.0.0",
+  "description": "AI Operating System for HighLevel Agencies. Adds Voice Operator and Setup Automation.",
+  "permissions": [
+    "storage", 
+    "activeTab", 
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Open LIV8 OS"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://app.gohighlevel.com/*", "https://*.gohighlevel.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["index.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
