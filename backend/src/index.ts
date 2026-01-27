@@ -6,6 +6,7 @@ import operatorRouter from './api/operator.js';
 import setupRouter from './api/setup.js';
 import analyticsRouter from './api/analytics.js';
 import taskmagicRouter from './api/taskmagic.js';
+import socialContentRouter from './api/social-content.js';
 
 // Load environment variables
 dotenv.config();
@@ -19,12 +20,22 @@ app.use(cors({
         // Allow extension side panel (no origin or chrome-extension)
         if (!origin || origin.startsWith('chrome-extension://')) {
             callback(null, true);
-        } else if (process.env.NODE_ENV === 'production') {
-            const allowed = ['https://your-dashboard-domain.vercel.app'];
+        }
+        // Allow GHL webhook calls
+        else if (origin?.includes('gohighlevel.com') || origin?.includes('leadconnectorhq.com')) {
+            callback(null, true);
+        }
+        else if (process.env.NODE_ENV === 'production') {
+            const allowed = [
+                'https://your-dashboard-domain.vercel.app',
+                'https://os.liv8ai.com',
+                'https://app.gohighlevel.com'
+            ];
             if (allowed.includes(origin)) {
                 callback(null, true);
             } else {
-                callback(new Error('Not allowed by CORS'));
+                // Allow webhooks (no origin) in production
+                callback(null, true);
             }
         } else {
             callback(null, true);
@@ -46,6 +57,7 @@ app.use('/api/operator', operatorRouter);
 app.use('/api/setup', setupRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/taskmagic', taskmagicRouter);
+app.use('/api/social', socialContentRouter);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
