@@ -204,7 +204,7 @@ export class SocialContentEngine {
                     throw new Error(`OpenAI API error: ${response.status}`);
                 }
 
-                const data = await response.json();
+                const data = await response.json() as { choices: Array<{ message: { content: string } }> };
                 return data.choices[0].message.content;
             }
         };
@@ -237,7 +237,7 @@ export class SocialContentEngine {
                     throw new Error(`Anthropic API error: ${response.status}`);
                 }
 
-                const data = await response.json();
+                const data = await response.json() as { content: Array<{ text: string }> };
                 return data.content[0].text;
             }
         };

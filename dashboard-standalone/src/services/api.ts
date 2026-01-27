@@ -5,9 +5,9 @@ export const getBackendUrl = () => {
         return process.env.BACKEND_URL;
     }
 
-    // In production, use Vercel/Custom deployment
+    // In production, use the deployed backend
     // In development, use localhost
-    return import.meta.env.VITE_BACKEND_URL || 'https://os.liv8ai.com';
+    return import.meta.env.VITE_BACKEND_URL || 'https://ghl-backend.vercel.app';
 };
 
 export const BACKEND_URL = getBackendUrl();
