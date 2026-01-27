@@ -7,6 +7,51 @@ import { logger } from "./logger";
 const VAULT_KEY_PREFIX = "liv8_vault_v1_";
 const CLIENT_SECRET_MOCK = "liv8_internal_secret_key_change_in_prod";
 
+/**
+ * Check if Chrome extension APIs are available
+ */
+const isChromeExtension = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
+
+/**
+ * Storage abstraction - works in both extension and browser contexts
+ */
+const storage = {
+  async get(keys: string[]): Promise<Record<string, any>> {
+    if (isChromeExtension) {
+      return chrome.storage.local.get(keys);
+    }
+    // Fallback to localStorage
+    const result: Record<string, any> = {};
+    keys.forEach(key => {
+      const value = localStorage.getItem(key);
+      if (value) {
+        try {
+          result[key] = JSON.parse(value);
+        } catch {
+          result[key] = value;
+        }
+      }
+    });
+    return result;
+  },
+  async set(data: Record<string, any>): Promise<void> {
+    if (isChromeExtension) {
+      return chrome.storage.local.set(data);
+    }
+    // Fallback to localStorage
+    Object.entries(data).forEach(([key, value]) => {
+      localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+    });
+  },
+  async remove(keys: string[]): Promise<void> {
+    if (isChromeExtension) {
+      return chrome.storage.local.remove(keys);
+    }
+    // Fallback to localStorage
+    keys.forEach(key => localStorage.removeItem(key));
+  }
+};
+
 const encrypt = (text: string): string => {
   try {
     const xor = text.split('').map((c, i) =>
@@ -39,7 +84,7 @@ export const saveToken = async (locationId: string, token: VaultToken): Promise<
     const payload = JSON.stringify(token);
     const encrypted = encrypt(payload);
     const key = `${VAULT_KEY_PREFIX}${locationId}`;
-    await chrome.storage.local.set({
+    await storage.set({
       [key]: encrypted,
       'sessionToken': token.accessToken, // Unify with api.ts usage
       'currentLocationId': locationId
@@ -53,7 +98,7 @@ export const saveToken = async (locationId: string, token: VaultToken): Promise<
 export const clearToken = async (locationId: string): Promise<void> => {
   try {
     const key = `${VAULT_KEY_PREFIX}${locationId}`;
-    await chrome.storage.local.remove([key, 'sessionToken', 'currentLocationId']);
+    await storage.remove([key, 'sessionToken', 'currentLocationId']);
     logger.info(`[Vault] Cleared credentials for ${locationId}`);
   } catch (e) {
     logger.warn("[Vault] Failed to clear token", e);
@@ -67,7 +112,7 @@ export const getToken = async (locationId: string): Promise<VaultToken | null> =
   let encrypted: string | null = null;
 
   try {
-    const result = await chrome.storage.local.get([key]);
+    const result = await storage.get([key]);
     encrypted = result[key] || null;
   } catch (e) {
     logger.error("[Vault] Storage access denied", e);

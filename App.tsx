@@ -12,10 +12,53 @@ import { ExtensionThemeProvider } from './contexts/ThemeContext';
 import { ToastContainer } from './components/ui/Toast';
 import { VaultToken } from './types';
 
+/**
+ * Check if Chrome extension APIs are available
+ */
+const isChromeExtension = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
+
+/**
+ * Storage abstraction - works in both extension and browser contexts
+ */
+const storage = {
+  async get(keys: string[]): Promise<Record<string, any>> {
+    if (isChromeExtension) {
+      return chrome.storage.local.get(keys);
+    }
+    // Fallback to localStorage
+    const result: Record<string, any> = {};
+    keys.forEach(key => {
+      const value = localStorage.getItem(key);
+      if (value) {
+        try {
+          result[key] = JSON.parse(value);
+        } catch {
+          result[key] = value;
+        }
+      }
+    });
+    return result;
+  },
+  async set(data: Record<string, any>): Promise<void> {
+    if (isChromeExtension) {
+      return chrome.storage.local.set(data);
+    }
+    // Fallback to localStorage
+    Object.entries(data).forEach(([key, value]) => {
+      localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+    });
+  }
+};
+
 const checkSetupStatus = async (locationId: string | null) => {
   if (!locationId) return false;
-  const result = await chrome.storage.local.get([`liv8_setup_${locationId}`]);
-  return result[`liv8_setup_${locationId}`] === 'completed';
+  try {
+    const result = await storage.get([`liv8_setup_${locationId}`]);
+    return result[`liv8_setup_${locationId}`] === 'completed';
+  } catch (e) {
+    console.warn('Error checking setup status:', e);
+    return false;
+  }
 };
 
 type ViewState = 'loading' | 'landing' | 'docs' | 'connecting' | 'onboarding' | 'dashboard';
@@ -31,50 +74,74 @@ const AppContent: React.FC = () => {
     initRef.current = true;
 
     const init = async () => {
-      let targetLocationId: string | null = null;
       try {
-        const searchParams = new URLSearchParams(window.location.search);
-        targetLocationId = searchParams.get('locationId');
-      } catch (e) {
-        console.warn("Could not parse URL params", e);
-      }
+        let targetLocationId: string | null = null;
 
-      if (!targetLocationId) {
-        const result = await chrome.storage.local.get(['liv8_last_location']);
-        targetLocationId = result.liv8_last_location || null;
-      }
-
-      if (targetLocationId) {
-        setLocationId(targetLocationId);
-        const isValid = await hasValidToken(targetLocationId);
-        if (isValid) {
-          const isSetup = await checkSetupStatus(targetLocationId);
-          setView(isSetup ? 'dashboard' : 'onboarding');
-        } else {
-          setView('connecting');
+        // Try to get locationId from URL params
+        try {
+          const searchParams = new URLSearchParams(window.location.search);
+          targetLocationId = searchParams.get('locationId');
+        } catch (e) {
+          console.warn("Could not parse URL params", e);
         }
-      } else {
+
+        // If no locationId in URL, check storage
+        if (!targetLocationId) {
+          try {
+            const result = await storage.get(['liv8_last_location']);
+            targetLocationId = result.liv8_last_location || null;
+          } catch (e) {
+            console.warn("Could not access storage", e);
+          }
+        }
+
+        if (targetLocationId) {
+          setLocationId(targetLocationId);
+          const isValid = await hasValidToken(targetLocationId);
+          if (isValid) {
+            const isSetup = await checkSetupStatus(targetLocationId);
+            setView(isSetup ? 'dashboard' : 'onboarding');
+          } else {
+            setView('connecting');
+          }
+        } else {
+          setView('landing');
+        }
+      } catch (error) {
+        console.error('Init error:', error);
+        // On any error, go to landing page
         setView('landing');
       }
     };
+
     init();
   }, []);
 
   const handleAuthSuccess = async (token: VaultToken, locId: string) => {
-    await saveToken(locId, token);
-    setLocationId(locId);
-    await chrome.storage.local.set({ liv8_last_location: locId });
-    addToast("Connected", "Secure connection established.", "success");
-    const isSetup = await checkSetupStatus(locId);
-    setView(isSetup ? 'dashboard' : 'onboarding');
+    try {
+      await saveToken(locId, token);
+      setLocationId(locId);
+      await storage.set({ liv8_last_location: locId });
+      addToast("Connected", "Secure connection established.", "success");
+      const isSetup = await checkSetupStatus(locId);
+      setView(isSetup ? 'dashboard' : 'onboarding');
+    } catch (error) {
+      console.error('Auth success handler error:', error);
+      setView('onboarding');
+    }
   };
 
   const handleOnboardingComplete = async () => {
-    if (locationId) {
-      await chrome.storage.local.set({ [`liv8_setup_${locationId}`]: 'completed' });
+    try {
+      if (locationId) {
+        await storage.set({ [`liv8_setup_${locationId}`]: 'completed' });
+      }
+      addToast("Setup Complete", "LIV8 OS is now active.", "success");
+      setView('dashboard');
+    } catch (error) {
+      console.error('Onboarding complete error:', error);
+      setView('dashboard');
     }
-    addToast("Setup Complete", "LIV8 OS is now active.", "success");
-    setView('dashboard');
   };
 
   if (view === 'loading') {
