@@ -60,6 +60,24 @@ CREATE TABLE IF NOT EXISTS macros (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- User Settings (API keys, webhooks, preferences - all encrypted)
+CREATE TABLE IF NOT EXISTS user_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  location_id TEXT UNIQUE NOT NULL,
+  settings_data JSONB NOT NULL, -- Encrypted API keys and preferences
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Brand Brains (AI-analyzed brand identity)
+CREATE TABLE IF NOT EXISTS brand_brains (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  location_id TEXT UNIQUE NOT NULL,
+  brain_data JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_agency ON users(agency_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);

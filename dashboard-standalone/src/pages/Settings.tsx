@@ -8,10 +8,13 @@ import {
     Smartphone,
     Monitor,
     Layout,
-    Check
+    Check,
+    Key,
+    Link
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import WebhookManager from '../components/WebhookManager';
+import APIKeyManager from '../components/APIKeyManager';
 
 const Settings = () => {
     const { config, updateConfig, isDark, toggleTheme } = useTheme();
@@ -121,6 +124,12 @@ const Settings = () => {
                     </div>
                 </div>
 
+                {/* AI & Webhook Configuration */}
+                <div className="border-t border-[var(--os-border)] pt-12">
+                    <APIKeyManager />
+                </div>
+
+                {/* Mobile Webhook Integration */}
                 <div className="border-t border-[var(--os-border)] pt-12">
                     <WebhookManager />
                 </div>

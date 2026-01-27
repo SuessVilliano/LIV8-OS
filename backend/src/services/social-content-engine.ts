@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GHLApiClient, createGHLClient, GHLSocialPost } from './ghl-api-client.js';
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+import { userSettingsVault, AIProvider } from './user-settings-vault.js';
 
 /**
  * Social Media Platform Types
@@ -104,26 +103,164 @@ const PLATFORM_CONFIG: Record<SocialPlatform, {
 };
 
 /**
+ * AI Client Interface for multi-provider support
+ */
+interface AIClient {
+    provider: AIProvider;
+    generateContent: (prompt: string) => Promise<string>;
+}
+
+/**
  * Social Content Engine
  * AI-powered content generation and scheduling for GHL
+ * Supports multiple AI providers (Gemini, OpenAI, Anthropic) with user-provided keys
  */
 export class SocialContentEngine {
-    private genAI: GoogleGenerativeAI | null = null;
+    private aiClientCache: Map<string, AIClient> = new Map();
 
-    constructor() {
-        if (GEMINI_API_KEY) {
-            this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    /**
+     * Get or create an AI client for a location using their stored API key
+     */
+    private async getAIClient(locationId: string): Promise<AIClient | null> {
+        // Check cache first (keyed by locationId)
+        if (this.aiClientCache.has(locationId)) {
+            return this.aiClientCache.get(locationId)!;
+        }
+
+        // Fetch user's AI configuration from vault
+        const aiConfig = await userSettingsVault.getActiveAIKey(locationId);
+
+        if (!aiConfig) {
+            console.warn(`[SocialEngine] No AI key configured for location ${locationId}`);
+            return null;
+        }
+
+        const client = this.createAIClient(aiConfig.provider, aiConfig.apiKey);
+        this.aiClientCache.set(locationId, client);
+
+        console.log(`[SocialEngine] Using ${aiConfig.provider} for location ${locationId}`);
+        return client;
+    }
+
+    /**
+     * Create an AI client for a specific provider
+     */
+    private createAIClient(provider: AIProvider, apiKey: string): AIClient {
+        switch (provider) {
+            case 'gemini':
+                return this.createGeminiClient(apiKey);
+            case 'openai':
+                return this.createOpenAIClient(apiKey);
+            case 'anthropic':
+                return this.createAnthropicClient(apiKey);
+            default:
+                throw new Error(`Unsupported AI provider: ${provider}`);
         }
     }
 
     /**
-     * Generate content for multiple platforms
+     * Create Gemini client
      */
-    async generateContent(request: ContentRequest): Promise<GeneratedContent[]> {
+    private createGeminiClient(apiKey: string): AIClient {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-1.5-flash',
+            generationConfig: { responseMimeType: 'application/json' }
+        });
+
+        return {
+            provider: 'gemini',
+            generateContent: async (prompt: string) => {
+                const result = await model.generateContent(prompt);
+                return result.response.text();
+            }
+        };
+    }
+
+    /**
+     * Create OpenAI client
+     */
+    private createOpenAIClient(apiKey: string): AIClient {
+        return {
+            provider: 'openai',
+            generateContent: async (prompt: string) => {
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o-mini',
+                        messages: [
+                            { role: 'system', content: 'You are a social media content expert. Always respond with valid JSON.' },
+                            { role: 'user', content: prompt }
+                        ],
+                        response_format: { type: 'json_object' }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`OpenAI API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data.choices[0].message.content;
+            }
+        };
+    }
+
+    /**
+     * Create Anthropic client
+     */
+    private createAnthropicClient(apiKey: string): AIClient {
+        return {
+            provider: 'anthropic',
+            generateContent: async (prompt: string) => {
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'x-api-key': apiKey,
+                        'anthropic-version': '2023-06-01',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-3-haiku-20240307',
+                        max_tokens: 1024,
+                        messages: [
+                            { role: 'user', content: prompt + '\n\nRespond with valid JSON only, no markdown or code blocks.' }
+                        ]
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Anthropic API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data.content[0].text;
+            }
+        };
+    }
+
+    /**
+     * Clear cached AI client for a location (call when user updates their API key)
+     */
+    clearCache(locationId: string): void {
+        this.aiClientCache.delete(locationId);
+    }
+
+    /**
+     * Generate content for multiple platforms
+     * @param request - Content generation request
+     * @param locationId - User's location ID to fetch their AI API key
+     */
+    async generateContent(request: ContentRequest, locationId: string): Promise<GeneratedContent[]> {
         const results: GeneratedContent[] = [];
+        const aiClient = await this.getAIClient(locationId);
 
         for (const platform of request.platforms) {
-            const content = await this.generatePlatformContent(platform, request);
+            const content = await this.generatePlatformContent(platform, request, aiClient);
             results.push(content);
         }
 
@@ -135,28 +272,31 @@ export class SocialContentEngine {
      */
     private async generatePlatformContent(
         platform: SocialPlatform,
-        request: ContentRequest
+        request: ContentRequest,
+        aiClient: AIClient | null
     ): Promise<GeneratedContent> {
         const config = PLATFORM_CONFIG[platform];
 
-        if (!this.genAI) {
-            // Fallback to template-based generation
+        if (!aiClient) {
+            // Fallback to template-based generation if no AI key configured
+            console.log(`[SocialEngine] Using template fallback for ${platform} (no AI key)`);
             return this.generateTemplateContent(platform, request);
         }
-
-        const model = this.genAI.getGenerativeModel({
-            model: 'gemini-1.5-flash',
-            generationConfig: {
-                responseMimeType: 'application/json'
-            }
-        });
 
         const prompt = this.buildContentPrompt(platform, request, config);
 
         try {
-            const result = await model.generateContent(prompt);
-            const responseText = result.response.text();
-            const parsed = JSON.parse(responseText);
+            const responseText = await aiClient.generateContent(prompt);
+
+            // Clean up response (handle markdown code blocks)
+            let cleanedResponse = responseText.trim();
+            if (cleanedResponse.startsWith('```json')) {
+                cleanedResponse = cleanedResponse.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+            } else if (cleanedResponse.startsWith('```')) {
+                cleanedResponse = cleanedResponse.replace(/^```\n?/, '').replace(/\n?```$/, '');
+            }
+
+            const parsed = JSON.parse(cleanedResponse);
 
             return {
                 platform,
@@ -167,7 +307,7 @@ export class SocialContentEngine {
                 estimatedEngagement: this.estimateEngagement(parsed.content || parsed.text, platform)
             };
         } catch (error) {
-            console.error(`[SocialEngine] AI generation failed for ${platform}:`, error);
+            console.error(`[SocialEngine] AI generation failed for ${platform} (${aiClient.provider}):`, error);
             return this.generateTemplateContent(platform, request);
         }
     }
@@ -429,13 +569,15 @@ Return JSON with this structure:
 
     /**
      * Generate a content calendar for a week/month
+     * @param locationId - User's location ID to fetch their AI API key
      */
     async generateContentCalendar(
         brandVoice: BrandVoice,
         platforms: SocialPlatform[],
         topics: string[],
         postsPerWeek: number = 5,
-        weeks: number = 1
+        weeks: number = 1,
+        locationId: string
     ): Promise<ContentCalendarItem[]> {
         const calendar: ContentCalendarItem[] = [];
         const contentTypes: ContentRequest['type'][] = [
@@ -464,7 +606,7 @@ Return JSON with this structure:
                     includeHashtags: true,
                     includeEmojis: true,
                     includeCallToAction: contentType === 'promotional'
-                });
+                }, locationId);
 
                 calendar.push({
                     id: `cal_${Date.now()}_${post}`,
@@ -481,16 +623,19 @@ Return JSON with this structure:
 
     /**
      * Repurpose existing content for different platforms
+     * @param locationId - User's location ID to fetch their AI API key
      */
     async repurposeContent(
         originalContent: string,
         originalPlatform: SocialPlatform,
         targetPlatforms: SocialPlatform[],
-        brandVoice: BrandVoice
+        brandVoice: BrandVoice,
+        locationId: string
     ): Promise<GeneratedContent[]> {
         const results: GeneratedContent[] = [];
+        const aiClient = await this.getAIClient(locationId);
 
-        if (!this.genAI) {
+        if (!aiClient) {
             // Simple repurposing without AI
             for (const platform of targetPlatforms) {
                 const config = PLATFORM_CONFIG[platform];
@@ -511,11 +656,6 @@ Return JSON with this structure:
             }
             return results;
         }
-
-        const model = this.genAI.getGenerativeModel({
-            model: 'gemini-1.5-flash',
-            generationConfig: { responseMimeType: 'application/json' }
-        });
 
         for (const platform of targetPlatforms) {
             const config = PLATFORM_CONFIG[platform];
@@ -541,8 +681,17 @@ Return JSON:
 }`;
 
             try {
-                const result = await model.generateContent(prompt);
-                const parsed = JSON.parse(result.response.text());
+                const responseText = await aiClient.generateContent(prompt);
+
+                // Clean up response
+                let cleanedResponse = responseText.trim();
+                if (cleanedResponse.startsWith('```json')) {
+                    cleanedResponse = cleanedResponse.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+                } else if (cleanedResponse.startsWith('```')) {
+                    cleanedResponse = cleanedResponse.replace(/^```\n?/, '').replace(/\n?```$/, '');
+                }
+
+                const parsed = JSON.parse(cleanedResponse);
 
                 results.push({
                     platform,
@@ -553,7 +702,7 @@ Return JSON:
                     estimatedEngagement: this.estimateEngagement(parsed.content, platform)
                 });
             } catch (error) {
-                console.error(`[SocialEngine] Repurpose failed for ${platform}:`, error);
+                console.error(`[SocialEngine] Repurpose failed for ${platform} (${aiClient.provider}):`, error);
             }
         }
 

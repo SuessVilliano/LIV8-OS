@@ -3,6 +3,7 @@ import { authService } from '../services/auth.js';
 import { db } from '../db/index.js';
 import { socialContentEngine, ContentRequest, SocialPlatform, BrandVoice } from '../services/social-content-engine.js';
 import { createGHLClient } from '../services/ghl-api-client.js';
+import { userSettingsVault } from '../services/user-settings-vault.js';
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ const authenticate = (req: Request, res: Response, next: any) => {
 
 /**
  * Webhook authentication (for GHL workflow triggers)
- * Uses a simple API key or the location's token
+ * Uses the user's stored webhook secret for secure access
  */
 const webhookAuth = async (req: Request, res: Response, next: any) => {
     try {
@@ -40,23 +41,46 @@ const webhookAuth = async (req: Request, res: Response, next: any) => {
             return res.status(400).json({ error: 'locationId required' });
         }
 
-        // Verify the API key matches what we have stored, or check webhook secret
-        const webhookSecret = process.env.WEBHOOK_SECRET;
-        if (webhookSecret && apiKey === webhookSecret) {
+        // Get user's settings to verify their webhook secret
+        const settings = await userSettingsVault.getSettings(locationId);
+
+        // Verify the API key matches the user's stored webhook secret
+        if (settings.webhookSecret && apiKey === settings.webhookSecret) {
             (req as any).locationId = locationId;
+
+            // Get GHL token for API calls
+            const ghlToken = await db.getLocationToken(locationId);
+            if (ghlToken) {
+                (req as any).ghlToken = ghlToken;
+            }
+
             return next();
         }
 
-        // Try to get the location token to verify this is a valid location
-        const ghlToken = await db.getLocationToken(locationId);
-        if (!ghlToken) {
-            return res.status(401).json({ error: 'Invalid location or not connected' });
+        // Fallback: check global webhook secret (for backwards compatibility)
+        const globalSecret = process.env.WEBHOOK_SECRET;
+        if (globalSecret && apiKey === globalSecret) {
+            (req as any).locationId = locationId;
+            const ghlToken = await db.getLocationToken(locationId);
+            if (ghlToken) {
+                (req as any).ghlToken = ghlToken;
+            }
+            return next();
         }
 
-        (req as any).locationId = locationId;
-        (req as any).ghlToken = ghlToken;
-        next();
+        // No valid webhook secret - deny access
+        if (!apiKey) {
+            return res.status(401).json({
+                error: 'Missing x-api-key header. Generate a webhook secret in your settings.'
+            });
+        }
+
+        return res.status(401).json({
+            error: 'Invalid webhook secret. Check your settings or generate a new one.'
+        });
+
     } catch (error: any) {
+        console.error('[Webhook Auth] Error:', error);
         res.status(401).json({ error: 'Webhook authentication failed' });
     }
 };
@@ -66,10 +90,12 @@ const webhookAuth = async (req: Request, res: Response, next: any) => {
 /**
  * POST /api/social/generate
  * Generate social media content (authenticated users)
+ * Uses the user's configured AI provider and API key
  */
 router.post('/generate', authenticate, async (req: Request, res: Response) => {
     try {
         const {
+            locationId,
             type,
             topic,
             platforms,
@@ -81,8 +107,8 @@ router.post('/generate', authenticate, async (req: Request, res: Response) => {
             customInstructions
         } = req.body;
 
-        if (!topic || !platforms || !brandVoice) {
-            return res.status(400).json({ error: 'Missing required fields: topic, platforms, brandVoice' });
+        if (!locationId || !topic || !platforms || !brandVoice) {
+            return res.status(400).json({ error: 'Missing required fields: locationId, topic, platforms, brandVoice' });
         }
 
         const request: ContentRequest = {
@@ -97,7 +123,8 @@ router.post('/generate', authenticate, async (req: Request, res: Response) => {
             customInstructions
         };
 
-        const content = await socialContentEngine.generateContent(request);
+        // Generate using user's configured AI provider
+        const content = await socialContentEngine.generateContent(request, locationId);
 
         res.json({
             success: true,
@@ -145,7 +172,7 @@ router.post('/generate-and-post', authenticate, async (req: Request, res: Respon
             return res.status(404).json({ error: 'Location not connected' });
         }
 
-        // Generate content
+        // Generate content using user's AI provider
         const request: ContentRequest = {
             type: type || 'promotional',
             topic,
@@ -158,7 +185,7 @@ router.post('/generate-and-post', authenticate, async (req: Request, res: Respon
             scheduledAt
         };
 
-        const content = await socialContentEngine.generateContent(request);
+        const content = await socialContentEngine.generateContent(request, locationId);
 
         // Post to GHL
         const ghlClient = createGHLClient(ghlToken, locationId);
@@ -198,11 +225,12 @@ router.post('/generate-and-post', authenticate, async (req: Request, res: Respon
 
 /**
  * POST /api/social/calendar
- * Generate a content calendar
+ * Generate a content calendar using user's AI provider
  */
 router.post('/calendar', authenticate, async (req: Request, res: Response) => {
     try {
         const {
+            locationId,
             brandVoice,
             platforms,
             topics,
@@ -210,9 +238,9 @@ router.post('/calendar', authenticate, async (req: Request, res: Response) => {
             weeks
         } = req.body;
 
-        if (!brandVoice || !platforms || !topics) {
+        if (!locationId || !brandVoice || !platforms || !topics) {
             return res.status(400).json({
-                error: 'Missing required fields: brandVoice, platforms, topics'
+                error: 'Missing required fields: locationId, brandVoice, platforms, topics'
             });
         }
 
@@ -221,7 +249,8 @@ router.post('/calendar', authenticate, async (req: Request, res: Response) => {
             platforms,
             topics,
             postsPerWeek || 5,
-            weeks || 1
+            weeks || 1,
+            locationId
         );
 
         res.json({
@@ -242,20 +271,21 @@ router.post('/calendar', authenticate, async (req: Request, res: Response) => {
 
 /**
  * POST /api/social/repurpose
- * Repurpose content for different platforms
+ * Repurpose content for different platforms using user's AI provider
  */
 router.post('/repurpose', authenticate, async (req: Request, res: Response) => {
     try {
         const {
+            locationId,
             originalContent,
             originalPlatform,
             targetPlatforms,
             brandVoice
         } = req.body;
 
-        if (!originalContent || !originalPlatform || !targetPlatforms || !brandVoice) {
+        if (!locationId || !originalContent || !originalPlatform || !targetPlatforms || !brandVoice) {
             return res.status(400).json({
-                error: 'Missing required fields: originalContent, originalPlatform, targetPlatforms, brandVoice'
+                error: 'Missing required fields: locationId, originalContent, originalPlatform, targetPlatforms, brandVoice'
             });
         }
 
@@ -263,7 +293,8 @@ router.post('/repurpose', authenticate, async (req: Request, res: Response) => {
             originalContent,
             originalPlatform,
             targetPlatforms,
-            brandVoice
+            brandVoice,
+            locationId
         );
 
         res.json({
@@ -416,7 +447,8 @@ router.post('/webhook/generate', webhookAuth, async (req: Request, res: Response
             includeCallToAction: type === 'promotional'
         };
 
-        const content = await socialContentEngine.generateContent(request);
+        // Generate using user's AI provider
+        const content = await socialContentEngine.generateContent(request, locationId);
 
         // If accountIds provided, post immediately
         if (accountIds && accountIds.length > 0) {
@@ -518,13 +550,14 @@ router.post('/webhook/schedule-week', webhookAuth, async (req: Request, res: Res
 
         const targetPlatforms: SocialPlatform[] = platforms || ['facebook', 'instagram'];
 
-        // Generate calendar
+        // Generate calendar using user's AI provider
         const calendar = await socialContentEngine.generateContentCalendar(
             brandVoice,
             targetPlatforms,
             topics,
             postsPerWeek || 5,
-            1
+            1,
+            locationId
         );
 
         // If accountIds provided, schedule all posts
@@ -632,7 +665,8 @@ router.post('/webhook/contact-content', webhookAuth, async (req: Request, res: R
             includeEmojis: true
         };
 
-        const content = await socialContentEngine.generateContent(request);
+        // Generate using user's AI provider
+        const content = await socialContentEngine.generateContent(request, locationId);
 
         // Post if accountIds provided
         if (accountIds && accountIds.length > 0) {
