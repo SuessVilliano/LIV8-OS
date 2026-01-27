@@ -6,9 +6,7 @@
   "permissions": [
     "storage",
     "sidePanel",
-    "activeTab",
-    "scripting",
-    "audio"
+    "activeTab"
   ],
   "host_permissions": [
     "https://app.gohighlevel.com/*",

@@ -130,6 +130,50 @@ router.post('/deploy', authenticate, async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/setup/save-brand-brain
+ * Save brand brain to database
+ */
+router.post('/save-brand-brain', authenticate, async (req: Request, res: Response) => {
+    try {
+        const { locationId, brandBrain } = req.body;
+
+        if (!locationId || !brandBrain) {
+            return res.status(400).json({ error: 'Missing locationId or brandBrain' });
+        }
+
+        await db.saveBrandBrain(locationId, brandBrain);
+
+        res.json({ success: true, message: 'Brand brain saved' });
+
+    } catch (error: any) {
+        console.error('[Setup API] Save brand brain error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/setup/brand-brain/:locationId
+ * Get brand brain from database
+ */
+router.get('/brand-brain/:locationId', authenticate, async (req: Request, res: Response) => {
+    try {
+        const { locationId } = req.params;
+
+        if (!locationId) {
+            return res.status(400).json({ error: 'Missing locationId' });
+        }
+
+        const brandBrain = await db.getBrandBrain(locationId);
+
+        res.json({ brandBrain });
+
+    } catch (error: any) {
+        console.error('[Setup API] Get brand brain error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
  * GET /api/setup/staff-templates
  * Get available AI staff templates
  */

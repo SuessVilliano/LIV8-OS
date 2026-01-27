@@ -1,8 +1,9 @@
 
 import { BrandBrain, BuildPlan, ApprovalPack } from "./types";
+import { apiCall } from './api';
 
-// Simulated SQL Tables in LocalStorage
-// In a real app, these would be Supabase/Postgres tables.
+// LocalStorage tables with backend sync
+// Uses localStorage as cache, syncs with backend when available
 
 interface UserTable {
   id: string;
@@ -71,9 +72,53 @@ class DatabaseService {
     }
 
     this.saveTable('brand_brains', brands);
+
+    // Sync to backend (fire and forget)
+    this.syncBrandBrainToBackend(locationId, brain).catch(e => {
+      console.warn('[DB] Backend sync failed, data saved locally:', e);
+    });
+  }
+
+  private async syncBrandBrainToBackend(locationId: string, brain: BrandBrain): Promise<void> {
+    try {
+      await apiCall('/api/setup/save-brand-brain', {
+        method: 'POST',
+        body: JSON.stringify({ locationId, brandBrain: brain })
+      });
+      console.log('[DB] Brand brain synced to backend');
+    } catch (e) {
+      // Silently fail - local storage is the fallback
+    }
   }
 
   async getBrandBrain(locationId: string): Promise<BrandBrain | null> {
+    // Try backend first
+    try {
+      const result = await apiCall(`/api/setup/brand-brain/${locationId}`);
+      if (result.brandBrain) {
+        // Update local cache
+        const brands = this.getTable<BrandTable>('brand_brains');
+        const existingIdx = brands.findIndex(b => b.location_id === locationId);
+        const record: BrandTable = {
+          id: existingIdx > -1 ? brands[existingIdx].id : crypto.randomUUID(),
+          location_id: locationId,
+          domain: result.brandBrain.domain,
+          brain_data: result.brandBrain,
+          updated_at: Date.now()
+        };
+        if (existingIdx > -1) {
+          brands[existingIdx] = record;
+        } else {
+          brands.push(record);
+        }
+        this.saveTable('brand_brains', brands);
+        return result.brandBrain;
+      }
+    } catch (e) {
+      console.warn('[DB] Backend fetch failed, using local cache');
+    }
+
+    // Fallback to local storage
     await this.delay(200);
     const brands = this.getTable<BrandTable>('brand_brains');
     const record = brands.find(b => b.location_id === locationId);

@@ -25,14 +25,18 @@ import { setupService } from '../services/setupService';
 import { useError } from '../contexts/ErrorContext';
 import { db } from '../services/database';
 import { automationService } from '../services/automation';
+import { setupApi } from '../services/setupApi';
 
 interface OnboardingProps {
+  locationId: string | null;
   onComplete: () => void;
 }
 
 type Step = 'brand' | 'training' | 'preview' | 'roles' | 'plan' | 'deploying';
 
-const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
+const Onboarding: React.FC<OnboardingProps> = ({ locationId: propLocationId, onComplete }) => {
+  // Use prop locationId or fallback to a generated one
+  const locationId = propLocationId || `loc_${Date.now()}`;
   const [step, setStep] = useState<Step>('brand');
   const [loading, setLoading] = useState(false);
   const { addError, addToast } = useError();
@@ -78,9 +82,38 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         ein, socialFB, socialIG, socialLI, hostingLogin,
         marketStage
       };
-      const result = await scanBrandIdentity(domain, description, JSON.stringify(metadata));
+
+      let result: BrandBrain;
+
+      // Try backend API first
+      try {
+        const scanResult = await setupApi.scanBrand(domain);
+        result = scanResult.brandBrain;
+        // Merge in metadata that backend might not have
+        result = {
+          ...result,
+          brand_confirmed: {
+            ...result.brand_confirmed,
+            name: businessName || result.brand_confirmed?.name,
+            domain: domain
+          }
+        };
+      } catch (backendError) {
+        console.warn('[Onboarding] Backend unavailable, using local scan');
+        // Fallback to local scan
+        result = await scanBrandIdentity(domain, description, JSON.stringify(metadata));
+      }
+
       setBrandBrain(result);
-      await db.saveBrandBrain("current_location", result);
+
+      // Save to both local and backend
+      await db.saveBrandBrain(locationId, result);
+      try {
+        await setupApi.saveBrandBrain(locationId, result);
+      } catch (e) {
+        console.warn('[Onboarding] Failed to save to backend, continuing with local');
+      }
+
       setStep('training');
       addToast("Market Mapped", "Strategy calculated based on " + marketStage, "success");
     } catch (e) {
@@ -108,16 +141,39 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const handleDeploy = async () => {
     setStep('deploying');
     try {
-      // 1. Local Deployment (Knowledge Base / Roles)
-      await setupService.deploySystem("current_location", buildPlan!, (msg, pct) => {
-        setDeployStatus(msg);
-        setDeployProgress(pct * 0.7); // Local sync accounts for 70%
-      });
+      // Try backend deployment first
+      let deployedViaBackend = false;
+
+      try {
+        setDeployStatus("Initiating Backend Deployment...");
+        setDeployProgress(10);
+
+        const deployResult = await setupApi.deploy(buildPlan!, locationId);
+
+        if (deployResult.success) {
+          deployedViaBackend = true;
+          setDeployProgress(70);
+          setDeployStatus("Backend deployment complete");
+        } else if (deployResult.errors.length > 0) {
+          console.warn('[Onboarding] Backend deployment had errors:', deployResult.errors);
+          // Continue with local deployment as fallback
+        }
+      } catch (backendError) {
+        console.warn('[Onboarding] Backend deployment unavailable, using local:', backendError);
+      }
+
+      // If backend failed, use local deployment
+      if (!deployedViaBackend) {
+        await setupService.deploySystem(locationId, buildPlan!, (msg, pct) => {
+          setDeployStatus(msg);
+          setDeployProgress(pct * 0.7);
+        });
+      }
 
       // 2. External Deep Onboarding (TaskMagic / GHL Snapshots / Slack)
       setDeployStatus("Triggering Deep Sync Architecture...");
       await automationService.triggerDeepSync({
-        locationId: "current_location",
+        locationId: locationId,
         agencyName: brandBrain?.brand_confirmed?.name || "LIV8 Agency",
         clientEmail: brandBrain?.brand_confirmed?.domain ? `admin@${brandBrain.brand_confirmed.domain}` : "support@liv8ai.com",
         domain: domain,

@@ -161,7 +161,7 @@ const AppContent: React.FC = () => {
 
   return (
     <>
-      {view === 'onboarding' && <Onboarding onComplete={handleOnboardingComplete} />}
+      {view === 'onboarding' && <Onboarding locationId={locationId} onComplete={handleOnboardingComplete} />}
       {view === 'dashboard' && <Operator />}
     </>
   );
