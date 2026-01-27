@@ -5,22 +5,23 @@ import { MOCK_APPROVAL_PACK } from "../constants";
 
 // Helper to ensure we get the latest API key and handle selection
 const getAI = async () => {
-  // 1. Prefer Process Env (Dev/Preview Environment)
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // 1. Check Vite environment variable
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+  if (envKey) {
+    return new GoogleGenAI({ apiKey: envKey });
   }
 
   // 2. Handle AI Studio Injection (User Key Selection)
-  if (window.aistudio) {
+  if (typeof window !== 'undefined' && (window as any).aistudio) {
     try {
       // Race check to prevent hanging if the extension/injector is slow
       const hasKey = await Promise.race([
-        window.aistudio.hasSelectedApiKey(),
+        (window as any).aistudio.hasSelectedApiKey(),
         new Promise<boolean>(r => setTimeout(() => r(false), 500))
       ]);
 
       if (!hasKey) {
-        await window.aistudio.openSelectKey();
+        await (window as any).aistudio.openSelectKey();
         // Brief pause to allow key propagation
         await new Promise(r => setTimeout(r, 1000));
       }
@@ -30,8 +31,7 @@ const getAI = async () => {
   }
 
   // 3. Fallback (This will likely throw an error on generateContent if empty, triggering the mock fallback)
-  const envKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
-  return new GoogleGenAI({ apiKey: envKey || '' });
+  return new GoogleGenAI({ apiKey: '' });
 };
 
 const OPERATOR_SYSTEM_PROMPT = `

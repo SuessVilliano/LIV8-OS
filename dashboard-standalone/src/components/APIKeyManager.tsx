@@ -17,7 +17,8 @@ import {
     Link,
     ExternalLink
 } from 'lucide-react';
-import { settingsService, AIProvider, UserSettings, WebhookInfo } from '../services/settingsService';
+import { settingsService } from '../services/settingsService';
+import type { AIProvider, UserSettings, WebhookInfo } from '../services/settingsService';
 
 interface ProviderConfig {
     id: AIProvider;

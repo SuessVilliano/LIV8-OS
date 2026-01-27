@@ -1,12 +1,6 @@
 // Backend API Configuration
 export const getBackendUrl = () => {
-    // Use environment variable if available, otherwise default to local
-    if (typeof process !== 'undefined' && process.env && process.env.BACKEND_URL) {
-        return process.env.BACKEND_URL;
-    }
-
-    // In production, use the deployed backend
-    // In development, use localhost
+    // Use Vite environment variable or default to deployed backend
     return import.meta.env.VITE_BACKEND_URL || 'https://ghl-backend.vercel.app';
 };
 

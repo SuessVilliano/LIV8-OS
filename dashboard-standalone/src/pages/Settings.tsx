@@ -8,9 +8,7 @@ import {
     Smartphone,
     Monitor,
     Layout,
-    Check,
-    Key,
-    Link
+    Check
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import WebhookManager from '../components/WebhookManager';
