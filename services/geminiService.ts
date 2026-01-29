@@ -423,7 +423,7 @@ export const generateStaffAssets = async (brand: BrandBrain, role: RoleKey): Pro
 }> => {
   const mockAssets = {
     scripts: [`Hello, this is the ${role} for ${brand.brand_name}. How can I assist?`],
-    kb_items: [{ q: `What is ${brand.brand_name}?`, a: `${brand.brand_name} is a specialist in ${brand.key_services[0]}.` }]
+    kb_items: [{ q: `What is ${brand.brand_name}?`, a: `${brand.brand_name} is a specialist in ${brand.key_services?.[0] || 'professional services'}.` }]
   };
 
   try {

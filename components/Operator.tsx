@@ -117,8 +117,10 @@ const Operator: React.FC<OperatorProps> = ({ onNavigate }) => {
     recognition.onend = () => setIsRecording(false);
     recognition.onerror = () => setIsRecording(false);
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(prev => prev + (prev ? " " : "") + transcript);
+      const transcript = event.results?.[0]?.[0]?.transcript;
+      if (transcript) {
+        setInput(prev => prev + (prev ? " " : "") + transcript);
+      }
     };
 
     recognition.start();
@@ -166,11 +168,12 @@ const Operator: React.FC<OperatorProps> = ({ onNavigate }) => {
       const result = await operator.executePlan(plan, plan.context);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `✅ Sync Complete: ${result.summary}`
+        content: `✅ Sync Complete: ${result?.summary || 'Operation completed'}`
       }]);
       setCurrentPlan(null);
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `❌ Sync Fault: ${error.message}` }]);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, { role: 'assistant', content: `❌ Sync Fault: ${errorMsg}` }]);
     } finally {
       setIsProcessing(false);
     }

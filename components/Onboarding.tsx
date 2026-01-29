@@ -174,8 +174,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ locationId: propLocationId, onC
       setDeployStatus("Triggering Deep Sync Architecture...");
       await automationService.triggerDeepSync({
         locationId: locationId,
-        agencyName: brandBrain?.brand_confirmed?.name || "LIV8 Agency",
-        clientEmail: brandBrain?.brand_confirmed?.domain ? `admin@${brandBrain.brand_confirmed.domain}` : "support@liv8ai.com",
+        agencyName: brandBrain?.brand_name || businessName || "LIV8 Agency",
+        clientEmail: domain ? `admin@${domain}` : "support@liv8ai.com",
         domain: domain,
         selectedRoles: selectedRoles,
         timestamp: Date.now()

@@ -41,7 +41,7 @@ const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ brain, onUpdate, readOnly
   const handleDelete = (id: string) => {
     const updated = {
       ...brain,
-      knowledge_base: brain.knowledge_base.filter(i => i.id !== id)
+      knowledge_base: (brain.knowledge_base || []).filter(i => i.id !== id)
     };
     onUpdate(updated);
   };
