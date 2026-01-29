@@ -1,6 +1,10 @@
 import { sql } from '@vercel/postgres';
 import crypto from 'crypto';
 
+// Re-export agent sessions for convenience
+export { agentSessions } from './agent-sessions.js';
+export type { AgentSession, AgentEvent, AgentSessionStatus } from './agent-sessions.js';
+
 // Encryption helpers for GHL tokens
 const ALGORITHM = 'aes-256-gcm';
 const KEY = crypto.scryptSync(process.env.JWT_SECRET || 'fallback-key', 'salt', 32);

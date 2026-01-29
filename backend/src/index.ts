@@ -8,6 +8,7 @@ import analyticsRouter from './api/analytics.js';
 import taskmagicRouter from './api/taskmagic.js';
 import socialContentRouter from './api/social-content.js';
 import settingsRouter from './api/settings.js';
+import agentsRouter from './api/agents.js';
 
 // Load environment variables
 dotenv.config();
@@ -60,6 +61,7 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/taskmagic', taskmagicRouter);
 app.use('/api/social', socialContentRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/agents', agentsRouter);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
