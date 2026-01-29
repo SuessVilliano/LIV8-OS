@@ -11,6 +11,7 @@ import {
 import { Button } from './ui/Button';
 import { verifyManualConnection } from '../services/ghlAuth';
 import { saveToken, clearToken } from '../services/vaultService';
+import { auth } from '../services/api';
 import { useError } from '../contexts/ErrorContext';
 import { VaultToken } from '../types';
 
@@ -36,7 +37,21 @@ const Connect: React.FC<ConnectProps> = ({ locationId: initialLocationId, onAuth
 
     setIsConnecting(true);
     try {
+      // 1. Verify credentials with actual GHL API
       const token = await verifyManualConnection(locId, apiKey);
+
+      // 2. Try to save location to backend (for full features)
+      // This enables backend deployment, analytics, etc.
+      try {
+        await auth.connectLocation(locId, 'GHL Location', apiKey);
+        console.log('[Connect] Location saved to backend successfully');
+      } catch (backendErr) {
+        // Backend might not be available or user not logged in
+        // Extension still works with local storage
+        console.warn('[Connect] Backend connection skipped (local mode):', backendErr);
+      }
+
+      // 3. Proceed with local auth
       await onAuth(token, locId);
     } catch (err) {
       addError(err, "Connection failed");

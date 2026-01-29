@@ -14,11 +14,29 @@ export interface OnboardingPayload {
 }
 
 /**
- * Get JWT token from storage
+ * Get JWT token from storage (checks both chrome storage and localStorage)
  */
+async function getTokenAsync(): Promise<string | null> {
+    try {
+        // Try chrome.storage.local first (extension context)
+        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+            const result = await chrome.storage.local.get(['sessionToken']);
+            if (result.sessionToken) {
+                return result.sessionToken;
+            }
+        }
+
+        // Fallback to localStorage
+        return localStorage.getItem('liv8_jwt') || localStorage.getItem('sessionToken');
+    } catch (e) {
+        return null;
+    }
+}
+
+// Synchronous fallback
 function getToken(): string | null {
     try {
-        return localStorage.getItem('liv8_jwt');
+        return localStorage.getItem('liv8_jwt') || localStorage.getItem('sessionToken');
     } catch (e) {
         return null;
     }
@@ -35,7 +53,8 @@ export const automationService = {
     async triggerDeepSync(payload: OnboardingPayload): Promise<any> {
         console.log("[Neuro-Automation] Initiating TaskMagic Deep Sync:", payload);
 
-        const token = getToken();
+        // Try async token retrieval first, fall back to sync
+        const token = await getTokenAsync() || getToken();
 
         // Prefer backend API for security and audit logging
         if (token) {

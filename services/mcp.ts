@@ -31,19 +31,41 @@ function generateId(prefix: string): string {
 }
 
 /**
- * Get stored auth credentials
+ * Get stored auth credentials from chrome storage
  */
-function getCredentials(): MCPCallOptions | null {
+async function getCredentialsAsync(): Promise<MCPCallOptions | null> {
   try {
-    const token = localStorage.getItem('liv8_jwt');
-    const locationId = localStorage.getItem('liv8_location_id');
+    // Try chrome.storage.local first (extension context)
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const result = await chrome.storage.local.get(['sessionToken', 'currentLocationId']);
+      if (result.sessionToken && result.currentLocationId) {
+        return { token: result.sessionToken, locationId: result.currentLocationId };
+      }
+    }
+
+    // Fallback to localStorage (web context)
+    const token = localStorage.getItem('liv8_jwt') || localStorage.getItem('sessionToken');
+    const locationId = localStorage.getItem('liv8_location_id') || localStorage.getItem('currentLocationId');
     if (token && locationId) {
       return { token, locationId };
     }
   } catch (e) {
-    // localStorage not available
+    console.warn('[MCP] Failed to get credentials:', e);
   }
   return null;
+}
+
+// Synchronous version for backwards compatibility (returns cached or null)
+let cachedCredentials: MCPCallOptions | null = null;
+function getCredentials(): MCPCallOptions | null {
+  // Return cached credentials synchronously
+  // Async refresh happens in background
+  refreshCredentialsCache();
+  return cachedCredentials;
+}
+
+async function refreshCredentialsCache(): Promise<void> {
+  cachedCredentials = await getCredentialsAsync();
 }
 
 /**
