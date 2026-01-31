@@ -9,15 +9,15 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateMcp } from '../middleware/authenticateMcp.js';
 import {
     createSmartAgentsController,
     STAFF_TEMPLATES,
     AVAILABLE_SNAPSHOTS,
     TASKMAGIC_WORKFLOWS
 } from '../agents/smart-agents/index.js';
-import { getBrandBrain } from '../services/brand-scanner.js';
-import * as db from '../db/index.js';
+import { brandScanner } from '../services/brand-scanner.ts'; // Corrected import and usage
+import { db } from '../db/index.js'; // Corrected import for db object
 
 const router = Router();
 const smartAgents = createSmartAgentsController();
@@ -28,7 +28,7 @@ const smartAgents = createSmartAgentsController();
  * POST /api/smart-agents/chat
  * Process natural language request through the orchestrator
  */
-router.post('/chat', authenticateToken, async (req: Request, res: Response) => {
+router.post('/chat', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { message, brandBrainId } = req.body;
         const { userId, locationId } = req.user as any;
@@ -72,7 +72,7 @@ router.post('/chat', authenticateToken, async (req: Request, res: Response) => {
  * GET /api/smart-agents/templates
  * Get available AI staff templates
  */
-router.get('/templates', authenticateToken, (req: Request, res: Response) => {
+router.get('/templates', authenticateMcp, (req: Request, res: Response) => {
     res.json({
         templates: Object.entries(STAFF_TEMPLATES).map(([key, template]) => ({
             key,
@@ -88,7 +88,7 @@ router.get('/templates', authenticateToken, (req: Request, res: Response) => {
  * POST /api/smart-agents/build-agent
  * Build a single AI agent from template
  */
-router.post('/build-agent', authenticateToken, async (req: Request, res: Response) => {
+router.post('/build-agent', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { templateKey, brandBrainId, customizations } = req.body;
         const { locationId } = req.user as any;
@@ -98,7 +98,7 @@ router.post('/build-agent', authenticateToken, async (req: Request, res: Respons
         }
 
         // Get brand brain
-        const brandBrain = await getBrandBrain(brandBrainId, locationId);
+        const brandBrain = await db.getBrandBrain(brandBrainId); // Corrected usage
         if (!brandBrain) {
             return res.status(404).json({ error: 'Brand brain not found' });
         }
@@ -120,7 +120,7 @@ router.post('/build-agent', authenticateToken, async (req: Request, res: Respons
  * POST /api/smart-agents/build-team
  * Build a team of AI agents
  */
-router.post('/build-team', authenticateToken, async (req: Request, res: Response) => {
+router.post('/build-team', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { templateKeys, brandBrainId } = req.body;
         const { locationId } = req.user as any;
@@ -129,7 +129,7 @@ router.post('/build-team', authenticateToken, async (req: Request, res: Response
             return res.status(400).json({ error: 'templateKeys array and brandBrainId are required' });
         }
 
-        const brandBrain = await getBrandBrain(brandBrainId, locationId);
+        const brandBrain = await db.getBrandBrain(brandBrainId); // Corrected usage
         if (!brandBrain) {
             return res.status(404).json({ error: 'Brand brain not found' });
         }
@@ -152,7 +152,7 @@ router.post('/build-team', authenticateToken, async (req: Request, res: Response
  * POST /api/smart-agents/generate-content
  * Generate content (social posts, emails, SMS, blogs)
  */
-router.post('/generate-content', authenticateToken, async (req: Request, res: Response) => {
+router.post('/generate-content', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { type, topic, brandBrainId, platforms, sequenceLength, goal, tone } = req.body;
         const { locationId } = req.user as any;
@@ -161,7 +161,7 @@ router.post('/generate-content', authenticateToken, async (req: Request, res: Re
             return res.status(400).json({ error: 'type, topic, and brandBrainId are required' });
         }
 
-        const brandBrain = await getBrandBrain(brandBrainId, locationId);
+        const brandBrain = await db.getBrandBrain(brandBrainId); // Corrected usage
         if (!brandBrain) {
             return res.status(404).json({ error: 'Brand brain not found' });
         }
@@ -187,7 +187,7 @@ router.post('/generate-content', authenticateToken, async (req: Request, res: Re
  * POST /api/smart-agents/generate-calendar
  * Generate a content calendar
  */
-router.post('/generate-calendar', authenticateToken, async (req: Request, res: Response) => {
+router.post('/generate-calendar', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { brandBrainId, platforms, weeks, postsPerWeek, topics } = req.body;
         const { locationId } = req.user as any;
@@ -196,7 +196,7 @@ router.post('/generate-calendar', authenticateToken, async (req: Request, res: R
             return res.status(400).json({ error: 'brandBrainId, platforms, weeks, and postsPerWeek are required' });
         }
 
-        const brandBrain = await getBrandBrain(brandBrainId, locationId);
+        const brandBrain = await db.getBrandBrain(brandBrainId); // Corrected usage
         if (!brandBrain) {
             return res.status(404).json({ error: 'Brand brain not found' });
         }
@@ -222,7 +222,7 @@ router.post('/generate-calendar', authenticateToken, async (req: Request, res: R
  * POST /api/smart-agents/build-knowledge
  * Build knowledge base from website
  */
-router.post('/build-knowledge', authenticateToken, async (req: Request, res: Response) => {
+router.post('/build-knowledge', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { websiteUrl } = req.body;
         const { locationId, userId } = req.user as any;
@@ -234,7 +234,7 @@ router.post('/build-knowledge', authenticateToken, async (req: Request, res: Res
         const result = await smartAgents.buildKnowledgeFromWebsite(websiteUrl);
 
         // Save brand brain to DB
-        await db.saveBrandBrain(result.brandBrain, locationId);
+        await db.saveBrandBrain(locationId, result.brandBrain); // Corrected usage
 
         await db.logAction({
             userId,
@@ -257,7 +257,7 @@ router.post('/build-knowledge', authenticateToken, async (req: Request, res: Res
  * POST /api/smart-agents/build-objections
  * Build objection handling scripts
  */
-router.post('/build-objections', authenticateToken, async (req: Request, res: Response) => {
+router.post('/build-objections', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { brandBrainId, customObjections } = req.body;
         const { locationId } = req.user as any;
@@ -266,7 +266,7 @@ router.post('/build-objections', authenticateToken, async (req: Request, res: Re
             return res.status(400).json({ error: 'brandBrainId is required' });
         }
 
-        const brandBrain = await getBrandBrain(brandBrainId, locationId);
+        const brandBrain = await db.getBrandBrain(brandBrainId); // Corrected usage
         if (!brandBrain) {
             return res.status(404).json({ error: 'Brand brain not found' });
         }
@@ -289,7 +289,7 @@ router.post('/build-objections', authenticateToken, async (req: Request, res: Re
  * GET /api/smart-agents/snapshots
  * List available GHL snapshots
  */
-router.get('/snapshots', authenticateToken, (req: Request, res: Response) => {
+router.get('/snapshots', authenticateMcp, (req: Request, res: Response) => {
     const category = req.query.category as string | undefined;
 
     const snapshots = smartAgents.getAvailableSnapshots();
@@ -304,7 +304,7 @@ router.get('/snapshots', authenticateToken, (req: Request, res: Response) => {
  * POST /api/smart-agents/recommend-snapshot
  * Get snapshot recommendations based on goals
  */
-router.post('/recommend-snapshot', authenticateToken, async (req: Request, res: Response) => {
+router.post('/recommend-snapshot', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { goals, industry } = req.body;
 
@@ -328,7 +328,7 @@ router.post('/recommend-snapshot', authenticateToken, async (req: Request, res: 
  * POST /api/smart-agents/deploy-snapshot
  * Deploy a snapshot to GHL
  */
-router.post('/deploy-snapshot', authenticateToken, async (req: Request, res: Response) => {
+router.post('/deploy-snapshot', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { snapshotId, variables, dryRun } = req.body;
         const { locationId, userId } = req.user as any;
@@ -367,7 +367,7 @@ router.post('/deploy-snapshot', authenticateToken, async (req: Request, res: Res
  * GET /api/smart-agents/taskmagic/workflows
  * List TaskMagic workflows
  */
-router.get('/taskmagic/workflows', authenticateToken, (req: Request, res: Response) => {
+router.get('/taskmagic/workflows', authenticateMcp, (req: Request, res: Response) => {
     const workflows = Object.entries(TASKMAGIC_WORKFLOWS).map(([key, wf]) => ({
         key,
         id: wf.id,
@@ -386,7 +386,7 @@ router.get('/taskmagic/workflows', authenticateToken, (req: Request, res: Respon
  * POST /api/smart-agents/taskmagic/trigger
  * Trigger a TaskMagic workflow
  */
-router.post('/taskmagic/trigger', authenticateToken, async (req: Request, res: Response) => {
+router.post('/taskmagic/trigger', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { workflowId, variables } = req.body;
         const { locationId, userId } = req.user as any;
@@ -419,7 +419,7 @@ router.post('/taskmagic/trigger', authenticateToken, async (req: Request, res: R
  * POST /api/smart-agents/verify-connection
  * Verify GHL connection and capabilities
  */
-router.post('/verify-connection', authenticateToken, async (req: Request, res: Response) => {
+router.post('/verify-connection', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { locationId } = req.user as any;
 
@@ -447,7 +447,7 @@ router.post('/verify-connection', authenticateToken, async (req: Request, res: R
  * POST /api/smart-agents/full-setup
  * Run full autonomous onboarding
  */
-router.post('/full-setup', authenticateToken, async (req: Request, res: Response) => {
+router.post('/full-setup', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { websiteUrl, goals, selectedAgents } = req.body;
         const { locationId, userId } = req.user as any;
@@ -472,7 +472,7 @@ router.post('/full-setup', authenticateToken, async (req: Request, res: Response
         });
 
         // Save brand brain to DB
-        await db.saveBrandBrain(result.brandBrain, locationId);
+        await db.saveBrandBrain(locationId, result.brandBrain);
 
         await db.logAction({
             userId,
@@ -497,7 +497,7 @@ router.post('/full-setup', authenticateToken, async (req: Request, res: Response
  * POST /api/smart-agents/quick-setup
  * Run quick setup (creates standard tags and basic config)
  */
-router.post('/quick-setup', authenticateToken, async (req: Request, res: Response) => {
+router.post('/quick-setup', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { brandBrainId } = req.body;
         const { locationId, userId } = req.user as any;
@@ -506,7 +506,7 @@ router.post('/quick-setup', authenticateToken, async (req: Request, res: Respons
             return res.status(400).json({ error: 'brandBrainId is required' });
         }
 
-        const brandBrain = await getBrandBrain(brandBrainId, locationId);
+        const brandBrain = await db.getBrandBrain(brandBrainId); // Corrected usage
         if (!brandBrain) {
             return res.status(404).json({ error: 'Brand brain not found' });
         }
@@ -542,7 +542,7 @@ router.post('/quick-setup', authenticateToken, async (req: Request, res: Respons
  * POST /api/smart-agents/moltbot/connect
  * Connect to Molt.bot master brain
  */
-router.post('/moltbot/connect', authenticateToken, async (req: Request, res: Response) => {
+router.post('/moltbot/connect', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const result = await smartAgents.connectMoltBot();
         res.json(result);
@@ -556,7 +556,7 @@ router.post('/moltbot/connect', authenticateToken, async (req: Request, res: Res
  * GET /api/smart-agents/moltbot/status
  * Get Molt.bot connection status
  */
-router.get('/moltbot/status', authenticateToken, (req: Request, res: Response) => {
+router.get('/moltbot/status', authenticateMcp, (req: Request, res: Response) => {
     res.json(smartAgents.getMoltBotStatus());
 });
 
@@ -564,7 +564,7 @@ router.get('/moltbot/status', authenticateToken, (req: Request, res: Response) =
  * POST /api/smart-agents/moltbot/task
  * Submit a task to Molt.bot
  */
-router.post('/moltbot/task', authenticateToken, async (req: Request, res: Response) => {
+router.post('/moltbot/task', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { type, input } = req.body;
         const { locationId, userId } = req.user as any;
@@ -591,7 +591,7 @@ router.post('/moltbot/task', authenticateToken, async (req: Request, res: Respon
  * POST /api/smart-agents/moltbot/chat
  * Chat with Molt.bot
  */
-router.post('/moltbot/chat', authenticateToken, async (req: Request, res: Response) => {
+router.post('/moltbot/chat', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { message, sessionId } = req.body;
         const { locationId } = req.user as any;
@@ -619,7 +619,7 @@ router.post('/moltbot/chat', authenticateToken, async (req: Request, res: Respon
  * POST /api/smart-agents/mcp/register
  * Register an MCP server
  */
-router.post('/mcp/register', authenticateToken, async (req: Request, res: Response) => {
+router.post('/mcp/register', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { id, name, endpoint, protocol } = req.body;
 
@@ -645,7 +645,7 @@ router.post('/mcp/register', authenticateToken, async (req: Request, res: Respon
  * POST /api/smart-agents/mcp/call
  * Call an MCP tool
  */
-router.post('/mcp/call', authenticateToken, async (req: Request, res: Response) => {
+router.post('/mcp/call', authenticateMcp, async (req: Request, res: Response) => {
     try {
         const { toolName, args } = req.body;
 
@@ -665,7 +665,7 @@ router.post('/mcp/call', authenticateToken, async (req: Request, res: Response) 
  * GET /api/smart-agents/mcp/tools
  * List all available MCP tools
  */
-router.get('/mcp/tools', authenticateToken, (req: Request, res: Response) => {
+router.get('/mcp/tools', authenticateMcp, (req: Request, res: Response) => {
     res.json({ tools: smartAgents.listMCPTools() });
 });
 
@@ -673,7 +673,7 @@ router.get('/mcp/tools', authenticateToken, (req: Request, res: Response) => {
  * GET /api/smart-agents/mcp/status
  * Get MCP bridge status
  */
-router.get('/mcp/status', authenticateToken, (req: Request, res: Response) => {
+router.get('/mcp/status', authenticateMcp, (req: Request, res: Response) => {
     res.json(smartAgents.getMCPBridgeStatus());
 });
 

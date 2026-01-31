@@ -11,14 +11,13 @@ import analyticsRouter from './api/analytics.js';
 import taskmagicRouter from './api/taskmagic.js';
 import socialContentRouter from './api/social-content.js';
 import settingsRouter from './api/settings.js';
-<<<<<<< Updated upstream
 import agentsRouter from './api/agents.js';
 import smartAgentsRouter from './api/smart-agents.js';
 import vboutRouter from './api/vbout.js'; // New: Vbout router
 import { agentSessions } from './db/agent-sessions.js';
-import { mcpClient } from './services/mcp-client.js';
-import { authenticateMcp } from './middleware/authenticateMcp.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types';
+import { mcpClient } from './services/mcp-client.js'; // From stashed changes
+import { authenticateMcp } from './middleware/authenticateMcp.js'; // From stashed changes
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types'; // From stashed changes
 
 console.log('DEBUG: POSTGRES_URL from process.env:', process.env.POSTGRES_URL);
 console.log('DEBUG: JWT_SECRET from process.env:', process.env.JWT_SECRET);
