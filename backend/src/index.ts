@@ -14,6 +14,7 @@ import settingsRouter from './api/settings.js';
 <<<<<<< Updated upstream
 import agentsRouter from './api/agents.js';
 import smartAgentsRouter from './api/smart-agents.js';
+import vboutRouter from './api/vbout.js'; // New: Vbout router
 import { agentSessions } from './db/agent-sessions.js';
 import { mcpClient } from './services/mcp-client.js';
 import { authenticateMcp } from './middleware/authenticateMcp.js';
@@ -51,7 +52,8 @@ app.use(cors({
             const allowed = [
                 'https://your-dashboard-domain.vercel.app',
                 'https://os.liv8ai.com',
-                'https://app.gohighlevel.com'
+                'https://app.gohighlevel.com',
+                'https://crm.liv8.co' // New: Vbout whitelabel domain
             ];
             if (allowed.includes(origin)) {
                 callback(null, true);
@@ -91,6 +93,7 @@ app.use('/api/social', socialContentRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/smart-agents', smartAgentsRouter);
+app.use('/api/vbout', vboutRouter); // New: Vbout API routes
 
 
 // --- MCP Integration ---
