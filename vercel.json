@@ -1,0 +1,22 @@
+{
+  "installCommand": "npm install --prefix=./backend",
+  "builds": [
+    {
+      "src": "backend/src/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "backend/package.json",
+          "backend/package-lock.json",
+          "backend/src/**"
+        ]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/backend/src/index.ts"
+    }
+  ]
+}
