@@ -80,6 +80,7 @@ app.use(cors({
         else if (process.env.NODE_ENV === 'production') {
             const allowed = [
                 'https://os.liv8ai.com',
+                'https://os.liv8.co',
                 'https://app.gohighlevel.com',
                 'https://crm.liv8.co',
                 process.env.DASHBOARD_URL // Allow custom dashboard URL from env
