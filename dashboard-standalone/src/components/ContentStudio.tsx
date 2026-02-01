@@ -41,7 +41,7 @@ export default function ContentStudio() {
   const [topic, setTopic] = useState('');
   const [generatedContent, setGeneratedContent] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('gemini');
-  const [includeImage, setIncludeImage] = useState(false);
+  const [_includeImage, _setIncludeImage] = useState(false);
 
   // Scheduling state
   const [scheduleDate, setScheduleDate] = useState('');

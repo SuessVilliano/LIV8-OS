@@ -13,8 +13,7 @@ import {
     MessageSquare,
     Workflow,
     Clock,
-    Bot,
-    X
+    Bot
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import AIStaffChat from '../components/AIStaffChat';

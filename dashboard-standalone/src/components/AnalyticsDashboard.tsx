@@ -35,9 +35,6 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AnalyticsData | null>(null);
 
-  const locationId = localStorage.getItem('locationId') || 'demo_location';
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
   useEffect(() => {
     fetchAnalytics();
   }, [timeRange]);
@@ -157,7 +154,7 @@ export default function AnalyticsDashboard() {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {Object.values(data.overview).map((metric, i) => (
+        {Object.values(data.overview).map((metric) => (
           <div
             key={metric.label}
             className="bg-gray-900/50 border border-gray-800/50 rounded-2xl p-4 hover:border-gray-700/50 transition-all"

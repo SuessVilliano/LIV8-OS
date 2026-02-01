@@ -376,7 +376,7 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
 
   const scanWebsite = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/twin/onboard`, {
+      await fetch(`${API_BASE}/api/twin/onboard`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -524,7 +524,7 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
 
   const isMultiSelectStep = () => {
     const lastMessage = messages[messages.length - 1];
-    return lastMessage?.type === 'options' && lastMessage.options?.length > 3;
+    return lastMessage?.type === 'options' && (lastMessage.options?.length ?? 0) > 3;
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -14,11 +14,8 @@ import Sidebar from './components/Sidebar';
 import GhlConnect from './components/GhlConnect';
 import GhlOnboarding from './components/GhlOnboarding';
 import CommandSidebar from './components/CommandSidebar';
-import DashboardLayout from './components/DashboardLayout';
-import ConversationalOnboarding from './components/ConversationalOnboarding';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Terminal, Mic, MicOff } from 'lucide-react';
-import { useVoiceCommands } from './hooks/useVoiceCommands';
+import { Terminal } from 'lucide-react';
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
