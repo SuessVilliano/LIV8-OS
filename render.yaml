@@ -45,7 +45,7 @@ services:
   # Dashboard (Static Site)
   - type: web
     name: liv8-dashboard
-    runtime: static
+    env: static
     region: oregon
     rootDir: dashboard-standalone
     buildCommand: npm install && npm run build
