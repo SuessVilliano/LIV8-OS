@@ -14,7 +14,9 @@ import settingsRouter from './api/settings.js';
 import agentsRouter from './api/agents.js';
 import smartAgentsRouter from './api/smart-agents.js';
 import vboutRouter from './api/vbout.js'; // New: Vbout router
+import twinRouter from './api/twin.js'; // Business Twin API
 import { agentSessions } from './db/agent-sessions.js';
+import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
 import { authenticateMcp } from './middleware/authenticateMcp.js'; // From stashed changes
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types'; // From stashed changes
@@ -41,8 +43,9 @@ const initDatabase = async () => {
 
     try {
         await agentSessions.initTables();
+        await businessTwin.initTables();
         dbInitialized = true;
-        console.log('✅ Database tables initialized');
+        console.log('✅ Database tables initialized (agent_sessions + business_twins)');
     } catch (error: any) {
         dbError = error.message;
         console.warn('⚠️ Database init failed:', error.message);
@@ -120,6 +123,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/smart-agents', smartAgentsRouter);
 app.use('/api/vbout', vboutRouter); // New: Vbout API routes
+app.use('/api/twin', twinRouter); // Business Twin API
 
 
 // --- MCP Integration ---

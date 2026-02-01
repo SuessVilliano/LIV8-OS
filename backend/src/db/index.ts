@@ -5,6 +5,10 @@ import crypto from 'crypto';
 export { agentSessions } from './agent-sessions.js';
 export type { AgentSession, AgentEvent, AgentSessionStatus } from './agent-sessions.js';
 
+// Re-export business twin for convenience
+export { businessTwin } from './business-twin.js';
+export type { BusinessTwin, BusinessIdentity, BrandVoice, VerifiedFact, Constraint, SOP, ContentGuidelines, AgentConfig } from './business-twin.js';
+
 // Check if database is configured
 const isDatabaseConfigured = (): boolean => !!process.env.POSTGRES_URL;
 

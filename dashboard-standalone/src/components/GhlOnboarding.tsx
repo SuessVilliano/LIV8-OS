@@ -420,7 +420,17 @@ const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
 
                     {/* Deploy Step */}
                     {step === 'deploy' && (
-                        <ConstructionProgress onDone={handleFinalize} selectedStaff={selectedStaff} businessName={businessName} />
+                        <ConstructionProgress
+                            onDone={handleFinalize}
+                            selectedStaff={selectedStaff}
+                            businessName={businessName}
+                            domain={domain}
+                            industry={industry}
+                            brandVoice={brandVoice}
+                            goals={goals}
+                            painPoints={painPoints}
+                            selectedCrm={selectedCrm}
+                        />
                     )}
                 </div>
 
@@ -458,44 +468,140 @@ const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
 const ConstructionProgress = ({
     onDone,
     selectedStaff,
-    businessName
+    businessName,
+    domain,
+    industry,
+    brandVoice,
+    goals,
+    painPoints,
+    selectedCrm
 }: {
     onDone: () => void;
     selectedStaff: string[];
     businessName: string;
+    domain: string;
+    industry: string;
+    brandVoice: string;
+    goals: string;
+    painPoints: string;
+    selectedCrm: 'ghl' | 'liv8' | null;
 }) => {
     const [stepIndex, setStepIndex] = useState(0);
     const [progress, setProgress] = useState(0);
+    const [error, setError] = useState<string | null>(null);
+    const [isComplete, setIsComplete] = useState(false);
+    const [apiResults, setApiResults] = useState<any>(null);
 
     const builderSteps = [
-        { label: 'Analyzing Brand', detail: `Extracting voice patterns for ${businessName || 'your business'}` },
-        { label: 'Training AI Staff', detail: `Configuring ${selectedStaff.length} team members with your rules` },
-        { label: 'Building Workflows', detail: 'Connecting automations to your CRM' },
-        { label: 'Final Checks', detail: 'Verifying all systems are operational' }
+        { label: 'Creating Business Twin', detail: `Initializing digital DNA for ${businessName || 'your business'}` },
+        { label: 'Scanning Website', detail: domain ? `Extracting verified facts from ${domain}` : 'Skipping website scan' },
+        { label: 'Setting Brand Voice', detail: 'Configuring tone, personality, and communication style' },
+        { label: 'Deploying AI Staff', detail: `Training ${selectedStaff.length} team members with SOPs and constraints` },
+        { label: 'Final Verification', detail: 'Ensuring zero-hallucination guardrails are active' }
     ];
 
     useEffect(() => {
-        let currentStep = 0;
-        const interval = setInterval(() => {
-            setProgress(prev => {
-                if (prev >= 100) {
-                    if (currentStep < builderSteps.length - 1) {
-                        currentStep++;
-                        setStepIndex(currentStep);
-                        return 0;
-                    } else {
-                        clearInterval(interval);
-                        return 100;
-                    }
-                }
-                return prev + 3;
-            });
-        }, 60);
+        const deployTwin = async () => {
+            const API_URL = import.meta.env.VITE_API_URL || 'https://liv8-backend.onrender.com';
+            const token = localStorage.getItem('token');
 
-        return () => clearInterval(interval);
+            // Generate a location ID (in production this would come from GHL/LIV8 CRM)
+            const locationId = `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            try {
+                // Step 1: Creating Business Twin
+                setStepIndex(0);
+                setProgress(10);
+                await new Promise(r => setTimeout(r, 500));
+
+                // Step 2: API Call
+                setStepIndex(1);
+                setProgress(30);
+
+                const response = await fetch(`${API_URL}/api/twin/onboard`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        locationId,
+                        crmType: selectedCrm || 'liv8',
+                        identity: {
+                            businessName,
+                            domain: domain || undefined,
+                            industry: industry || undefined
+                        },
+                        brandVoice: brandVoice ? {
+                            tone: brandVoice,
+                            personality: ['Professional', 'Helpful'],
+                            vocabulary: { preferred: [], avoided: [] },
+                            writingStyle: brandVoice
+                        } : undefined,
+                        domain: domain || undefined,
+                        selectedRoles: selectedStaff,
+                        goals: goals || undefined,
+                        painPoints: painPoints || undefined
+                    })
+                });
+
+                setProgress(60);
+                setStepIndex(2);
+                await new Promise(r => setTimeout(r, 500));
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to create Business Twin');
+                }
+
+                const result = await response.json();
+                setApiResults(result);
+
+                // Step 3: Brand Voice
+                setProgress(75);
+                setStepIndex(3);
+                await new Promise(r => setTimeout(r, 500));
+
+                // Step 4: AI Staff
+                setProgress(90);
+                setStepIndex(4);
+                await new Promise(r => setTimeout(r, 500));
+
+                // Complete
+                setProgress(100);
+                setIsComplete(true);
+
+                // Store the location ID for future use
+                localStorage.setItem('locationId', locationId);
+
+            } catch (err: any) {
+                console.error('Onboarding error:', err);
+                setError(err.message || 'Something went wrong during setup');
+            }
+        };
+
+        deployTwin();
     }, []);
 
-    const isComplete = progress === 100 && stepIndex === builderSteps.length - 1;
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-16 space-y-10 animate-in fade-in duration-500">
+                <div className="h-32 w-32 rounded-3xl bg-red-500 flex items-center justify-center shadow-2xl shadow-red-500/30">
+                    <span className="text-white text-5xl">!</span>
+                </div>
+                <div className="text-center space-y-2 max-w-md">
+                    <h3 className="text-2xl font-bold text-red-500">Setup Error</h3>
+                    <p className="text-[var(--os-text-muted)]">{error}</p>
+                </div>
+                <button
+                    onClick={onDone}
+                    className="px-10 py-4 bg-[var(--os-surface)] border border-[var(--os-border)] text-[var(--os-text)] rounded-xl font-semibold hover:bg-[var(--os-bg)] transition-all"
+                >
+                    Continue Anyway
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col items-center justify-center py-16 space-y-10 animate-in fade-in duration-500">
@@ -513,10 +619,10 @@ const ConstructionProgress = ({
 
             <div className="text-center space-y-2 max-w-md">
                 <h3 className="text-2xl font-bold">
-                    {isComplete ? 'Setup Complete!' : builderSteps[stepIndex].label}
+                    {isComplete ? 'Setup Complete!' : builderSteps[stepIndex]?.label || 'Processing...'}
                 </h3>
                 <p className="text-[var(--os-text-muted)]">
-                    {isComplete ? 'Your AI team is ready to work.' : builderSteps[stepIndex].detail}
+                    {isComplete ? 'Your AI team is ready to work.' : builderSteps[stepIndex]?.detail || ''}
                 </p>
             </div>
 
@@ -531,6 +637,18 @@ const ConstructionProgress = ({
                     <div className="flex justify-between text-xs text-[var(--os-text-muted)]">
                         <span>Step {stepIndex + 1} of {builderSteps.length}</span>
                         <span>{progress}%</span>
+                    </div>
+                </div>
+            )}
+
+            {isComplete && apiResults && (
+                <div className="text-center space-y-3 text-sm text-[var(--os-text-muted)]">
+                    <div className="flex flex-wrap justify-center gap-4">
+                        {apiResults.steps?.filter((s: any) => s.success).map((s: any, i: number) => (
+                            <span key={i} className="px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-xs font-medium">
+                                {s.step.replace(/_/g, ' ')}
+                            </span>
+                        ))}
                     </div>
                 </div>
             )}
