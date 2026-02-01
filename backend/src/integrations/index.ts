@@ -14,9 +14,15 @@ export { vapiService } from './vapi.js';
 // Messaging
 export { telegramService } from './telegram.js';
 
+// CRM
+export { ghlService } from './ghl.js';
+export { vboutService } from './vbout.js';
+
 // Re-export for convenience
 import { vapiService } from './vapi.js';
 import { telegramService } from './telegram.js';
+import { ghlService } from './ghl.js';
+import { vboutService } from './vbout.js';
 import {
     VoiceProvider,
     MessagingProvider,
@@ -104,6 +110,107 @@ export class IntegrationManager {
         return telegramService.getBotInfo(botToken);
     }
 
+    // ============ CRM ============
+
+    /**
+     * Connect to GHL CRM
+     */
+    async connectGHL(params: {
+        apiKey: string;
+        refreshToken?: string;
+    }) {
+        return ghlService.connect({
+            provider: 'ghl',
+            apiKey: params.apiKey,
+            locationId: this.locationId,
+            refreshToken: params.refreshToken
+        });
+    }
+
+    /**
+     * Connect to Vbout CRM (whitelabel option)
+     */
+    async connectVbout(params: {
+        apiKey: string;
+        accountId: string;
+        domain?: string;
+    }) {
+        return vboutService.connect({
+            provider: 'vbout',
+            apiKey: params.apiKey,
+            accountId: params.accountId,
+            domain: params.domain
+        });
+    }
+
+    /**
+     * Get CRM contacts (auto-selects connected CRM)
+     */
+    async getContacts(filters?: any) {
+        const ghlConnected = await ghlService.isConnected();
+        if (ghlConnected) {
+            return ghlService.getContacts(filters);
+        }
+
+        const vboutConnected = await vboutService.isConnected();
+        if (vboutConnected) {
+            return vboutService.getContacts(filters);
+        }
+
+        return [];
+    }
+
+    /**
+     * Create CRM contact (auto-selects connected CRM)
+     */
+    async createContact(contact: any) {
+        const ghlConnected = await ghlService.isConnected();
+        if (ghlConnected) {
+            return ghlService.createContact(contact);
+        }
+
+        const vboutConnected = await vboutService.isConnected();
+        if (vboutConnected) {
+            return vboutService.createContact(contact);
+        }
+
+        throw new Error('No CRM connected');
+    }
+
+    /**
+     * Get pipelines (auto-selects connected CRM)
+     */
+    async getPipelines() {
+        const ghlConnected = await ghlService.isConnected();
+        if (ghlConnected) {
+            return ghlService.getPipelines();
+        }
+
+        const vboutConnected = await vboutService.isConnected();
+        if (vboutConnected) {
+            return vboutService.getPipelines();
+        }
+
+        return [];
+    }
+
+    /**
+     * Get deals (auto-selects connected CRM)
+     */
+    async getDeals(pipelineId?: string) {
+        const ghlConnected = await ghlService.isConnected();
+        if (ghlConnected) {
+            return ghlService.getDeals(pipelineId);
+        }
+
+        const vboutConnected = await vboutService.isConnected();
+        if (vboutConnected) {
+            return vboutService.getDeals(pipelineId);
+        }
+
+        return [];
+    }
+
     // ============ STATUS ============
 
     /**
@@ -112,9 +219,11 @@ export class IntegrationManager {
     async getStatus(): Promise<{
         voice: { provider: string; status: string };
         messaging: { telegram: string; discord: string; whatsapp: string; slack: string };
-        crm: { provider: string; status: string };
+        crm: { provider: string; status: string; connected: boolean };
     }> {
-        // In production, check actual connection status
+        const ghlConnected = await ghlService.isConnected();
+        const vboutConnected = await vboutService.isConnected();
+
         return {
             voice: {
                 provider: 'vapi',
@@ -127,8 +236,9 @@ export class IntegrationManager {
                 slack: 'not_configured'
             },
             crm: {
-                provider: 'ghl',
-                status: process.env.GHL_TEST_TOKEN ? 'configured' : 'not_configured'
+                provider: ghlConnected ? 'ghl' : (vboutConnected ? 'vbout' : 'none'),
+                status: ghlConnected || vboutConnected ? 'connected' : 'not_configured',
+                connected: ghlConnected || vboutConnected
             }
         };
     }

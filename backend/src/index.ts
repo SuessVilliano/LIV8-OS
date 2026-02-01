@@ -17,6 +17,9 @@ import vboutRouter from './api/vbout.js'; // New: Vbout router
 import twinRouter from './api/twin.js'; // Business Twin API
 import staffRouter from './api/staff.js'; // AI Staff API
 import integrationsRouter from './api/integrations.js'; // Voice, Messaging, CRM integrations
+import contentRouter from './api/content.js'; // Content creation with SEO/AEO/GEO
+import aiRouter from './api/ai.js'; // Multi-AI provider management
+import schedulerRouter from './api/scheduler.js'; // Content scheduling & templates
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -128,6 +131,9 @@ app.use('/api/vbout', vboutRouter); // New: Vbout API routes
 app.use('/api/twin', twinRouter); // Business Twin API
 app.use('/api/staff', staffRouter); // AI Staff Chat API
 app.use('/api/integrations', integrationsRouter); // Voice (VAPI), Messaging (Telegram), CRM integrations
+app.use('/api/content', contentRouter); // Content creation with SEO/AEO/GEO optimization
+app.use('/api/ai', aiRouter); // Multi-AI provider (Gemini, GPT, Claude, DeepSeek, Kling)
+app.use('/api/scheduler', schedulerRouter); // Content scheduling, templates, approval workflows
 
 
 // --- MCP Integration ---
