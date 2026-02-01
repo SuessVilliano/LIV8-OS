@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
     Activity,
     Users,
@@ -11,12 +12,17 @@ import {
     Bell,
     MessageSquare,
     Workflow,
-    Clock
+    Clock,
+    Bot,
+    X
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import AIStaffChat from '../components/AIStaffChat';
 
 const Dashboard = () => {
     const { config } = useTheme();
+    const [showChat, setShowChat] = useState(false);
+    const locationId = localStorage.getItem('locationId') || 'demo_location';
 
     const stats = [
         { label: 'Total Revenue', value: '$84,290', icon: Activity, change: '+12% this month', color: 'emerald' },
@@ -241,6 +247,27 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Floating AI Staff Chat Button */}
+            <button
+                onClick={() => setShowChat(true)}
+                className="fixed bottom-6 right-6 h-14 w-14 bg-neuro text-white rounded-2xl flex items-center justify-center shadow-lg shadow-neuro/30 hover:scale-110 transition-all z-50 group"
+            >
+                <Bot className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                <span className="absolute -top-1 -right-1 h-4 w-4 bg-emerald-500 rounded-full animate-pulse" />
+            </button>
+
+            {/* AI Staff Chat Modal */}
+            {showChat && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-2xl h-[80vh] animate-in fade-in zoom-in-95 duration-200">
+                        <AIStaffChat
+                            locationId={locationId}
+                            onClose={() => setShowChat(false)}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

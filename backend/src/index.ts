@@ -15,6 +15,7 @@ import agentsRouter from './api/agents.js';
 import smartAgentsRouter from './api/smart-agents.js';
 import vboutRouter from './api/vbout.js'; // New: Vbout router
 import twinRouter from './api/twin.js'; // Business Twin API
+import staffRouter from './api/staff.js'; // AI Staff API
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -124,6 +125,7 @@ app.use('/api/agents', agentsRouter);
 app.use('/api/smart-agents', smartAgentsRouter);
 app.use('/api/vbout', vboutRouter); // New: Vbout API routes
 app.use('/api/twin', twinRouter); // Business Twin API
+app.use('/api/staff', staffRouter); // AI Staff Chat API
 
 
 // --- MCP Integration ---
