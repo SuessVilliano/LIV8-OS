@@ -1,0 +1,22 @@
+/**
+ * LIV8 OS Chrome Extension - Content Styles
+ * Minimal styles that won't conflict with page styles
+ */
+
+/* Selection highlight when LIV8 captures */
+::selection {
+  /* Only apply when extension is active */
+}
+
+/* Ensure our elements are always on top */
+#liv8-selection-tooltip,
+#liv8-voice-overlay {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  line-height: 1.4 !important;
+  box-sizing: border-box !important;
+}
+
+#liv8-selection-tooltip *,
+#liv8-voice-overlay * {
+  box-sizing: border-box !important;
+}

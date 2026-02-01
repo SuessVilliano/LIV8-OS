@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -14,8 +14,24 @@ import Sidebar from './components/Sidebar';
 import GhlConnect from './components/GhlConnect';
 import GhlOnboarding from './components/GhlOnboarding';
 import CommandSidebar from './components/CommandSidebar';
+import DashboardLayout from './components/DashboardLayout';
+import ConversationalOnboarding from './components/ConversationalOnboarding';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Terminal } from 'lucide-react';
+import { Terminal, Mic, MicOff } from 'lucide-react';
+import { useVoiceCommands } from './hooks/useVoiceCommands';
+
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('SW registered:', registration);
+      })
+      .catch((error) => {
+        console.log('SW registration failed:', error);
+      });
+  });
+}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {

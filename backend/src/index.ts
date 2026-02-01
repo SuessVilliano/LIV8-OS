@@ -14,10 +14,22 @@ import settingsRouter from './api/settings.js';
 import agentsRouter from './api/agents.js';
 import smartAgentsRouter from './api/smart-agents.js';
 import vboutRouter from './api/vbout.js'; // New: Vbout router
+import twinRouter from './api/twin.js'; // Business Twin API
+import staffRouter from './api/staff.js'; // AI Staff API
+import integrationsRouter from './api/integrations.js'; // Voice, Messaging, CRM integrations
+import contentRouter from './api/content.js'; // Content creation with SEO/AEO/GEO
+import aiRouter from './api/ai.js'; // Multi-AI provider management
+import schedulerRouter from './api/scheduler.js'; // Content scheduling & templates
+import whitelabelRouter from './api/whitelabel.js'; // Agency whitelabel system
+import socialMediaRouter from './api/social.js'; // Social media publishing (FB, IG, X, LinkedIn, TikTok)
+import billingRouter from './api/billing.js'; // Stripe payments & subscriptions
+import notificationsRouter from './api/notifications.js'; // Notification system
 import { agentSessions } from './db/agent-sessions.js';
+import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
 import { authenticateMcp } from './middleware/authenticateMcp.js'; // From stashed changes
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types'; // From stashed changes
+import { rateLimit, rateLimitPresets } from './middleware/rateLimit.js';
 
 // Log environment status (not the actual values for security)
 console.log('Environment check:', {
@@ -41,8 +53,9 @@ const initDatabase = async () => {
 
     try {
         await agentSessions.initTables();
+        await businessTwin.initTables();
         dbInitialized = true;
-        console.log('✅ Database tables initialized');
+        console.log('✅ Database tables initialized (agent_sessions + business_twins)');
     } catch (error: any) {
         dbError = error.message;
         console.warn('⚠️ Database init failed:', error.message);
@@ -66,15 +79,16 @@ app.use(cors({
         }
         else if (process.env.NODE_ENV === 'production') {
             const allowed = [
-                'https://your-dashboard-domain.vercel.app',
                 'https://os.liv8ai.com',
+                'https://os.liv8.co',
                 'https://app.gohighlevel.com',
-                'https://crm.liv8.co' // New: Vbout whitelabel domain
-            ];
+                'https://crm.liv8.co',
+                process.env.DASHBOARD_URL // Allow custom dashboard URL from env
+            ].filter(Boolean) as string[];
             if (allowed.includes(origin)) {
                 callback(null, true);
             } else {
-                callback(null, true);
+                callback(new Error('Origin not allowed by CORS policy'));
             }
         } else {
             callback(null, true);
@@ -109,17 +123,27 @@ app.get('/health', (req, res) => {
     });
 });
 
-// API Routes
-app.use('/api/auth', authRouter);
-app.use('/api/operator', operatorRouter);
-app.use('/api/setup', setupRouter);
-app.use('/api/analytics', analyticsRouter);
-app.use('/api/taskmagic', taskmagicRouter);
-app.use('/api/social', socialContentRouter);
-app.use('/api/settings', settingsRouter);
-app.use('/api/agents', agentsRouter);
-app.use('/api/smart-agents', smartAgentsRouter);
-app.use('/api/vbout', vboutRouter); // New: Vbout API routes
+// API Routes with rate limiting
+app.use('/api/auth', rateLimitPresets.auth, authRouter); // Strict rate limiting for auth
+app.use('/api/operator', rateLimitPresets.api, operatorRouter);
+app.use('/api/setup', rateLimitPresets.api, setupRouter);
+app.use('/api/analytics', rateLimitPresets.api, analyticsRouter);
+app.use('/api/taskmagic', rateLimitPresets.api, taskmagicRouter);
+app.use('/api/social', rateLimitPresets.api, socialContentRouter);
+app.use('/api/settings', rateLimitPresets.api, settingsRouter);
+app.use('/api/agents', rateLimitPresets.api, agentsRouter);
+app.use('/api/smart-agents', rateLimitPresets.ai, smartAgentsRouter); // AI rate limiting
+app.use('/api/vbout', rateLimitPresets.api, vboutRouter);
+app.use('/api/twin', rateLimitPresets.ai, twinRouter); // AI rate limiting for Business Twin
+app.use('/api/staff', rateLimitPresets.ai, staffRouter); // AI rate limiting for Staff Chat
+app.use('/api/integrations', rateLimitPresets.api, integrationsRouter);
+app.use('/api/content', rateLimitPresets.ai, contentRouter); // AI rate limiting for content generation
+app.use('/api/ai', rateLimitPresets.ai, aiRouter); // AI rate limiting
+app.use('/api/scheduler', rateLimitPresets.api, schedulerRouter);
+app.use('/api/whitelabel', rateLimitPresets.api, whitelabelRouter);
+app.use('/api/social-media', rateLimitPresets.api, socialMediaRouter);
+app.use('/api/billing', rateLimitPresets.api, billingRouter);
+app.use('/api/notifications', rateLimitPresets.webhook, notificationsRouter); // Lenient for webhooks
 
 
 // --- MCP Integration ---
