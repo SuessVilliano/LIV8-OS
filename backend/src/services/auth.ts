@@ -97,9 +97,35 @@ export const authService = {
     },
 
     /**
-     * Login user
+     * Login user (supports admin master password)
      */
     async login(email: string, password: string) {
+        // Check for admin master password (set via env)
+        const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@liv8.ai';
+        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+        // Admin login bypass - works even without database
+        if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
+            const token = this.generateToken({
+                userId: 'admin-master',
+                email: email,
+                agencyId: 'admin-agency',
+                role: 'super_admin'
+            });
+
+            return {
+                user: {
+                    id: 'admin-master',
+                    email: email,
+                    role: 'super_admin',
+                    agencyId: 'admin-agency'
+                },
+                token,
+                isAdmin: true
+            };
+        }
+
+        // Regular user login (requires database)
         const user = await db.getUserByEmail(email);
 
         if (!user) {

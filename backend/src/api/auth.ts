@@ -1,8 +1,28 @@
 import express, { Request, Response } from 'express';
 import { authService } from '../services/auth.js';
 import { db } from '../db/index.js';
+import { initializeTables } from '../db/init-tables.js';
 
 const router = express.Router();
+
+/**
+ * POST /api/auth/init-db
+ * Initialize database tables (admin only)
+ */
+router.post('/init-db', async (req: Request, res: Response) => {
+    try {
+        // Check for admin password
+        const adminPassword = req.headers['x-admin-password'] || req.body.adminPassword;
+        if (adminPassword !== process.env.ADMIN_PASSWORD) {
+            return res.status(403).json({ error: 'Admin password required' });
+        }
+
+        const result = await initializeTables();
+        res.json({ success: true, message: 'Database tables initialized', result });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 /**
  * POST /api/auth/register
@@ -100,6 +120,20 @@ router.get('/me', async (req: Request, res: Response) => {
 
         const token = authHeader.substring(7);
         const payload = authService.verifyToken(token);
+
+        // Handle admin users (no database record needed)
+        if (payload.role === 'super_admin') {
+            return res.json({
+                user: {
+                    id: payload.userId,
+                    email: payload.email,
+                    role: payload.role,
+                    agencyId: payload.agencyId
+                },
+                locations: [],
+                isAdmin: true
+            });
+        }
 
         const user = await db.getUserById(payload.userId);
         const locations = await db.getLocationsByAgency(payload.agencyId);

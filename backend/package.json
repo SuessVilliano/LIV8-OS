@@ -4,9 +4,11 @@
     "type": "module",
     "scripts": {
         "dev": "tsx watch src/index.ts",
-        "build": "NODE_OPTIONS='--max-old-space-size=4096' npx tsc",
+        "build": "tsc --skipLibCheck",
         "start": "node dist/index.js",
+        "start:tsx": "tsx src/index.ts",
         "db:push": "tsx src/db/migrate.ts",
+        "db:init": "tsx src/db/init-tables.ts",
         "test": "vitest"
     },
     "dependencies": {

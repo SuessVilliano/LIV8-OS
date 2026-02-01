@@ -356,6 +356,193 @@ router.post('/purchase-credits', async (req: Request, res: Response) => {
 });
 
 /**
+ * Validate a coupon/promotion code
+ */
+router.post('/validate-coupon', async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Coupon code required' });
+    }
+
+    const result = await stripeService.validatePromotionCode(code);
+
+    if (!result.valid) {
+      return res.json({
+        success: false,
+        valid: false,
+        message: 'Invalid or expired coupon code'
+      });
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      discount: result.discount
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Create checkout session with coupon
+ */
+router.post('/checkout-with-coupon', async (req: Request, res: Response) => {
+  try {
+    const { email, planId, interval = 'monthly', locationId, couponCode } = req.body;
+
+    if (!email || !planId) {
+      return res.status(400).json({ error: 'Email and planId required' });
+    }
+
+    if (!PRICING_PLANS[planId as PlanId]) {
+      return res.status(400).json({ error: 'Invalid plan' });
+    }
+
+    // Get or create customer
+    const customerId = await stripeService.getOrCreateCustomer({
+      email,
+      locationId: locationId || 'unknown'
+    });
+
+    // Create checkout session with coupon
+    const baseUrl = process.env.APP_URL || 'https://os.liv8ai.com';
+    const checkoutUrl = await stripeService.createCheckoutSessionWithCoupon(
+      customerId,
+      planId as PlanId,
+      interval as 'monthly' | 'yearly',
+      `${baseUrl}/settings/billing?success=true`,
+      `${baseUrl}/settings/billing?cancelled=true`,
+      couponCode
+    );
+
+    res.json({
+      success: true,
+      checkoutUrl,
+      customerId
+    });
+  } catch (error: any) {
+    console.error('Checkout with coupon error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Create a new coupon (admin only)
+ */
+router.post('/coupons', async (req: Request, res: Response) => {
+  try {
+    // Verify admin password
+    const adminPassword = req.headers['x-admin-password'] || req.body.adminPassword;
+    if (adminPassword !== process.env.ADMIN_PASSWORD) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const {
+      code,
+      percentOff,
+      amountOff,
+      currency = 'usd',
+      duration = 'once',
+      durationInMonths,
+      maxRedemptions,
+      expiresAt
+    } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Coupon code required' });
+    }
+
+    if (!percentOff && !amountOff) {
+      return res.status(400).json({ error: 'Either percentOff or amountOff required' });
+    }
+
+    const result = await stripeService.createCoupon({
+      code,
+      percentOff,
+      amountOff,
+      currency,
+      duration,
+      durationInMonths,
+      maxRedemptions,
+      expiresAt: expiresAt ? new Date(expiresAt) : undefined
+    });
+
+    res.json({
+      success: true,
+      coupon: {
+        id: result.coupon.id,
+        code: result.promotionCode.code,
+        percentOff: result.coupon.percent_off,
+        amountOff: result.coupon.amount_off,
+        duration: result.coupon.duration,
+        promotionCodeId: result.promotionCode.id
+      }
+    });
+  } catch (error: any) {
+    console.error('Create coupon error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * List all coupons (admin only)
+ */
+router.get('/coupons', async (req: Request, res: Response) => {
+  try {
+    // Verify admin password
+    const adminPassword = req.headers['x-admin-password'] as string;
+    if (adminPassword !== process.env.ADMIN_PASSWORD) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const promotionCodes = await stripeService.listPromotionCodes();
+
+    res.json({
+      success: true,
+      coupons: promotionCodes.map(pc => ({
+        id: pc.id,
+        code: pc.code,
+        active: pc.active,
+        percentOff: pc.coupon.percent_off,
+        amountOff: pc.coupon.amount_off,
+        timesRedeemed: pc.times_redeemed,
+        maxRedemptions: pc.max_redemptions,
+        expiresAt: pc.expires_at ? new Date(pc.expires_at * 1000) : null
+      }))
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Deactivate a coupon (admin only)
+ */
+router.delete('/coupons/:promotionCodeId', async (req: Request, res: Response) => {
+  try {
+    // Verify admin password
+    const adminPassword = req.headers['x-admin-password'] as string;
+    if (adminPassword !== process.env.ADMIN_PASSWORD) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { promotionCodeId } = req.params;
+
+    await stripeService.deactivatePromotionCode(promotionCodeId);
+
+    res.json({
+      success: true,
+      message: 'Coupon deactivated'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * Stripe webhook handler
  */
 router.post('/webhook', async (req: Request, res: Response) => {

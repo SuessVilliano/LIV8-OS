@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Opportunities from './pages/Opportunities';
@@ -81,6 +82,11 @@ function App() {
 
           <main className="flex-1 overflow-auto relative custom-scrollbar">
             <Routes>
+              {/* 0. Public Landing Page */}
+              <Route path="/" element={
+                isAuthenticated ? <Navigate to={isGhlConnected ? (isOnboarded ? "/dashboard" : "/onboarding") : "/connect"} replace /> : <Landing />
+              } />
+
               {/* 1. Base Authentication Layer */}
               <Route path="/login" element={
                 isAuthenticated ? <Navigate to="/connect" replace /> : <Login onLogin={handleLogin} />
@@ -110,8 +116,7 @@ function App() {
               <Route path="/settings" element={isCoreActive ? <Settings /> : <Navigate to="/login" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
 
-              <Route path="/" element={<Navigate to={isAuthenticated ? (isGhlConnected ? (isOnboarded ? "/dashboard" : "/onboarding") : "/connect") : "/login"} replace />} />
-              <Route path="*" element={<Navigate to="/login" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
 
             {/* Universal Command Toggle */}
