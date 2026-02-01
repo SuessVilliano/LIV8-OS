@@ -1,24 +1,50 @@
 import React, { useState } from 'react';
-import { Shield, Mail, Lock, Sparkles, ChevronRight, Fingerprint } from 'lucide-react';
+import { Shield, Mail, Lock, Sparkles, ChevronRight, Fingerprint, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
-    const [email, setEmail] = useState('jamaur@liv8.com');
-    const [password, setPassword] = useState('********');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const { config } = useTheme();
     const navigate = useNavigate();
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        setError(null);
 
-        // Dynamic handshake simulation
-        setTimeout(() => {
+        try {
+            const response = await fetch(`${API_BASE}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Authentication failed');
+            }
+
+            // Store auth token and user info
+            localStorage.setItem('os_token', data.token);
+            localStorage.setItem('os_user', JSON.stringify(data.user));
+            if (data.locations?.length > 0) {
+                localStorage.setItem('os_loc_id', data.locations[0].ghl_location_id);
+            }
+
             onLogin();
             navigate('/dashboard', { replace: true });
-        }, 1000);
+        } catch (err: any) {
+            setError(err.message || 'Failed to connect. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -88,6 +114,14 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                             </label>
                             <button type="button" className="text-[10px] font-black uppercase text-[#1068EB] tracking-widest hover:underline">Reset Trace</button>
                         </div>
+
+                        {/* Error Message */}
+                        {error && (
+                            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                <span>{error}</span>
+                            </div>
+                        )}
 
                         {/* Force visible blue button */}
                         <Button type="submit" disabled={isLoading} className="w-full h-14 bg-[#1068EB] hover:bg-[#004CC2] text-white rounded-2xl border-none font-black text-xs tracking-[0.2em] shadow-xl shadow-blue-500/30 uppercase transition-all flex items-center justify-center gap-2 group">

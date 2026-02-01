@@ -29,6 +29,7 @@ import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
 import { authenticateMcp } from './middleware/authenticateMcp.js'; // From stashed changes
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types'; // From stashed changes
+import { rateLimit, rateLimitPresets } from './middleware/rateLimit.js';
 
 // Log environment status (not the actual values for security)
 console.log('Environment check:', {
@@ -78,15 +79,15 @@ app.use(cors({
         }
         else if (process.env.NODE_ENV === 'production') {
             const allowed = [
-                'https://your-dashboard-domain.vercel.app',
                 'https://os.liv8ai.com',
                 'https://app.gohighlevel.com',
-                'https://crm.liv8.co' // New: Vbout whitelabel domain
-            ];
+                'https://crm.liv8.co',
+                process.env.DASHBOARD_URL // Allow custom dashboard URL from env
+            ].filter(Boolean) as string[];
             if (allowed.includes(origin)) {
                 callback(null, true);
             } else {
-                callback(null, true);
+                callback(new Error('Origin not allowed by CORS policy'));
             }
         } else {
             callback(null, true);
@@ -121,27 +122,27 @@ app.get('/health', (req, res) => {
     });
 });
 
-// API Routes
-app.use('/api/auth', authRouter);
-app.use('/api/operator', operatorRouter);
-app.use('/api/setup', setupRouter);
-app.use('/api/analytics', analyticsRouter);
-app.use('/api/taskmagic', taskmagicRouter);
-app.use('/api/social', socialContentRouter);
-app.use('/api/settings', settingsRouter);
-app.use('/api/agents', agentsRouter);
-app.use('/api/smart-agents', smartAgentsRouter);
-app.use('/api/vbout', vboutRouter); // New: Vbout API routes
-app.use('/api/twin', twinRouter); // Business Twin API
-app.use('/api/staff', staffRouter); // AI Staff Chat API
-app.use('/api/integrations', integrationsRouter); // Voice (VAPI), Messaging (Telegram), CRM integrations
-app.use('/api/content', contentRouter); // Content creation with SEO/AEO/GEO optimization
-app.use('/api/ai', aiRouter); // Multi-AI provider (Gemini, GPT, Claude, DeepSeek, Kling)
-app.use('/api/scheduler', schedulerRouter); // Content scheduling, templates, approval workflows
-app.use('/api/whitelabel', whitelabelRouter); // Agency whitelabel system with pricing
-app.use('/api/social-media', socialMediaRouter); // Social media publishing (FB, IG, X, LinkedIn, TikTok)
-app.use('/api/billing', billingRouter); // Stripe payments & subscriptions
-app.use('/api/notifications', notificationsRouter); // Notification system (in-app, push, email, telegram)
+// API Routes with rate limiting
+app.use('/api/auth', rateLimitPresets.auth, authRouter); // Strict rate limiting for auth
+app.use('/api/operator', rateLimitPresets.api, operatorRouter);
+app.use('/api/setup', rateLimitPresets.api, setupRouter);
+app.use('/api/analytics', rateLimitPresets.api, analyticsRouter);
+app.use('/api/taskmagic', rateLimitPresets.api, taskmagicRouter);
+app.use('/api/social', rateLimitPresets.api, socialContentRouter);
+app.use('/api/settings', rateLimitPresets.api, settingsRouter);
+app.use('/api/agents', rateLimitPresets.api, agentsRouter);
+app.use('/api/smart-agents', rateLimitPresets.ai, smartAgentsRouter); // AI rate limiting
+app.use('/api/vbout', rateLimitPresets.api, vboutRouter);
+app.use('/api/twin', rateLimitPresets.ai, twinRouter); // AI rate limiting for Business Twin
+app.use('/api/staff', rateLimitPresets.ai, staffRouter); // AI rate limiting for Staff Chat
+app.use('/api/integrations', rateLimitPresets.api, integrationsRouter);
+app.use('/api/content', rateLimitPresets.ai, contentRouter); // AI rate limiting for content generation
+app.use('/api/ai', rateLimitPresets.ai, aiRouter); // AI rate limiting
+app.use('/api/scheduler', rateLimitPresets.api, schedulerRouter);
+app.use('/api/whitelabel', rateLimitPresets.api, whitelabelRouter);
+app.use('/api/social-media', rateLimitPresets.api, socialMediaRouter);
+app.use('/api/billing', rateLimitPresets.api, billingRouter);
+app.use('/api/notifications', rateLimitPresets.webhook, notificationsRouter); // Lenient for webhooks
 
 
 // --- MCP Integration ---

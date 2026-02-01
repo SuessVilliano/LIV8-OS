@@ -1,0 +1,41 @@
+# Render Blueprint - LIV8 Backend
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: liv8-backend
+    runtime: node
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: POSTGRES_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: VAPI_API_KEY
+        sync: false
+      - key: VBOUT_API_KEY
+        sync: false
+      - key: DASHBOARD_URL
+        value: https://os.liv8ai.com
+    healthCheckPath: /health
+    autoDeploy: true
