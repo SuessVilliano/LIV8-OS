@@ -1,7 +1,7 @@
 // Backend API Configuration
 export const getBackendUrl = () => {
-    // Use Vite environment variable or default to deployed backend
-    return import.meta.env.VITE_BACKEND_URL || 'https://ghl-backend.vercel.app';
+    // Use Vite environment variable or default to Render backend
+    return import.meta.env.VITE_API_URL || 'https://liv8-backend.onrender.com';
 };
 
 export const BACKEND_URL = getBackendUrl();
