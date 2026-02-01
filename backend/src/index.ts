@@ -19,16 +19,33 @@ import { mcpClient } from './services/mcp-client.js'; // From stashed changes
 import { authenticateMcp } from './middleware/authenticateMcp.js'; // From stashed changes
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types'; // From stashed changes
 
-console.log('DEBUG: POSTGRES_URL from process.env:', process.env.POSTGRES_URL);
-console.log('DEBUG: JWT_SECRET from process.env:', process.env.JWT_SECRET);
+// Log environment status (not the actual values for security)
+console.log('Environment check:', {
+    POSTGRES_URL: process.env.POSTGRES_URL ? '✅ Set' : '❌ Missing',
+    JWT_SECRET: process.env.JWT_SECRET ? '✅ Set' : '❌ Missing',
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY ? '✅ Set' : '❌ Missing',
+    NODE_ENV: process.env.NODE_ENV || 'development'
+});
 
-// Auto-initialize database tables on startup
+// Track database initialization status
+let dbInitialized = false;
+let dbError: string | null = null;
+
+// Auto-initialize database tables on startup (only if POSTGRES_URL is configured)
 const initDatabase = async () => {
+    if (!process.env.POSTGRES_URL) {
+        dbError = 'POSTGRES_URL not configured';
+        console.warn('⚠️ Database initialization skipped: POSTGRES_URL not set');
+        return;
+    }
+
     try {
         await agentSessions.initTables();
+        dbInitialized = true;
         console.log('✅ Database tables initialized');
     } catch (error: any) {
-        console.warn('⚠️ Database init skipped (may already exist):', error.message);
+        dbError = error.message;
+        console.warn('⚠️ Database init failed:', error.message);
     }
 };
 
@@ -70,15 +87,25 @@ app.use(express.json());
 
 // Health check with configuration status
 app.get('/health', (req, res) => {
+    const allConfigured = !!process.env.POSTGRES_URL && !!process.env.JWT_SECRET;
+
     res.json({
-        status: 'ok',
+        status: allConfigured && dbInitialized ? 'ok' : 'degraded',
         service: 'LIV8 GHL Backend',
         config: {
             database: !!process.env.POSTGRES_URL,
+            databaseConnected: dbInitialized,
+            databaseError: dbError,
             gemini: !!process.env.GEMINI_API_KEY,
             jwt: !!process.env.JWT_SECRET,
-            taskmagic: !!process.env.TASKMAGIC_WEBHOOK_URL
-        }
+            taskmagic: !!process.env.TASKMAGIC_WEBHOOK_URL,
+            vbout: !!process.env.VBOUT_API_KEY
+        },
+        message: !allConfigured
+            ? 'Missing required environment variables. Please configure POSTGRES_URL and JWT_SECRET in Vercel dashboard.'
+            : dbError
+                ? `Database error: ${dbError}`
+                : 'All systems operational'
     });
 });
 

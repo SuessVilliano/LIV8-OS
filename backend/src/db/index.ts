@@ -5,6 +5,9 @@ import crypto from 'crypto';
 export { agentSessions } from './agent-sessions.js';
 export type { AgentSession, AgentEvent, AgentSessionStatus } from './agent-sessions.js';
 
+// Check if database is configured
+const isDatabaseConfigured = (): boolean => !!process.env.POSTGRES_URL;
+
 // Encryption helpers for GHL tokens
 const ALGORITHM = 'aes-256-gcm';
 const KEY = crypto.scryptSync(process.env.JWT_SECRET || 'fallback-key', 'salt', 32);
@@ -37,10 +40,21 @@ export function decryptToken(encryptedData: string): string {
   return decrypted;
 }
 
+// Helper to check database availability before operations
+function requireDatabase(operation: string): void {
+  if (!isDatabaseConfigured()) {
+    throw new Error(`Database not configured. Cannot perform ${operation}. Please set POSTGRES_URL environment variable.`);
+  }
+}
+
 // Database query helpers
 export const db = {
+  // Check if database is available
+  isConfigured: isDatabaseConfigured,
+
   // User operations
   async createUser(email: string, passwordHash: string, agencyId: string, role: string = 'operator') {
+    requireDatabase('createUser');
     const result = await sql`
       INSERT INTO users (email, password_hash, agency_id, role)
       VALUES (${email}, ${passwordHash}, ${agencyId}, ${role})

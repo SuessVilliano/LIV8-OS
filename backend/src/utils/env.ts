@@ -6,13 +6,21 @@ import dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
-// Helper function to get an environment variable or throw an error if not found
-function getEnv(key: string, defaultValue?: string): string {
+// Helper function to get an environment variable with optional default
+// No longer throws - returns empty string if not found (graceful degradation)
+function getEnv(key: string, defaultValue: string = ''): string {
     const value = process.env[key];
-    if (value === undefined && defaultValue === undefined) {
-        throw new Error(`Environment variable ${key} is not set.`);
+    if (value === undefined && defaultValue === '') {
+        console.warn(`⚠️ Environment variable ${key} is not set.`);
     }
-    return value || defaultValue!;
+    return value || defaultValue;
+}
+
+// Helper to check if required env vars are configured
+export function validateRequiredEnvVars(): { valid: boolean; missing: string[] } {
+    const required = ['POSTGRES_URL', 'JWT_SECRET'];
+    const missing = required.filter(key => !process.env[key]);
+    return { valid: missing.length === 0, missing };
 }
 
 // Database
