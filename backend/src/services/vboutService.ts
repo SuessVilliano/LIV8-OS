@@ -62,7 +62,7 @@ class VboutService {
 
             this.internalAccessToken = response.data.access_token;
             this.internalAccessTokenExpiry = Date.now() + (response.data.expires_in * 1000) - (60 * 1000); // 1 minute buffer
-            return this.internalAccessToken;
+            return this.internalAccessToken || '';
 
         } catch (error: any) {
             console.error('Failed to get Vbout application access token via client_credentials:', error.response?.data || error.message);
@@ -151,7 +151,7 @@ class VboutService {
         return response;
     }
 
-    async updateContact(contactId: number | string, contactData: { email?: string; status?: 'active' | 'disactive'; listid?: number | string; ipaddress?: string; fields?: { [key: string]: string | number } }): Promise<any> {
+    async updateContact(contactId: number | string, contactData: { email?: string; status?: 'active' | 'disactive'; listid?: number | string; ipaddress?: string; fields?: { [key: string]: string | number } }, useAppToken: boolean = false): Promise<any> {
         console.log(`Updating contact ${contactId} in Vbout:`, contactData);
         const response = await this.request('POST', '/emailmarketing/editcontact', {
             id: contactId,

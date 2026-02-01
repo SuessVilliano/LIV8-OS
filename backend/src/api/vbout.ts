@@ -72,7 +72,11 @@ vboutRouter.post('/events', async (req, res) => {
 // Removed `authenticateUser` middleware for now
 vboutRouter.get('/contacts', async (req, res) => {
     try {
-        const contacts = await vboutService.getContacts();
+        const listId = req.query.listId as string;
+        if (!listId) {
+            return res.status(400).json({ error: 'listId query parameter is required' });
+        }
+        const contacts = await vboutService.getContacts(listId);
         res.json(contacts);
     } catch (error: any) {
         console.error('Error fetching Vbout contacts:', error);

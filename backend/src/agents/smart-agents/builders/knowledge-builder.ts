@@ -11,7 +11,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { KnowledgeEntry } from '../types.js';
-import { BrandBrain, scanWebsite } from '../../../services/brand-scanner.js';
+import { BrandBrain, brandScanner } from '../../../services/brand-scanner.js';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -89,7 +89,7 @@ export class KnowledgeBuilder {
         console.log('[KnowledgeBuilder] Scanning website:', websiteUrl);
 
         // Use existing brand scanner
-        const brandBrain = await scanWebsite(websiteUrl);
+        const brandBrain = await brandScanner.scanWebsite(websiteUrl);
 
         // Extract additional knowledge from brand brain
         const entries = await this.extractKnowledgeFromBrandBrain(brandBrain);
@@ -334,7 +334,7 @@ Return JSON:
 
         for (const url of params.competitorUrls) {
             try {
-                const competitorBrain = await scanWebsite(url);
+                const competitorBrain = await brandScanner.scanWebsite(url);
 
                 entries.push({
                     id: `kb_competitor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -343,7 +343,7 @@ Return JSON:
                     content: `**${competitorBrain.brand_name}** (${competitorBrain.domain})
 
 **Their Services:**
-${competitorBrain.key_services.map(s => `• ${s}`).join('\n')}
+${competitorBrain.key_services.map((s: string) => `• ${s}`).join('\n')}
 
 **Their Positioning:**
 ${competitorBrain.primary_offer}

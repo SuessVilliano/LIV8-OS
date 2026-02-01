@@ -303,7 +303,7 @@ export class TaskMagicDeployer {
                 };
             }
 
-            const result = await response.json();
+            const result = await response.json() as { runId?: string; id?: string };
             return {
                 success: true,
                 runId: result.runId || result.id

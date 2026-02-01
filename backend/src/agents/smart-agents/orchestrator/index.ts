@@ -29,53 +29,65 @@ export const OrchestratorStateAnnotation = Annotation.Root({
     userId: Annotation<string>,
 
     messages: Annotation<BaseMessage[]>({
-        reducer: (curr, update) => [...curr, ...update],
+        value: (curr, update) => [...curr, ...update],
         default: () => []
     }),
 
     currentIntent: Annotation<UserIntent>({
-        default: () => 'unknown'
+        value: (_, update) => update,
+        default: () => 'unknown' as UserIntent
     }),
     confidence: Annotation<number>({
+        value: (_, update) => update,
         default: () => 0
     }),
     extractedEntities: Annotation<Record<string, any>>({
+        value: (_, update) => update,
         default: () => ({})
     }),
 
     targetAgent: Annotation<AgentType | null>({
+        value: (_, update) => update,
         default: () => null
     }),
     agentQueue: Annotation<AgentType[]>({
+        value: (_, update) => update,
         default: () => []
     }),
 
     brandBrainId: Annotation<string | null>({
+        value: (_, update) => update,
         default: () => null
     }),
     activeAgentConfigs: Annotation<any[]>({
+        value: (_, update) => update,
         default: () => []
     }),
 
     currentTask: Annotation<string | null>({
+        value: (_, update) => update,
         default: () => null
     }),
     taskProgress: Annotation<number>({
+        value: (_, update) => update,
         default: () => 0
     }),
     taskResults: Annotation<any[]>({
-        reducer: (curr, update) => [...curr, ...update],
+        value: (curr, update) => [...curr, ...update],
         default: () => []
     }),
 
     awaitingHumanApproval: Annotation<boolean>({
+        value: (_, update) => update,
         default: () => false
     }),
     approvalReason: Annotation<string | null>({
+        value: (_, update) => update,
         default: () => null
     }),
 
     responseToUser: Annotation<string>({
+        value: (_, update) => update,
         default: () => ''
     })
 });
@@ -496,7 +508,7 @@ export async function runOrchestrator(params: {
         locationId: params.locationId,
         userId: params.userId,
         messages: [new HumanMessage(params.message)],
-        brandBrainId: params.brandBrainId || null
+        brandBrainId: params.brandBrainId ?? undefined
     };
 
     const result = await orchestrator.invoke(initialState);

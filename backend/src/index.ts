@@ -210,11 +210,11 @@ app.post('/mcp', async (req, res) => { // Removed authenticateMcp
         
         // Determine if it's a CallTool request
         const callToolRequest = CallToolRequestSchema.parse(req.body);
-        const { tool_name, args } = callToolRequest.params;
+        const { name, arguments: args } = callToolRequest.params;
 
-        console.log(`[MCP] CallTool request: ${tool_name} with args:`, args);
+        console.log(`[MCP] CallTool request: ${name} with args:`, args);
 
-        const result = await mcpClient.callTool(tool_name, args, ghlToken, ghlLocationId);
+        const result = await mcpClient.callTool(name, args || {}, ghlToken, ghlLocationId);
         return res.json({ response: { result } });
         
     } catch (error: any) {

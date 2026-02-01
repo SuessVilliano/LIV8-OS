@@ -376,15 +376,19 @@ Return JSON:
      */
     async generateLandingPageCopy(request: ContentRequest, brandBrain: BrandBrain): Promise<GeneratedContent> {
         // Similar implementation for landing pages
+        const landingPageContent = `# ${brandBrain.primary_offer}
+
+## Trusted ${brandBrain.industry_niche} in ${brandBrain.geographic_location}
+
+### Benefits:
+${brandBrain.key_services.map((s: string) => `- ${s}`).join('\n')}
+
+**Get Started Today**`;
+
         return {
             id: `lp_${Date.now()}`,
             type: 'landing_page',
-            content: {
-                headline: brandBrain.primary_offer,
-                subheadline: `Trusted ${brandBrain.industry_niche} in ${brandBrain.geographic_location}`,
-                benefits: brandBrain.key_services,
-                cta: 'Get Started Today'
-            },
+            content: landingPageContent,
             metadata: {
                 generatedAt: new Date().toISOString(),
                 model: 'default',

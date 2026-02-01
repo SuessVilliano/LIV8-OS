@@ -8,8 +8,9 @@ import { db } from '../../db/index.js';
  * Generate Build Plan Tool
  * Creates a comprehensive GHL system build plan from brand brain
  */
+// @ts-expect-error - LangChain tool type inference is too deep
 export const generateBuildPlanTool = tool(
-    async ({ brandBrain, selectedStaff, goals, locationId }): Promise<{
+    async ({ brandBrain, selectedStaff, goals, locationId }: { brandBrain: BrandBrain; selectedStaff: string[]; goals: string[]; locationId: string }): Promise<{
         success: boolean;
         buildPlan?: BuildPlan;
         error?: string;
@@ -52,8 +53,9 @@ export const generateBuildPlanTool = tool(
  * Deploy Build Plan Tool
  * Executes a build plan against GHL
  */
+// @ts-expect-error - LangChain tool type inference is too deep
 export const deployBuildPlanTool = tool(
-    async ({ buildPlan, locationId }): Promise<{
+    async ({ buildPlan, locationId }: { buildPlan: BuildPlan; locationId: string }): Promise<{
         success: boolean;
         deployed?: any;
         errors?: any[];
@@ -104,8 +106,9 @@ export const deployBuildPlanTool = tool(
  * Get Default Assets Tool
  * Returns default asset templates for a build plan
  */
+// @ts-expect-error - LangChain tool type inference is too deep
 export const getDefaultAssetsTool = tool(
-    async ({ brandBrain, selectedStaff }): Promise<{
+    async ({ brandBrain, selectedStaff }: { brandBrain: BrandBrain; selectedStaff: string[] }): Promise<{
         pipelines: any[];
         workflows: any[];
         emailSequences: any[];
@@ -132,8 +135,9 @@ export const getDefaultAssetsTool = tool(
  * Validate Build Plan Tool
  * Validates a build plan before deployment
  */
+// @ts-expect-error - LangChain tool type inference is too deep
 export const validateBuildPlanTool = tool(
-    async ({ buildPlan, locationId }): Promise<{
+    async ({ buildPlan, locationId }: { buildPlan: BuildPlan; locationId: string }): Promise<{
         valid: boolean;
         issues: string[];
         warnings: string[];

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { db } from '../db'; // Assuming db is exported
-import { Agency, Location } from '../lib/schemas'; // Assuming schemas for User, Agency, Location
+import { db } from '../db/index.js'; // Assuming db is exported
+// Note: Agency and Location schemas would need to be defined if used
 
 // Extend the Request object to include user property
 declare module 'express-serve-static-core' {

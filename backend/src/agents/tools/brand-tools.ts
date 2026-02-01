@@ -7,8 +7,9 @@ import { db } from '../../db/index.js';
  * Scan Website Tool
  * Analyzes a website to extract brand identity
  */
+// @ts-expect-error - LangChain tool type inference is too deep
 export const scanWebsiteTool = tool(
-    async ({ url, locationId }): Promise<{
+    async ({ url, locationId }: { url: string; locationId?: string }): Promise<{
         success: boolean;
         brandBrain?: BrandBrain;
         aeoScore?: { score: number; recommendations: string[] };
@@ -53,8 +54,9 @@ export const scanWebsiteTool = tool(
  * Get Brand Brain Tool
  * Retrieves stored brand brain for a location
  */
+// @ts-expect-error - LangChain tool type inference is too deep
 export const getBrandBrainTool = tool(
-    async ({ locationId }): Promise<{
+    async ({ locationId }: { locationId: string }): Promise<{
         success: boolean;
         brandBrain?: BrandBrain;
         error?: string;
@@ -96,8 +98,9 @@ export const getBrandBrainTool = tool(
  * Save Brand Brain Tool
  * Persists brand brain to database
  */
+// @ts-expect-error - LangChain tool type inference is too deep
 export const saveBrandBrainTool = tool(
-    async ({ locationId, brandBrain }): Promise<{
+    async ({ locationId, brandBrain }: { locationId: string; brandBrain: any }): Promise<{
         success: boolean;
         error?: string;
     }> => {
@@ -129,8 +132,9 @@ export const saveBrandBrainTool = tool(
  * Calculate AEO Score Tool
  * Calculates Answer Engine Optimization score for a brand brain
  */
+// @ts-expect-error - LangChain tool type inference is too deep
 export const calculateAEOScoreTool = tool(
-    async ({ brandBrain }): Promise<{
+    async ({ brandBrain }: { brandBrain: BrandBrain }): Promise<{
         score: number;
         recommendations: string[];
     }> => {
