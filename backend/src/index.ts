@@ -20,6 +20,7 @@ import integrationsRouter from './api/integrations.js'; // Voice, Messaging, CRM
 import contentRouter from './api/content.js'; // Content creation with SEO/AEO/GEO
 import aiRouter from './api/ai.js'; // Multi-AI provider management
 import schedulerRouter from './api/scheduler.js'; // Content scheduling & templates
+import whitelabelRouter from './api/whitelabel.js'; // Agency whitelabel system
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -134,6 +135,7 @@ app.use('/api/integrations', integrationsRouter); // Voice (VAPI), Messaging (Te
 app.use('/api/content', contentRouter); // Content creation with SEO/AEO/GEO optimization
 app.use('/api/ai', aiRouter); // Multi-AI provider (Gemini, GPT, Claude, DeepSeek, Kling)
 app.use('/api/scheduler', schedulerRouter); // Content scheduling, templates, approval workflows
+app.use('/api/whitelabel', whitelabelRouter); // Agency whitelabel system with pricing
 
 
 // --- MCP Integration ---
