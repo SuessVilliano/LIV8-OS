@@ -2,36 +2,38 @@
 
 :root {
   /* Base OS Variables - Light Mode */
-  --os-primary: #1068EB;
-  --os-primary-light: #E0F0FF;
-  --os-primary-dark: #004CC2;
-  --os-bg: #F9FBFF;
+  --os-primary: #6366F1;
+  --os-primary-light: #EEF2FF;
+  --os-primary-dark: #4F46E5;
+  --os-accent: #10B981;
+  --os-bg: #FAFAFA;
   --os-surface: #FFFFFF;
-  --os-text: #1E293B;
-  --os-text-muted: #64748B;
-  --os-border: #F1F5F9;
-  --os-glass-bg: rgba(255, 255, 255, 0.8);
-  --os-glass-border: rgba(255, 255, 255, 0.5);
+  --os-text: #18181B;
+  --os-text-muted: #52525B;
+  --os-border: #E4E4E7;
+  --os-glass-bg: rgba(255, 255, 255, 0.85);
+  --os-glass-border: rgba(0, 0, 0, 0.06);
   /* Extra Tints */
-  --neuro-5: rgba(16, 104, 235, 0.05);
-  --neuro-10: rgba(16, 104, 235, 0.1);
+  --neuro-5: rgba(99, 102, 241, 0.05);
+  --neuro-10: rgba(99, 102, 241, 0.1);
 }
 
 .dark {
-  /* High-Fidelity Midnight Theme */
-  --os-primary: #00B4FF;
-  --os-primary-light: rgba(0, 180, 255, 0.1);
-  --os-primary-dark: #0087C2;
-  --os-bg: #0B0E14;
-  --os-surface: #121720;
-  --os-text: #F8FAFC;
-  --os-text-muted: #94A3B8;
-  --os-border: #1E293B;
-  --os-glass-bg: rgba(18, 23, 32, 0.8);
-  --os-glass-border: rgba(255, 255, 255, 0.05);
+  /* Premium Midnight Theme - Refined & Readable */
+  --os-primary: #818CF8;
+  --os-primary-light: rgba(129, 140, 248, 0.15);
+  --os-primary-dark: #6366F1;
+  --os-accent: #34D399;
+  --os-bg: #09090B;
+  --os-surface: #18181B;
+  --os-text: #FAFAFA;
+  --os-text-muted: #A1A1AA;
+  --os-border: #27272A;
+  --os-glass-bg: rgba(24, 24, 27, 0.9);
+  --os-glass-border: rgba(255, 255, 255, 0.08);
   /* Extra Tints */
-  --neuro-5: rgba(0, 180, 255, 0.05);
-  --neuro-10: rgba(0, 180, 255, 0.1);
+  --neuro-5: rgba(129, 140, 248, 0.05);
+  --neuro-10: rgba(129, 140, 248, 0.12);
 }
 
 @theme {

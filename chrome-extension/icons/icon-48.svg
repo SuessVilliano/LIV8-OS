@@ -1,0 +1,10 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="48" height="48" rx="10" fill="url(#gradient)"/>
+  <text x="6" y="33" font-family="Arial" font-weight="bold" font-size="22" fill="white">L8</text>
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="48" y2="48">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
     Activity,
     Users,
@@ -11,12 +12,17 @@ import {
     Bell,
     MessageSquare,
     Workflow,
-    Clock
+    Clock,
+    Bot,
+    X
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import AIStaffChat from '../components/AIStaffChat';
 
 const Dashboard = () => {
     const { config } = useTheme();
+    const [showChat, setShowChat] = useState(false);
+    const locationId = localStorage.getItem('locationId') || 'demo_location';
 
     const stats = [
         { label: 'Total Revenue', value: '$84,290', icon: Activity, change: '+12% this month', color: 'emerald' },
@@ -80,14 +86,14 @@ const Dashboard = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                     {stats.map((stat) => (
-                        <div key={stat.label} className="group p-8 rounded-[2.5rem] bg-[var(--os-glass-bg)] backdrop-blur-lg border border-[var(--os-border)] shadow-xl shadow-blue-500/5 hover:bg-neuro transition-all duration-500 hover:scale-[1.02] cursor-pointer">
+                        <div key={stat.label} className="group p-8 rounded-[2.5rem] bg-[var(--os-glass-bg)] backdrop-blur-lg border border-[var(--os-border)] shadow-xl shadow-neuro/5 hover:bg-neuro transition-all duration-500 hover:scale-[1.02] cursor-pointer">
                             <div className="h-14 w-14 rounded-2xl bg-[var(--os-bg)] flex items-center justify-center text-neuro mb-6 transition-all duration-500 group-hover:bg-white group-hover:scale-110">
                                 <stat.icon className="h-7 w-7" />
                             </div>
                             <div className="text-[10px] font-black text-[var(--os-text-muted)] uppercase tracking-widest group-hover:text-white/60 transition-colors uppercase">{stat.label}</div>
                             <div className="text-4xl font-black text-[var(--os-text)] mt-2 tracking-tighter group-hover:text-white transition-colors italic uppercase">{stat.value}</div>
                             <div className="flex items-center gap-2 mt-4">
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${stat.change.includes('+') || stat.change.includes('Optimal') ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-500/20 text-slate-400'} group-hover:bg-white/20 group-hover:text-white transition-colors`}>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${stat.change.includes('+') || stat.change.includes('Optimal') ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-500/20 text-zinc-400'} group-hover:bg-white/20 group-hover:text-white transition-colors`}>
                                     {stat.change}
                                 </span>
                             </div>
@@ -98,12 +104,12 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 pb-10">
                     <div className="lg:col-span-2 space-y-10">
                         {/* AEO Intelligence Module */}
-                        <div className="rounded-[3rem] bg-slate-900 p-10 shadow-2xl text-white relative overflow-hidden">
+                        <div className="rounded-[3rem] bg-zinc-900 p-10 shadow-2xl text-white relative overflow-hidden">
                             <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-neuro/20 blur-[80px] rounded-full"></div>
                             <div className="flex items-center justify-between mb-10 relative z-10">
                                 <div>
                                     <h3 className="text-xl font-black uppercase italic">Neural Execution Log</h3>
-                                    <p className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Real-time Agency Operations</p>
+                                    <p className="text-[9px] font-bold text-zinc-500 mt-1 uppercase tracking-widest">Real-time Agency Operations</p>
                                 </div>
                                 <div className="flex items-center gap-2 bg-neuro text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg shadow-neuro/20 animate-pulse">
                                     Live Stream Active
@@ -122,10 +128,10 @@ const Dashboard = () => {
                                             </div>
                                             <div>
                                                 <div className="text-xs font-bold text-white group-hover:text-neuro transition-colors">{log.action}</div>
-                                                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5">{log.target} • {log.source}</div>
+                                                <div className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mt-0.5">{log.target} • {log.source}</div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                                        <div className="flex items-center gap-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
                                             <Clock className="h-3 w-3" /> {log.time}
                                         </div>
                                     </div>
@@ -134,7 +140,7 @@ const Dashboard = () => {
                         </div>
 
                         {/* Workflows */}
-                        <div className="os-card p-10 shadow-2xl shadow-blue-900/5 backdrop-blur-xl">
+                        <div className="os-card p-10 shadow-2xl shadow-zinc-900/5 backdrop-blur-xl">
                             <div className="flex items-center justify-between mb-10">
                                 <div>
                                     <h3 className="text-xl font-black text-[var(--os-text)] uppercase italic">Active Campaigns</h3>
@@ -172,7 +178,7 @@ const Dashboard = () => {
                     </div>
 
                     <div className="space-y-10">
-                        <div className="os-card p-10 shadow-2xl shadow-blue-900/5 backdrop-blur-xl">
+                        <div className="os-card p-10 shadow-2xl shadow-zinc-900/5 backdrop-blur-xl">
                             <div className="mb-10">
                                 <h3 className="text-xl font-black text-[var(--os-text)] uppercase italic">Core Pulse</h3>
                                 <p className="text-[9px] font-bold text-[var(--os-text-muted)] mt-1 uppercase tracking-widest">Nodes Connectivity</p>
@@ -211,7 +217,7 @@ const Dashboard = () => {
                         </div>
 
                         {/* Website Health Module */}
-                        <div className="os-card p-10 shadow-2xl shadow-blue-900/5 backdrop-blur-xl">
+                        <div className="os-card p-10 shadow-2xl shadow-zinc-900/5 backdrop-blur-xl">
                             <h3 className="text-xl font-black text-[var(--os-text)] uppercase italic mb-8">Vital Signs</h3>
                             <div className="space-y-6">
                                 {[
@@ -241,6 +247,27 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Floating AI Staff Chat Button */}
+            <button
+                onClick={() => setShowChat(true)}
+                className="fixed bottom-6 right-6 h-14 w-14 bg-neuro text-white rounded-2xl flex items-center justify-center shadow-lg shadow-neuro/30 hover:scale-110 transition-all z-50 group"
+            >
+                <Bot className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                <span className="absolute -top-1 -right-1 h-4 w-4 bg-emerald-500 rounded-full animate-pulse" />
+            </button>
+
+            {/* AI Staff Chat Modal */}
+            {showChat && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-2xl h-[80vh] animate-in fade-in zoom-in-95 duration-200">
+                        <AIStaffChat
+                            locationId={locationId}
+                            onClose={() => setShowChat(false)}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

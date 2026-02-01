@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIV8 OS</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --bg-card: rgba(17, 17, 24, 0.9);
+      --text: #ffffff;
+      --text-muted: #9ca3af;
+      --accent: #8b5cf6;
+      --border: rgba(139, 92, 246, 0.2);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent), #a855f7);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .title {
+      flex: 1;
+    }
+
+    .title h1 {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .title h1 span {
+      color: var(--accent);
+    }
+
+    .title p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .content {
+      padding: 16px;
+    }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .action-btn {
+      padding: 16px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .action-btn:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .action-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .action-label {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .open-panel-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--accent), #a855f7);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .open-panel-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+    }
+
+    .shortcuts {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .shortcuts-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .shortcut {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 12px;
+    }
+
+    .shortcut-label {
+      color: var(--text-muted);
+    }
+
+    .shortcut-key {
+      background: var(--bg-card);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-family: monospace;
+    }
+
+    .footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">L8</div>
+    <div class="title">
+      <h1>LIV<span>8</span> OS</h1>
+      <p>Create it in the Mind, Watch it Come Alive</p>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="quick-actions">
+      <button class="action-btn" id="capture-page">
+        <div class="action-icon">📄</div>
+        <div class="action-label">Capture Page</div>
+      </button>
+      <button class="action-btn" id="create-content">
+        <div class="action-icon">✨</div>
+        <div class="action-label">Create Content</div>
+      </button>
+      <button class="action-btn" id="voice-chat">
+        <div class="action-icon">🎤</div>
+        <div class="action-label">Voice Chat</div>
+      </button>
+      <button class="action-btn" id="open-dashboard">
+        <div class="action-icon">📊</div>
+        <div class="action-label">Dashboard</div>
+      </button>
+    </div>
+
+    <button class="open-panel-btn" id="open-sidepanel">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <line x1="9" y1="3" x2="9" y2="21"/>
+      </svg>
+      Open AI Assistant Panel
+    </button>
+
+    <div class="shortcuts">
+      <div class="shortcuts-title">Keyboard Shortcuts</div>
+      <div class="shortcut">
+        <span class="shortcut-label">Open Assistant</span>
+        <span class="shortcut-key">Ctrl+Shift+L</span>
+      </div>
+      <div class="shortcut">
+        <span class="shortcut-label">Toggle Voice</span>
+        <span class="shortcut-key">Ctrl+Shift+V</span>
+      </div>
+      <div class="shortcut">
+        <span class="shortcut-label">Quick Capture</span>
+        <span class="shortcut-key">Ctrl+Shift+C</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="https://liv8.ai" target="_blank">liv8.ai</a> · Your AI Business Co-Pilot
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
