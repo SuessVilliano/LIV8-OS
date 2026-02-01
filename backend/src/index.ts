@@ -21,6 +21,9 @@ import contentRouter from './api/content.js'; // Content creation with SEO/AEO/G
 import aiRouter from './api/ai.js'; // Multi-AI provider management
 import schedulerRouter from './api/scheduler.js'; // Content scheduling & templates
 import whitelabelRouter from './api/whitelabel.js'; // Agency whitelabel system
+import socialMediaRouter from './api/social.js'; // Social media publishing (FB, IG, X, LinkedIn, TikTok)
+import billingRouter from './api/billing.js'; // Stripe payments & subscriptions
+import notificationsRouter from './api/notifications.js'; // Notification system
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -136,6 +139,9 @@ app.use('/api/content', contentRouter); // Content creation with SEO/AEO/GEO opt
 app.use('/api/ai', aiRouter); // Multi-AI provider (Gemini, GPT, Claude, DeepSeek, Kling)
 app.use('/api/scheduler', schedulerRouter); // Content scheduling, templates, approval workflows
 app.use('/api/whitelabel', whitelabelRouter); // Agency whitelabel system with pricing
+app.use('/api/social-media', socialMediaRouter); // Social media publishing (FB, IG, X, LinkedIn, TikTok)
+app.use('/api/billing', billingRouter); // Stripe payments & subscriptions
+app.use('/api/notifications', notificationsRouter); // Notification system (in-app, push, email, telegram)
 
 
 // --- MCP Integration ---
