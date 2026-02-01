@@ -260,12 +260,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
-// Start server (for local development)
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, () => {
-        console.log(`🚀 LIV8 GHL Backend running on http://localhost:${PORT}`);
-    });
-}
+// Start server
+const HOST = '0.0.0.0';
+app.listen(PORT, HOST, () => {
+    console.log(`🚀 LIV8 GHL Backend running on http://${HOST}:${PORT}`);
+});
 
 // Export for Vercel
 export default app;
