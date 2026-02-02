@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Activity,
     Users,
@@ -24,33 +24,46 @@ import {
     Settings,
     MoreVertical,
     GripVertical,
-    Cpu
+    Cpu,
+    Headphones,
+    RefreshCw
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import AIStaffChat from '../components/AIStaffChat';
 import { useNavigate } from 'react-router-dom';
+import { getBackendUrl } from '../services/api';
+
+const API_BASE = getBackendUrl();
+
+// Icon mapping for dynamic staff icons
+const iconMap: Record<string, any> = {
+    Phone, Calendar, Brain, Target, Headphones, TrendingUp
+};
 
 const Dashboard = () => {
     const { config } = useTheme();
     const [showChat, setShowChat] = useState(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'kanban'>('overview');
-    const locationId = localStorage.getItem('locationId') || 'demo_location';
+    const [isLoading, setIsLoading] = useState(true);
+    const locationId = localStorage.getItem('locationId') || localStorage.getItem('os_loc_id') || 'default';
+    const crmType = localStorage.getItem('os_crm_type') || 'liv8';
     const navigate = useNavigate();
 
-    const stats = [
-        { label: 'Total Revenue', value: '$84,290', icon: Activity, change: '+12% this month', color: 'emerald' },
-        { label: 'Active Leads', value: '142', icon: Users, change: '+14 today', color: 'neuro' },
-        { label: 'AI Conversations', value: '1,204', icon: MessageSquare, change: '98% Resolution', color: 'neuro' },
-        { label: 'Workflows Active', value: '28', icon: Workflow, change: 'Optimal', color: 'emerald' },
-    ];
+    // State for fetched data
+    const [stats, setStats] = useState([
+        { label: 'Total Revenue', value: '$0', icon: Activity, change: 'Loading...', color: 'emerald' },
+        { label: 'Active Leads', value: '0', icon: Users, change: 'Loading...', color: 'neuro' },
+        { label: 'AI Conversations', value: '0', icon: MessageSquare, change: 'Loading...', color: 'neuro' },
+        { label: 'Workflows Active', value: '0', icon: Workflow, change: 'Loading...', color: 'emerald' },
+    ]);
 
-    const neuralLog = [
-        { id: 1, action: 'AI Setter booked appointment', target: 'Sarah Chen', time: '2m ago', type: 'success', source: 'SMS' },
-        { id: 2, action: 'Workflow Triggered: Reactivation', target: '+1 702-555-0199', time: '14m ago', type: 'info', source: 'Campaign' },
-        { id: 3, action: 'SEO Audit Completed', target: 'solarpro.com', time: '1h ago', type: 'success', source: 'AEO Agent' },
-        { id: 4, action: 'Missed Call Text Sent', target: '+1 310-555-0822', time: '2h ago', type: 'info', source: 'Auto-Pilot' },
-        { id: 5, action: 'Negative Sentiment Detected', target: 'John Doe', time: '3h ago', type: 'warning', source: 'Analysis' }
-    ];
+    const [neuralLog, setNeuralLog] = useState<any[]>([]);
+    const [aiStaff, setAiStaff] = useState<any[]>([]);
+    const [todaysTasks, setTodaysTasks] = useState<any[]>([]);
+    const [taskSummary, setTaskSummary] = useState({ pending: 0, inProgress: 0, completed: 0 });
+    const [productivity, setProductivity] = useState(0);
+    const [kanbanColumns, setKanbanColumns] = useState<any[]>([]);
+    const [pipelineStats, setPipelineStats] = useState<any>({});
 
     const assets = [
         { name: '7-Day Reactivation', type: 'Campaign', id: 'wf_react_01', status: 'Running', performance: '42% Conv.' },
@@ -58,45 +71,81 @@ const Dashboard = () => {
         { name: 'SEO Authority Builder', type: 'Workflow', id: 'wf_seo_01', status: 'Scanning', performance: '92/100' },
     ];
 
-    // AI Staff deployed on the account
-    const aiStaff = [
-        { id: '1', name: 'AI Receptionist', role: 'Inbound Specialist', status: 'Online', tasks: 12, calls: 48, icon: Phone, color: 'emerald' },
-        { id: '2', name: 'Appointment Setter', role: 'Calendar Orchestrator', status: 'Online', tasks: 8, calls: 24, icon: Calendar, color: 'neuro' },
-        { id: '3', name: 'Content Strategist', role: 'Social Media AI', status: 'Drafting', tasks: 5, calls: 0, icon: Brain, color: 'purple' },
-        { id: '4', name: 'Recovery Agent', role: 'Lead Reactivation', status: 'Online', tasks: 15, calls: 32, icon: Target, color: 'amber' },
-    ];
+    // Fetch dashboard data
+    const fetchDashboardData = async () => {
+        const token = localStorage.getItem('os_token');
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
 
-    // Today's tasks
-    const todaysTasks = [
-        { id: 't1', title: 'Follow up with Sarah Chen', agent: 'Appointment Setter', priority: 'high', status: 'pending', dueTime: '10:00 AM' },
-        { id: 't2', title: 'Send reactivation SMS to cold leads', agent: 'Recovery Agent', priority: 'medium', status: 'in_progress', dueTime: '11:30 AM' },
-        { id: 't3', title: 'Post Instagram content', agent: 'Content Strategist', priority: 'low', status: 'completed', dueTime: '2:00 PM' },
-        { id: 't4', title: 'Respond to voicemail queue', agent: 'AI Receptionist', priority: 'high', status: 'pending', dueTime: '3:00 PM' },
-        { id: 't5', title: 'Send proposal to qualified leads', agent: 'Appointment Setter', priority: 'high', status: 'pending', dueTime: '4:30 PM' },
-    ];
+        try {
+            // Fetch all data in parallel
+            const [statsRes, staffRes, tasksRes, pipelineRes, activityRes] = await Promise.all([
+                fetch(`${API_BASE}/api/dashboard/stats?crm=${crmType}&locationId=${locationId}`, { headers }).catch(() => null),
+                fetch(`${API_BASE}/api/dashboard/staff?locationId=${locationId}`, { headers }).catch(() => null),
+                fetch(`${API_BASE}/api/dashboard/tasks?locationId=${locationId}`, { headers }).catch(() => null),
+                fetch(`${API_BASE}/api/dashboard/pipeline?crm=${crmType}&locationId=${locationId}`, { headers }).catch(() => null),
+                fetch(`${API_BASE}/api/dashboard/activity`, { headers }).catch(() => null)
+            ]);
 
-    // Kanban columns
-    const kanbanColumns = [
-        { id: 'new', title: 'New Leads', color: 'neuro', items: [
-            { id: 'k1', name: 'Michael Brown', value: '$2,400', source: 'Facebook Ads', time: '10m ago' },
-            { id: 'k2', name: 'Lisa Anderson', value: '$1,800', source: 'Website Form', time: '25m ago' },
-            { id: 'k3', name: 'David Wilson', value: '$3,200', source: 'Referral', time: '1h ago' },
-        ]},
-        { id: 'contacted', title: 'Contacted', color: 'amber', items: [
-            { id: 'k4', name: 'Sarah Chen', value: '$4,500', source: 'Google Ads', time: '2h ago' },
-            { id: 'k5', name: 'James Miller', value: '$2,100', source: 'Cold Outreach', time: '3h ago' },
-        ]},
-        { id: 'qualified', title: 'Qualified', color: 'purple', items: [
-            { id: 'k6', name: 'Emma Davis', value: '$5,800', source: 'LinkedIn', time: '1d ago' },
-        ]},
-        { id: 'proposal', title: 'Proposal Sent', color: 'blue', items: [
-            { id: 'k7', name: 'Robert Taylor', value: '$8,200', source: 'Webinar', time: '2d ago' },
-            { id: 'k8', name: 'Jennifer White', value: '$6,500', source: 'Email Campaign', time: '3d ago' },
-        ]},
-        { id: 'won', title: 'Won', color: 'emerald', items: [
-            { id: 'k9', name: 'Chris Johnson', value: '$12,000', source: 'Referral', time: '1w ago' },
-        ]},
-    ];
+            // Process stats
+            if (statsRes?.ok) {
+                const statsData = await statsRes.json();
+                setStats([
+                    { label: 'Total Revenue', value: `$${statsData.totalRevenue?.value?.toLocaleString() || '0'}`, icon: Activity, change: statsData.totalRevenue?.change || '+0%', color: 'emerald' },
+                    { label: 'Active Leads', value: String(statsData.activeLeads?.value || 0), icon: Users, change: statsData.activeLeads?.change || '+0 today', color: 'neuro' },
+                    { label: 'AI Conversations', value: String(statsData.aiConversations?.value || 0), icon: MessageSquare, change: statsData.aiConversations?.change || '0% resolution', color: 'neuro' },
+                    { label: 'Workflows Active', value: String(statsData.workflowsActive?.value || 0), icon: Workflow, change: statsData.workflowsActive?.change || 'Syncing', color: 'emerald' },
+                ]);
+            }
+
+            // Process staff
+            if (staffRes?.ok) {
+                const staffData = await staffRes.json();
+                const mappedStaff = staffData.map((s: any) => ({
+                    ...s,
+                    icon: iconMap[s.icon] || Bot,
+                    color: s.status === 'Online' ? 'emerald' : s.status === 'Not Deployed' ? 'slate' : 'amber'
+                }));
+                setAiStaff(mappedStaff.filter((s: any) => s.isDeployed));
+            }
+
+            // Process tasks
+            if (tasksRes?.ok) {
+                const tasksData = await tasksRes.json();
+                setTodaysTasks(tasksData.tasks || []);
+                setTaskSummary(tasksData.summary || { pending: 0, inProgress: 0, completed: 0 });
+                setProductivity(tasksData.productivity || 0);
+            }
+
+            // Process pipeline
+            if (pipelineRes?.ok) {
+                const pipelineData = await pipelineRes.json();
+                setKanbanColumns(pipelineData.stages || []);
+                setPipelineStats(pipelineData.stats || {});
+            }
+
+            // Process activity
+            if (activityRes?.ok) {
+                const activityData = await activityRes.json();
+                setNeuralLog(activityData || []);
+            }
+
+        } catch (error) {
+            console.error('Failed to fetch dashboard data:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Fetch data on mount
+    useEffect(() => {
+        fetchDashboardData();
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchDashboardData, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     const handleOpenGHL = (id: string) => {
         const url = `https://app.gohighlevel.com/location/current_location/workflows/automation/${id}/edit`;
@@ -163,6 +212,13 @@ const Dashboard = () => {
                         <div className="h-12 px-6 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl flex items-center justify-center text-[var(--os-text-muted)] text-[10px] font-black uppercase tracking-widest">
                             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                         </div>
+                        <button
+                            onClick={fetchDashboardData}
+                            disabled={isLoading}
+                            className="h-12 w-12 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl flex items-center justify-center text-[var(--os-text-muted)] hover:text-neuro hover:bg-neuro/5 transition-all disabled:opacity-50"
+                        >
+                            <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+                        </button>
                         <button className="h-12 w-12 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl flex items-center justify-center text-[var(--os-text-muted)] hover:text-neuro hover:bg-neuro/5 transition-all relative">
                             <Bell className="h-5 w-5" />
                             <span className="absolute top-3 right-3 w-2 h-2 bg-neuro rounded-full animate-pulse"></span>
@@ -445,9 +501,9 @@ const Dashboard = () => {
                                     <h4 className="text-sm font-black uppercase tracking-tight mb-4">Task Summary</h4>
                                     <div className="space-y-4">
                                         {[
-                                            { label: 'Pending', count: todaysTasks.filter(t => t.status === 'pending').length, color: 'text-amber-500' },
-                                            { label: 'In Progress', count: todaysTasks.filter(t => t.status === 'in_progress').length, color: 'text-neuro' },
-                                            { label: 'Completed', count: todaysTasks.filter(t => t.status === 'completed').length, color: 'text-emerald-500' },
+                                            { label: 'Pending', count: taskSummary.pending, color: 'text-amber-500' },
+                                            { label: 'In Progress', count: taskSummary.inProgress, color: 'text-neuro' },
+                                            { label: 'Completed', count: taskSummary.completed, color: 'text-emerald-500' },
                                         ].map((stat) => (
                                             <div key={stat.label} className="flex items-center justify-between">
                                                 <span className="text-[10px] font-bold text-[var(--os-text-muted)] uppercase tracking-widest">{stat.label}</span>
@@ -462,7 +518,7 @@ const Dashboard = () => {
                                         <TrendingUp className="h-5 w-5" />
                                         <h4 className="text-sm font-black uppercase tracking-tight">Productivity</h4>
                                     </div>
-                                    <div className="text-4xl font-black italic">87%</div>
+                                    <div className="text-4xl font-black italic">{productivity}%</div>
                                     <p className="text-[10px] font-bold text-white/60 mt-2 uppercase tracking-widest">+12% from yesterday</p>
                                 </div>
                             </div>
@@ -507,12 +563,12 @@ const Dashboard = () => {
                                         </button>
                                     </div>
                                     <div className="space-y-3">
-                                        {column.items.map((item) => (
+                                        {column.items.map((item: any) => (
                                             <div key={item.id} className="os-card p-4 cursor-grab hover:shadow-lg hover:border-neuro/30 transition-all group">
                                                 <div className="flex items-center gap-2 mb-3">
                                                     <GripVertical className="h-4 w-4 text-[var(--os-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
                                                     <div className="h-8 w-8 bg-neuro/10 rounded-lg flex items-center justify-center text-neuro text-[10px] font-black">
-                                                        {item.name.split(' ').map(n => n[0]).join('')}
+                                                        {item.name.split(' ').map((n: string) => n[0]).join('')}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <h4 className="text-xs font-bold truncate">{item.name}</h4>
@@ -533,10 +589,10 @@ const Dashboard = () => {
                         {/* Pipeline Stats */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {[
-                                { label: 'Total Pipeline', value: '$47,200', icon: Target, change: '+$8,200 this week' },
-                                { label: 'Qualified Value', value: '$5,800', icon: CheckCircle2, change: '1 opportunity' },
-                                { label: 'Avg Deal Size', value: '$4,700', icon: TrendingUp, change: '+12% vs last month' },
-                                { label: 'Win Rate', value: '32%', icon: Activity, change: '8 deals closed' },
+                                { label: 'Total Pipeline', value: `$${(pipelineStats.totalPipeline || 0).toLocaleString()}`, icon: Target, change: 'All opportunities' },
+                                { label: 'Qualified Value', value: `$${(pipelineStats.qualifiedValue || 0).toLocaleString()}`, icon: CheckCircle2, change: 'Ready to close' },
+                                { label: 'Avg Deal Size', value: `$${(pipelineStats.avgDealSize || 0).toLocaleString()}`, icon: TrendingUp, change: 'Per opportunity' },
+                                { label: 'Win Rate', value: `${pipelineStats.winRate || 0}%`, icon: Activity, change: `${pipelineStats.dealsWon || 0} deals closed` },
                             ].map((stat) => (
                                 <div key={stat.label} className="os-card p-5 flex items-center gap-4">
                                     <div className="h-10 w-10 rounded-xl bg-neuro/10 flex items-center justify-center text-neuro">
