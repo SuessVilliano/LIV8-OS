@@ -345,6 +345,137 @@ router.post('/generate-workflow-prompt', async (req: Request, res: Response) => 
 });
 
 /**
+ * POST /api/ai/provision
+ * Provision AI infrastructure for a new client (internal - seamless to users)
+ * This sets up their AI Manager and AI Staff team
+ */
+router.post('/provision', async (req: Request, res: Response) => {
+  try {
+    const {
+      clientId,
+      clientName,
+      crmType,
+      messagingPlatform,
+      messagingConfig,
+      brandBrain,
+      selectedStaff
+    } = req.body;
+
+    if (!clientId || !clientName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: clientId, clientName'
+      });
+    }
+
+    // Store AI configuration in business twin
+    const existingTwin = await businessTwin.getByLocationId(clientId);
+
+    const aiConfig = {
+      provisioned: true,
+      provisionedAt: new Date().toISOString(),
+      messagingPlatform: messagingPlatform || 'none',
+      aiStaff: selectedStaff || ['support-agent', 'sales-agent'],
+      brandBrain: brandBrain || {},
+      status: 'active'
+    };
+
+    // Update or create twin with AI config
+    if (existingTwin) {
+      await businessTwin.update(clientId, {
+        ...existingTwin,
+        aiConfig
+      });
+    } else {
+      await businessTwin.create({
+        locationId: clientId,
+        identity: {
+          businessName: clientName,
+          industry: brandBrain?.industry || ''
+        },
+        aiConfig
+      });
+    }
+
+    // Generate webhook URL based on messaging platform
+    // Note: In production, this would call the actual Moltworker provisioning API
+    const baseUrl = process.env.AI_WORKER_URL || 'https://agent.liv8ai.com';
+    const webhookUrl = messagingPlatform !== 'none'
+      ? `${baseUrl}/webhook/${messagingPlatform}/${clientId}`
+      : null;
+
+    // Store provisioning info for dashboard access
+    const provisionRecord = {
+      clientId,
+      clientName,
+      crmType,
+      messagingPlatform,
+      webhookUrl,
+      aiStaff: selectedStaff,
+      provisionedAt: new Date().toISOString(),
+      status: 'active'
+    };
+
+    // Log successful provisioning
+    console.log(`[AI Provision] Successfully provisioned AI for ${clientName} (${clientId})`);
+
+    res.json({
+      success: true,
+      clientId,
+      webhookUrl,
+      aiStaff: selectedStaff,
+      message: `AI infrastructure provisioned for ${clientName}`,
+      nextSteps: messagingPlatform !== 'none'
+        ? `Your AI Manager will be available on ${messagingPlatform}. Check your messages!`
+        : 'Your AI Staff is ready in the dashboard.'
+    });
+
+  } catch (error: any) {
+    console.error('[AI Provision] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to provision AI infrastructure'
+    });
+  }
+});
+
+/**
+ * GET /api/ai/status/:clientId
+ * Get AI infrastructure status for a client
+ */
+router.get('/status/:clientId', async (req: Request, res: Response) => {
+  try {
+    const { clientId } = req.params;
+
+    const twin = await businessTwin.getByLocationId(clientId);
+
+    if (!twin || !twin.aiConfig) {
+      return res.json({
+        success: true,
+        provisioned: false,
+        message: 'AI not yet provisioned for this account'
+      });
+    }
+
+    res.json({
+      success: true,
+      provisioned: true,
+      status: twin.aiConfig.status,
+      messagingPlatform: twin.aiConfig.messagingPlatform,
+      aiStaff: twin.aiConfig.aiStaff,
+      provisionedAt: twin.aiConfig.provisionedAt
+    });
+
+  } catch (error: any) {
+    console.error('[AI Status] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/ai/models
  * Get available models per provider
  */

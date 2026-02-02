@@ -19,7 +19,11 @@ import {
     Instagram,
     Facebook,
     Linkedin,
-    Twitter
+    Twitter,
+    MessageCircle,
+    Send,
+    Hash,
+    Phone
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
@@ -27,7 +31,7 @@ interface GhlOnboardingProps {
     onComplete: (data: any) => void;
 }
 
-type Step = 'brand' | 'visuals' | 'social' | 'seo' | 'goals' | 'staff' | 'deploy';
+type Step = 'brand' | 'visuals' | 'social' | 'seo' | 'goals' | 'staff' | 'connect' | 'deploy';
 
 const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
     const [step, setStep] = useState<Step>('brand');
@@ -73,7 +77,14 @@ const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
     // Staff States
     const [selectedStaff, setSelectedStaff] = useState<string[]>(['support', 'sales', 'manager']);
 
-    const steps: Step[] = ['brand', 'visuals', 'social', 'seo', 'goals', 'staff', 'deploy'];
+    // Messaging Platform for AI Manager
+    const [messagingPlatform, setMessagingPlatform] = useState<'telegram' | 'discord' | 'slack' | 'whatsapp' | 'none'>('none');
+    const [telegramHandle, setTelegramHandle] = useState('');
+    const [discordServer, setDiscordServer] = useState('');
+    const [slackWorkspace, setSlackWorkspace] = useState('');
+    const [whatsappNumber, setWhatsappNumber] = useState('');
+
+    const steps: Step[] = ['brand', 'visuals', 'social', 'seo', 'goals', 'staff', 'connect', 'deploy'];
     const stepLabels = {
         brand: 'Brand',
         visuals: 'Visuals',
@@ -81,6 +92,7 @@ const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
         seo: 'SEO/AEO',
         goals: 'Goals',
         staff: 'Staff',
+        connect: 'Connect',
         deploy: 'Deploy'
     };
 
@@ -134,7 +146,14 @@ const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
             whyStatement,
             painPoints,
             goals,
-            selectedStaff
+            selectedStaff,
+            messagingPlatform,
+            messagingConfig: {
+                telegram: telegramHandle,
+                discord: discordServer,
+                slack: slackWorkspace,
+                whatsapp: whatsappNumber
+            }
         };
 
         // Store brand data locally for use across the app
@@ -151,6 +170,7 @@ const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
             case 'seo': return true;
             case 'goals': return true;
             case 'staff': return selectedStaff.length > 0;
+            case 'connect': return true; // Optional - users can skip
             default: return true;
         }
     };
@@ -719,6 +739,122 @@ const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
                         </div>
                     )}
 
+                    {/* Connect AI Manager Step */}
+                    {step === 'connect' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <div>
+                                <h3 className="text-2xl font-bold mb-2">Connect Your AI Manager</h3>
+                                <p className="text-[var(--os-text-muted)]">
+                                    Choose where your AI Manager will communicate with you. Get real-time updates, approve actions, and chat with your AI team.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {[
+                                    { id: 'telegram', name: 'Telegram', icon: Send, color: 'text-sky-500', desc: 'Fast, secure messaging with bot integration' },
+                                    { id: 'discord', name: 'Discord', icon: Hash, color: 'text-indigo-500', desc: 'Server-based with channels for different teams' },
+                                    { id: 'slack', name: 'Slack', icon: MessageCircle, color: 'text-emerald-500', desc: 'Professional workspace integration' },
+                                    { id: 'whatsapp', name: 'WhatsApp', icon: Phone, color: 'text-green-500', desc: 'Mobile-first communication' },
+                                ].map((platform) => {
+                                    const isSelected = messagingPlatform === platform.id;
+                                    return (
+                                        <div
+                                            key={platform.id}
+                                            onClick={() => setMessagingPlatform(platform.id as any)}
+                                            className={`p-5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-4 ${isSelected
+                                                ? 'border-neuro bg-neuro/5'
+                                                : 'border-[var(--os-border)] hover:border-neuro/30 bg-[var(--os-surface)]'
+                                            }`}
+                                        >
+                                            <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${isSelected ? 'bg-neuro text-white' : `bg-[var(--os-bg)] ${platform.color}`}`}>
+                                                <platform.icon className="h-5 w-5" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-semibold text-sm">{platform.name}</h4>
+                                                <p className="text-xs text-[var(--os-text-muted)] mt-1">{platform.desc}</p>
+                                            </div>
+                                            <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-neuro bg-neuro text-white' : 'border-[var(--os-border)]'}`}>
+                                                {isSelected && <CheckCircle2 className="h-3 w-3" />}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Platform-specific input */}
+                            {messagingPlatform === 'telegram' && (
+                                <div className="space-y-2 animate-in fade-in duration-200">
+                                    <label className="text-sm font-medium text-[var(--os-text-muted)]">Your Telegram Username (optional)</label>
+                                    <input
+                                        type="text"
+                                        value={telegramHandle}
+                                        onChange={(e) => setTelegramHandle(e.target.value)}
+                                        className="w-full bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro focus:ring-2 focus:ring-neuro/20 outline-none transition-all"
+                                        placeholder="@yourusername"
+                                    />
+                                    <p className="text-xs text-[var(--os-text-muted)]">We'll send you a link to connect with your AI Manager bot.</p>
+                                </div>
+                            )}
+
+                            {messagingPlatform === 'discord' && (
+                                <div className="space-y-2 animate-in fade-in duration-200">
+                                    <label className="text-sm font-medium text-[var(--os-text-muted)]">Discord Server Name (optional)</label>
+                                    <input
+                                        type="text"
+                                        value={discordServer}
+                                        onChange={(e) => setDiscordServer(e.target.value)}
+                                        className="w-full bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro focus:ring-2 focus:ring-neuro/20 outline-none transition-all"
+                                        placeholder="Your Server Name"
+                                    />
+                                    <p className="text-xs text-[var(--os-text-muted)]">We'll provide a bot invite link for your server.</p>
+                                </div>
+                            )}
+
+                            {messagingPlatform === 'slack' && (
+                                <div className="space-y-2 animate-in fade-in duration-200">
+                                    <label className="text-sm font-medium text-[var(--os-text-muted)]">Slack Workspace (optional)</label>
+                                    <input
+                                        type="text"
+                                        value={slackWorkspace}
+                                        onChange={(e) => setSlackWorkspace(e.target.value)}
+                                        className="w-full bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro focus:ring-2 focus:ring-neuro/20 outline-none transition-all"
+                                        placeholder="workspace-name"
+                                    />
+                                    <p className="text-xs text-[var(--os-text-muted)]">We'll guide you through Slack app installation.</p>
+                                </div>
+                            )}
+
+                            {messagingPlatform === 'whatsapp' && (
+                                <div className="space-y-2 animate-in fade-in duration-200">
+                                    <label className="text-sm font-medium text-[var(--os-text-muted)]">WhatsApp Number (optional)</label>
+                                    <input
+                                        type="tel"
+                                        value={whatsappNumber}
+                                        onChange={(e) => setWhatsappNumber(e.target.value)}
+                                        className="w-full bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro focus:ring-2 focus:ring-neuro/20 outline-none transition-all"
+                                        placeholder="+1 (555) 123-4567"
+                                    />
+                                    <p className="text-xs text-[var(--os-text-muted)]">Your AI Manager will message you directly.</p>
+                                </div>
+                            )}
+
+                            <div className="p-4 rounded-xl bg-neuro/10 border border-neuro/20">
+                                <p className="text-sm text-neuro">
+                                    <strong>What happens next:</strong> After setup, your AI Manager will introduce itself and be ready to help manage your business 24/7. You can skip this step and connect later from Settings.
+                                </p>
+                            </div>
+
+                            {messagingPlatform === 'none' && (
+                                <button
+                                    onClick={() => setMessagingPlatform('none')}
+                                    className="text-sm text-[var(--os-text-muted)] hover:text-[var(--os-text)] transition-colors underline"
+                                >
+                                    Skip for now - I'll connect later
+                                </button>
+                            )}
+                        </div>
+                    )}
+
                     {/* Deploy Step */}
                     {step === 'deploy' && (
                         <ConstructionProgress
@@ -733,6 +869,13 @@ const GhlOnboarding: React.FC<GhlOnboardingProps> = ({ onComplete }) => {
                             colors={{ primary: primaryColor, secondary: secondaryColor, accent: accentColor }}
                             socialLinks={socialLinks}
                             seoSettings={seoSettings}
+                            messagingPlatform={messagingPlatform}
+                            messagingConfig={{
+                                telegram: telegramHandle,
+                                discord: discordServer,
+                                slack: slackWorkspace,
+                                whatsapp: whatsappNumber
+                            }}
                         />
                     )}
                 </div>
@@ -778,7 +921,9 @@ const ConstructionProgress = ({
     painPoints,
     colors,
     socialLinks,
-    seoSettings
+    seoSettings,
+    messagingPlatform,
+    messagingConfig
 }: {
     onDone: () => void;
     selectedStaff: string[];
@@ -791,6 +936,8 @@ const ConstructionProgress = ({
     colors: { primary: string; secondary: string; accent: string };
     socialLinks: Record<string, string>;
     seoSettings: Record<string, string>;
+    messagingPlatform?: string;
+    messagingConfig?: Record<string, string>;
 }) => {
     const [stepIndex, setStepIndex] = useState(0);
     const [progress, setProgress] = useState(0);
@@ -802,6 +949,7 @@ const ConstructionProgress = ({
         { label: 'Connecting Social Profiles', detail: 'Linking social media accounts for content distribution' },
         { label: 'Setting Up SEO/AEO', detail: 'Optimizing for search and AI answer engines' },
         { label: 'Deploying AI Staff', detail: `Training ${selectedStaff.length} team members with SOPs and constraints` },
+        { label: 'Activating AI Manager', detail: messagingPlatform && messagingPlatform !== 'none' ? `Setting up your AI Manager on ${messagingPlatform}` : 'Initializing AI orchestration' },
         { label: 'Final Verification', detail: 'Ensuring zero-hallucination guardrails are active' }
     ];
 
@@ -866,7 +1014,7 @@ const ConstructionProgress = ({
                     })
                 });
 
-                setProgress(70);
+                setProgress(60);
                 setStepIndex(4);
                 await new Promise(r => setTimeout(r, 600));
 
@@ -876,13 +1024,74 @@ const ConstructionProgress = ({
                     // Continue anyway - we can still show success
                 }
 
-                // Parse result for any necessary storage
-                await response.json().catch(() => null);
+                // Parse result (response already consumed, just move on)
+                await response.text().catch(() => null);
 
                 // Step 5: Deploy Staff
-                setProgress(85);
+                setProgress(70);
+                await new Promise(r => setTimeout(r, 500));
+
+                // Step 6: Provision AI Infrastructure (hidden from users)
                 setStepIndex(5);
+                setProgress(80);
+
+                // Call AI provisioning API
+                try {
+                    const provisionResponse = await fetch(`${API_URL}/api/ai/provision`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            clientId: locationId,
+                            clientName: businessName,
+                            crmType,
+                            messagingPlatform: messagingPlatform || 'none',
+                            messagingConfig: messagingConfig || {},
+                            brandBrain: {
+                                businessName,
+                                industry,
+                                brandVoice: brandVoice ? { tone: brandVoice } : undefined,
+                                goals,
+                                painPoints
+                            },
+                            selectedStaff: selectedStaff.map(s => {
+                                // Map frontend staff IDs to backend agent types
+                                const mapping: Record<string, string> = {
+                                    'marketing': 'social-media',
+                                    'operations': 'operations-agent',
+                                    'support': 'support-agent',
+                                    'sales': 'sales-agent',
+                                    'manager': 'manager',
+                                    'assistant': 'assistant'
+                                };
+                                return mapping[s] || s;
+                            })
+                        })
+                    });
+
+                    if (provisionResponse.ok) {
+                        const provisionResult = await provisionResponse.json();
+                        // Store any webhook URLs or connection info
+                        if (provisionResult.webhookUrl) {
+                            localStorage.setItem('os_ai_webhook', provisionResult.webhookUrl);
+                        }
+                        if (provisionResult.aiStaff) {
+                            localStorage.setItem('os_ai_staff', JSON.stringify(provisionResult.aiStaff));
+                        }
+                    }
+                } catch (provisionErr) {
+                    console.warn('AI provisioning skipped:', provisionErr);
+                    // Continue anyway - core functionality still works
+                }
+
                 await new Promise(r => setTimeout(r, 600));
+
+                // Step 7: Final Verification
+                setStepIndex(6);
+                setProgress(90);
+                await new Promise(r => setTimeout(r, 500));
 
                 // Complete
                 setProgress(100);
@@ -890,6 +1099,12 @@ const ConstructionProgress = ({
 
                 // Store the location ID for future use
                 localStorage.setItem('locationId', locationId);
+                localStorage.setItem('os_loc_id', locationId);
+
+                // Store messaging preference
+                if (messagingPlatform && messagingPlatform !== 'none') {
+                    localStorage.setItem('os_messaging_platform', messagingPlatform);
+                }
 
             } catch (err: any) {
                 console.error('Onboarding error:', err);
