@@ -87,7 +87,7 @@ const Brand = () => {
                                     <p className="text-[10px] font-bold text-[var(--os-text-muted)] mt-2 uppercase tracking-widest">High-fidelity SVG Source</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {['#1068EB', '#000000', '#F1F5F9'].map(c => (
+                                    {['#8b5cf6', '#000000', '#F1F5F9'].map(c => (
                                         <div key={c} className="h-8 w-8 rounded-lg border border-[var(--os-border)] shadow-sm" style={{ backgroundColor: c }}></div>
                                     ))}
                                     <span className="text-[8px] font-black text-[var(--os-text-muted)] uppercase ml-2 italic">Neural Palette Extracted</span>
@@ -198,13 +198,13 @@ const Brand = () => {
                         </div>
 
                         {/* Preview Right */}
-                        <div className="flex-1 os-card p-8 flex flex-col space-y-8 bg-slate-50/50">
+                        <div className="flex-1 os-card p-8 flex flex-col space-y-8 bg-slate-800/30">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                     <Eye className="h-5 w-5 text-neuro" />
                                     <h3 className="text-lg font-black uppercase italic">Neural <span className="text-neuro">Preview</span></h3>
                                 </div>
-                                <div className="flex bg-white p-1 rounded-xl border border-slate-200">
+                                <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
                                     {[
                                         { id: 'ig', icon: Instagram },
                                         { id: 'li', icon: Linkedin },

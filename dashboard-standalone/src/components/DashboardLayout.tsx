@@ -9,7 +9,7 @@ interface ThemeConfig {
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
-  mode: 'light' | 'dark';
+  mode: 'dark' | 'dark';
   preset: string;
 }
 
@@ -22,7 +22,7 @@ const defaultTheme: ThemeConfig = {
   primaryColor: '#6366f1',  // indigo-500
   secondaryColor: '#8b5cf6',  // violet-500
   accentColor: '#10b981',  // emerald-500
-  mode: 'light',
+  mode: 'dark',
   preset: 'default'
 };
 
@@ -39,25 +39,25 @@ const THEME_PRESETS = {
     primaryColor: '#6366f1',
     secondaryColor: '#8b5cf6',
     accentColor: '#10b981',
-    mode: 'light' as const
+    mode: 'dark' as const
   },
   ocean: {
     primaryColor: '#0ea5e9',
     secondaryColor: '#06b6d4',
     accentColor: '#14b8a6',
-    mode: 'light' as const
+    mode: 'dark' as const
   },
   sunset: {
     primaryColor: '#f97316',
     secondaryColor: '#f59e0b',
     accentColor: '#ef4444',
-    mode: 'light' as const
+    mode: 'dark' as const
   },
   forest: {
     primaryColor: '#22c55e',
     secondaryColor: '#10b981',
     accentColor: '#84cc16',
-    mode: 'light' as const
+    mode: 'dark' as const
   },
   midnight: {
     primaryColor: '#8b5cf6',
@@ -69,7 +69,7 @@ const THEME_PRESETS = {
     primaryColor: '#3b82f6',
     secondaryColor: '#1d4ed8',
     accentColor: '#0ea5e9',
-    mode: 'light' as const
+    mode: 'dark' as const
   }
 };
 
