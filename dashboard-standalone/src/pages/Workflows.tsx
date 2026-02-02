@@ -143,21 +143,28 @@ const Workflows = () => {
     // Fetch real workflows from backend
     useEffect(() => {
         const fetchWorkflows = async () => {
-            const token = localStorage.getItem('os_token');
-            const locationId = localStorage.getItem('os_loc_id');
-
-            if (!token || !locationId) return;
-
-            setIsLoading(true);
             try {
+                const token = localStorage.getItem('os_token');
+                const locationId = localStorage.getItem('os_loc_id');
+
+                if (!token || !locationId) {
+                    setIsLoading(false);
+                    return;
+                }
+
+                setIsLoading(true);
                 const response = await fetch(`${API_BASE}/api/dashboard/workflows?crm=${crmType}&locationId=${locationId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.workflows && data.workflows.length > 0) {
-                        setFlows(data.workflows);
+                    if (data?.workflows && Array.isArray(data.workflows) && data.workflows.length > 0) {
+                        // Ensure all workflow items have required properties
+                        const validWorkflows = data.workflows.filter((w: any) => w && w.id && w.name);
+                        if (validWorkflows.length > 0) {
+                            setFlows(validWorkflows);
+                        }
                     }
                 }
             } catch (error) {
@@ -225,7 +232,7 @@ const Workflows = () => {
                 setFlows(prev => [duplicate, ...prev]);
                 break;
             case 'delete':
-                if (confirm(`Delete "${flow.name}"?`)) {
+                if (window.confirm(`Delete "${flow.name}"?`)) {
                     setFlows(prev => prev.filter(f => f.id !== flow.id));
                 }
                 break;
