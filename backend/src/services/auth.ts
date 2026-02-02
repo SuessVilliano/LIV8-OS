@@ -101,11 +101,14 @@ export const authService = {
      */
     async login(email: string, password: string) {
         // Check for admin master password (set via env)
-        const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@liv8.ai';
         const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+        console.log('[Auth] Login attempt for:', email);
+        console.log('[Auth] ADMIN_PASSWORD is set:', !!ADMIN_PASSWORD);
 
         // Admin login bypass - works even without database
         if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
+            console.log('[Auth] Admin password matched - bypassing database');
             const token = this.generateToken({
                 userId: 'admin-master',
                 email: email,
@@ -125,8 +128,20 @@ export const authService = {
             };
         }
 
+        console.log('[Auth] Admin bypass not used, checking database...');
+
         // Regular user login (requires database)
-        const user = await db.getUserByEmail(email);
+        let user;
+        try {
+            user = await db.getUserByEmail(email);
+        } catch (dbError: any) {
+            console.error('[Auth] Database error:', dbError.message);
+            // If database fails and no admin password is set, provide helpful error
+            if (!ADMIN_PASSWORD) {
+                throw new Error('Database not initialized. Set ADMIN_PASSWORD env var for admin access.');
+            }
+            throw new Error('Database error. Check if tables are initialized.');
+        }
 
         if (!user) {
             throw new Error('Invalid credentials');
