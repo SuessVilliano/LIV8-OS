@@ -87,7 +87,7 @@ router.get('/subscription', async (req: Request, res: Response) => {
  */
 router.post('/checkout', async (req: Request, res: Response) => {
   try {
-    const { email, planId, interval = 'monthly', locationId } = req.body;
+    const { email, planId, interval = 'monthly', locationId, affiliateId } = req.body;
 
     if (!email || !planId) {
       return res.status(400).json({ error: 'Email and planId required' });
@@ -103,14 +103,15 @@ router.post('/checkout', async (req: Request, res: Response) => {
       locationId: locationId || 'unknown'
     });
 
-    // Create checkout session
-    const baseUrl = process.env.APP_URL || 'http://localhost:5173';
+    // Create checkout session with optional affiliate tracking
+    const baseUrl = process.env.APP_URL || 'https://os.liv8ai.com';
     const checkoutUrl = await stripeService.createCheckoutSession(
       customerId,
       planId as PlanId,
       interval as 'monthly' | 'yearly',
       `${baseUrl}/settings/billing?success=true`,
-      `${baseUrl}/settings/billing?cancelled=true`
+      `${baseUrl}/settings/billing?cancelled=true`,
+      affiliateId // PushLap Growth affiliate ID
     );
 
     res.json({
@@ -391,7 +392,7 @@ router.post('/validate-coupon', async (req: Request, res: Response) => {
  */
 router.post('/checkout-with-coupon', async (req: Request, res: Response) => {
   try {
-    const { email, planId, interval = 'monthly', locationId, couponCode } = req.body;
+    const { email, planId, interval = 'monthly', locationId, couponCode, affiliateId } = req.body;
 
     if (!email || !planId) {
       return res.status(400).json({ error: 'Email and planId required' });
@@ -407,7 +408,7 @@ router.post('/checkout-with-coupon', async (req: Request, res: Response) => {
       locationId: locationId || 'unknown'
     });
 
-    // Create checkout session with coupon
+    // Create checkout session with coupon and optional affiliate tracking
     const baseUrl = process.env.APP_URL || 'https://os.liv8ai.com';
     const checkoutUrl = await stripeService.createCheckoutSessionWithCoupon(
       customerId,
@@ -415,7 +416,8 @@ router.post('/checkout-with-coupon', async (req: Request, res: Response) => {
       interval as 'monthly' | 'yearly',
       `${baseUrl}/settings/billing?success=true`,
       `${baseUrl}/settings/billing?cancelled=true`,
-      couponCode
+      couponCode,
+      affiliateId // PushLap Growth affiliate ID
     );
 
     res.json({

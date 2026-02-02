@@ -220,14 +220,15 @@ export class StripeService {
     planId: PlanId,
     interval: 'monthly' | 'yearly',
     successUrl: string,
-    cancelUrl: string
+    cancelUrl: string,
+    affiliateId?: string // PushLap Growth affiliate tracking
   ): Promise<string> {
     const plan = PRICING_PLANS[planId];
     if (!plan) throw new Error('Invalid plan');
 
     const priceId = interval === 'yearly' ? plan.stripePriceIdYearly : plan.stripePriceIdMonthly;
 
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -243,10 +244,21 @@ export class StripeService {
       billing_address_collection: 'auto',
       subscription_data: {
         metadata: {
-          planId
+          planId,
+          ...(affiliateId && { pushLapAffiliateId: affiliateId })
         }
+      },
+      metadata: {
+        ...(affiliateId && { pushLapAffiliateId: affiliateId })
       }
-    });
+    };
+
+    // Add client_reference_id for PushLap affiliate tracking
+    if (affiliateId) {
+      sessionParams.client_reference_id = affiliateId;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     return session.url || '';
   }
@@ -627,7 +639,8 @@ export class StripeService {
     interval: 'monthly' | 'yearly',
     successUrl: string,
     cancelUrl: string,
-    promotionCode?: string
+    promotionCode?: string,
+    affiliateId?: string // PushLap Growth affiliate tracking
   ): Promise<string> {
     const plan = PRICING_PLANS[planId];
     if (!plan) throw new Error('Invalid plan');
@@ -649,10 +662,19 @@ export class StripeService {
       billing_address_collection: 'auto',
       subscription_data: {
         metadata: {
-          planId
+          planId,
+          ...(affiliateId && { pushLapAffiliateId: affiliateId })
         }
+      },
+      metadata: {
+        ...(affiliateId && { pushLapAffiliateId: affiliateId })
       }
     };
+
+    // Add client_reference_id for PushLap affiliate tracking
+    if (affiliateId) {
+      sessionParams.client_reference_id = affiliateId;
+    }
 
     // If a specific promotion code is provided, use it; otherwise allow user to enter any
     if (promotionCode) {

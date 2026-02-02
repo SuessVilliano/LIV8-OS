@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Shield, Mail, Lock, Sparkles, ChevronRight, Fingerprint, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
+import { getBackendUrl } from '../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = getBackendUrl();
 
 const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     const [email, setEmail] = useState('');
