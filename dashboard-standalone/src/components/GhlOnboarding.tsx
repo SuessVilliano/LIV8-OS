@@ -8,7 +8,6 @@ import {
     CheckCircle2,
     Brain,
     Rocket,
-    Building2,
     Target,
     Heart,
     Users,
@@ -16,17 +15,11 @@ import {
     TrendingUp,
     Shield,
     Bot,
-    Palette,
     Image,
-    Link2,
-    Search,
     Instagram,
     Facebook,
     Linkedin,
-    Twitter,
-    Upload,
-    FileText,
-    MessageSquare
+    Twitter
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
@@ -801,9 +794,7 @@ const ConstructionProgress = ({
 }) => {
     const [stepIndex, setStepIndex] = useState(0);
     const [progress, setProgress] = useState(0);
-    const [error, setError] = useState<string | null>(null);
     const [isComplete, setIsComplete] = useState(false);
-    const [apiResults, setApiResults] = useState<any>(null);
 
     const builderSteps = [
         { label: 'Creating Business Twin', detail: `Initializing digital DNA for ${businessName || 'your business'}` },
@@ -885,10 +876,8 @@ const ConstructionProgress = ({
                     // Continue anyway - we can still show success
                 }
 
-                const result = await response.json().catch(() => null);
-                if (result) {
-                    setApiResults(result);
-                }
+                // Parse result for any necessary storage
+                await response.json().catch(() => null);
 
                 // Step 5: Deploy Staff
                 setProgress(85);
