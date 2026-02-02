@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
     MessageSquare,
     Users,
@@ -16,7 +16,8 @@ import {
     Filter,
     Clock,
     UserCheck,
-    Bot
+    Bot,
+    Plus
 } from 'lucide-react';
 
 const Staff = () => {
@@ -48,7 +49,7 @@ const Staff = () => {
     const currentList = subTab === 'ai' ? aiStaff : subTab === 'human' ? humanStaff : contacts;
 
     return (
-        <div className="h-full bg-[var(--os-bg)] flex flex-col font-sans text-[var(--os-text)] relative overflow-hidden transition-colors duration-500">
+        <div className="min-h-full bg-[var(--os-bg)] flex flex-col font-sans text-[var(--os-text)] relative overflow-y-auto transition-colors duration-500">
             <div className="p-10 space-y-8 flex-1 flex flex-col max-w-7xl mx-auto w-full">
                 <header className="flex items-end justify-between">
                     <div>

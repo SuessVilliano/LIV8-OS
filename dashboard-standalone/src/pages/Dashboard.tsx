@@ -43,11 +43,20 @@ const iconMap: Record<string, any> = {
 const Dashboard = () => {
     const { config } = useTheme();
     const [showChat, setShowChat] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'kanban'>('overview');
     const [isLoading, setIsLoading] = useState(true);
+    const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
     const locationId = localStorage.getItem('locationId') || localStorage.getItem('os_loc_id') || 'default';
     const crmType = localStorage.getItem('os_crm_type') || 'liv8';
     const navigate = useNavigate();
+
+    // Notifications state
+    const [notifications, setNotifications] = useState([
+        { id: '1', type: 'success', title: 'Lead Converted', message: 'Sarah Chen moved to Hot Opportunities', time: '2m ago', read: false },
+        { id: '2', type: 'info', title: 'Workflow Complete', message: 'Reactivation Campaign finished 42 contacts', time: '15m ago', read: false },
+        { id: '3', type: 'warning', title: 'Task Overdue', message: 'Follow-up call with James Wilson pending', time: '1h ago', read: true },
+    ]);
 
     // State for fetched data
     const [stats, setStats] = useState([
@@ -136,6 +145,36 @@ const Dashboard = () => {
             console.error('Failed to fetch dashboard data:', error);
         } finally {
             setIsLoading(false);
+            setLastRefresh(new Date());
+        }
+    };
+
+    // Mark notification as read
+    const markNotificationRead = (id: string) => {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    };
+
+    // Clear all notifications
+    const clearAllNotifications = () => {
+        setNotifications([]);
+        setShowNotifications(false);
+    };
+
+    // Handle stat card click - navigate to relevant page
+    const handleStatClick = (label: string) => {
+        switch (label) {
+            case 'Total Revenue':
+                setActiveTab('kanban'); // Show pipeline for revenue
+                break;
+            case 'Active Leads':
+                navigate('/staff'); // Navigate to staff/contacts
+                break;
+            case 'AI Conversations':
+                setShowChat(true); // Open AI chat
+                break;
+            case 'Workflows Active':
+                setActiveTab('overview'); // Show workflows in overview
+                break;
         }
     };
 
@@ -219,17 +258,81 @@ const Dashboard = () => {
                         >
                             <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
                         </button>
-                        <button className="h-12 w-12 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl flex items-center justify-center text-[var(--os-text-muted)] hover:text-neuro hover:bg-neuro/5 transition-all relative">
-                            <Bell className="h-5 w-5" />
-                            <span className="absolute top-3 right-3 w-2 h-2 bg-neuro rounded-full animate-pulse"></span>
-                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                className="h-12 w-12 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl flex items-center justify-center text-[var(--os-text-muted)] hover:text-neuro hover:bg-neuro/5 transition-all relative"
+                            >
+                                <Bell className="h-5 w-5" />
+                                {notifications.filter(n => !n.read).length > 0 && (
+                                    <span className="absolute top-2 right-2 min-w-[18px] h-[18px] bg-neuro rounded-full text-[9px] font-black text-white flex items-center justify-center">
+                                        {notifications.filter(n => !n.read).length}
+                                    </span>
+                                )}
+                            </button>
+
+                            {/* Notifications Dropdown */}
+                            {showNotifications && (
+                                <div className="absolute right-0 top-14 w-80 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="p-4 border-b border-[var(--os-border)] flex items-center justify-between">
+                                        <h4 className="text-sm font-black uppercase tracking-tight">Notifications</h4>
+                                        {notifications.length > 0 && (
+                                            <button
+                                                onClick={clearAllNotifications}
+                                                className="text-[9px] font-bold text-neuro hover:underline"
+                                            >
+                                                Clear All
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="max-h-80 overflow-y-auto">
+                                        {notifications.length === 0 ? (
+                                            <div className="p-8 text-center">
+                                                <Bell className="h-8 w-8 text-[var(--os-text-muted)] mx-auto mb-3 opacity-50" />
+                                                <p className="text-[10px] font-bold text-[var(--os-text-muted)] uppercase tracking-widest">No notifications</p>
+                                            </div>
+                                        ) : (
+                                            notifications.map(notif => (
+                                                <div
+                                                    key={notif.id}
+                                                    onClick={() => markNotificationRead(notif.id)}
+                                                    className={`p-4 border-b border-[var(--os-border)] hover:bg-[var(--os-bg)] cursor-pointer transition-all ${!notif.read ? 'bg-neuro/5' : ''}`}
+                                                >
+                                                    <div className="flex items-start gap-3">
+                                                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                                            notif.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
+                                                            notif.type === 'warning' ? 'bg-amber-500/10 text-amber-500' :
+                                                            'bg-neuro/10 text-neuro'
+                                                        }`}>
+                                                            <Zap className="h-4 w-4" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between">
+                                                                <h5 className="text-xs font-bold">{notif.title}</h5>
+                                                                {!notif.read && <div className="w-2 h-2 rounded-full bg-neuro"></div>}
+                                                            </div>
+                                                            <p className="text-[10px] text-[var(--os-text-muted)] mt-0.5">{notif.message}</p>
+                                                            <span className="text-[9px] font-bold text-[var(--os-text-muted)] mt-1 block">{notif.time}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </header>
 
                 {/* Stats Grid - Always visible */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {stats.map((stat) => (
-                        <div key={stat.label} className="group p-6 rounded-[2rem] bg-[var(--os-glass-bg)] backdrop-blur-lg border border-[var(--os-border)] shadow-xl shadow-neuro/5 hover:bg-neuro transition-all duration-500 hover:scale-[1.02] cursor-pointer">
+                        <div
+                            key={stat.label}
+                            onClick={() => handleStatClick(stat.label)}
+                            className="group p-6 rounded-[2rem] bg-[var(--os-glass-bg)] backdrop-blur-lg border border-[var(--os-border)] shadow-xl shadow-neuro/5 hover:bg-neuro transition-all duration-500 hover:scale-[1.02] cursor-pointer"
+                        >
                             <div className="h-12 w-12 rounded-xl bg-[var(--os-bg)] flex items-center justify-center text-neuro mb-4 transition-all duration-500 group-hover:bg-white group-hover:scale-110">
                                 <stat.icon className="h-6 w-6" />
                             </div>

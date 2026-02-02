@@ -284,6 +284,67 @@ router.post('/edit/image', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/ai/generate-workflow-prompt
+ * Generate an optimized natural language prompt for GHL's AI Workflow Builder
+ */
+router.post('/generate-workflow-prompt', async (req: Request, res: Response) => {
+  try {
+    const { prompt, crmType = 'ghl' } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing prompt'
+      });
+    }
+
+    // Generate optimized GHL/Vbout workflow prompt
+    const lowerPrompt = prompt.toLowerCase();
+    let ghlPrompt = 'Create an automation workflow that ';
+
+    // Intelligent prompt enhancement based on intent
+    if (lowerPrompt.includes('follow up') || lowerPrompt.includes('followup')) {
+      ghlPrompt += `automatically follows up with contacts. When a contact is added or a form is submitted, wait 24 hours then send a personalized SMS message asking if they have any questions about your services. If no response after 2 days, send a helpful email with additional resources and FAQ. After another 3 days with no engagement, add tag "needs-attention" and notify the assigned user. Move the contact through pipeline stages based on their responses.`;
+    } else if (lowerPrompt.includes('appointment') || lowerPrompt.includes('booking') || lowerPrompt.includes('calendar')) {
+      ghlPrompt += `manages appointment bookings and reminders. When an appointment is scheduled, immediately send a confirmation SMS with the date, time, and location details. Also send a confirmation email with calendar invite attachment. 24 hours before the appointment, send a reminder SMS. 1 hour before, send a final reminder with directions or meeting link. If the appointment is marked as no-show, wait 1 hour then send a rebooking SMS with a link to reschedule. Update opportunity status accordingly.`;
+    } else if (lowerPrompt.includes('lead') || lowerPrompt.includes('new contact') || lowerPrompt.includes('welcome')) {
+      ghlPrompt += `nurtures new leads through an onboarding sequence. When a new contact is created, immediately send a warm welcome SMS introducing your business. Wait 1 hour, then send a detailed email showcasing your services and unique value proposition. Add tag "New Lead" and create an opportunity in the sales pipeline. After 3 days, if no engagement or reply, send a follow-up SMS with a special first-time offer. Track all engagement and update contact score.`;
+    } else if (lowerPrompt.includes('review') || lowerPrompt.includes('testimonial') || lowerPrompt.includes('feedback')) {
+      ghlPrompt += `requests reviews from satisfied customers. When an opportunity is marked as Won or a service is completed, wait 7 days then send a thank you SMS with a direct link to leave a Google review. Include a personalized message referencing their purchase or service. If no review is detected after 3 days, send a gentle email reminder explaining how much reviews help your business. Offer an incentive like a discount on their next purchase. Tag contacts who leave reviews for VIP treatment.`;
+    } else if (lowerPrompt.includes('reactivation') || lowerPrompt.includes('inactive') || lowerPrompt.includes('win back')) {
+      ghlPrompt += `reactivates dormant contacts. Find contacts who haven't engaged in 30+ days using a filter or tag. Send them a personalized "We miss you" SMS with a special comeback offer or discount code valid for 7 days. If they click or respond, immediately move them to the active pipeline and notify the sales team. If no response after 5 days, send a final email with your best offer. After 14 days of no engagement, add tag "cold" and pause further automation.`;
+    } else if (lowerPrompt.includes('birthday') || lowerPrompt.includes('anniversary')) {
+      ghlPrompt += `sends personalized birthday and anniversary messages. Use the contact's birthday custom field to trigger on their birthday. Send a heartfelt SMS with birthday wishes and a special birthday discount code. Follow up with an email containing an exclusive birthday offer valid for 7 days. For customer anniversaries (1 year since first purchase), send a thank you message with a loyalty reward. Tag VIP customers for extra special treatment.`;
+    } else if (lowerPrompt.includes('missed call') || lowerPrompt.includes('voicemail')) {
+      ghlPrompt += `recovers missed calls and voicemails. When a call is missed or goes to voicemail, immediately send an SMS apologizing for missing their call and asking how you can help. Include business hours and alternative contact methods. If they don't respond within 2 hours during business hours, send a follow-up asking for a good time to call back. Create a task for the team to follow up. Track callback success rate.`;
+    } else if (lowerPrompt.includes('cart') || lowerPrompt.includes('abandon') || lowerPrompt.includes('checkout')) {
+      ghlPrompt += `recovers abandoned carts and incomplete checkouts. When a cart abandonment event is detected, wait 1 hour then send an SMS reminder about their pending items. Include a direct link back to their cart. After 24 hours, send an email with the cart contents and a small discount to encourage completion. After 3 days, send a final "last chance" message with your best offer. Track recovery rate and revenue recovered.`;
+    } else {
+      // Generic enhancement for custom prompts
+      ghlPrompt += `${prompt}. Include appropriate triggers based on contact activity or form submissions. Add strategic wait/delay steps between actions (15 minutes to several days depending on urgency). Send relevant SMS and email communications with personalized merge fields like {{contact.first_name}}. Update contact tags and pipeline stages to track progress. Add conditional branches based on contact responses or engagement. Include internal notifications for your team when important actions occur. Make sure to handle both positive and negative outcomes.`;
+    }
+
+    // Add CRM-specific tips
+    const tips = crmType === 'ghl'
+      ? 'Tip: In GHL, click "Build with AI" in the workflow builder, paste this prompt, and the AI will create the workflow structure for you. Review and customize the generated workflow before publishing.'
+      : 'Tip: This prompt is optimized for automation platforms. Adapt the triggers and actions to match your Vbout workflow builder.';
+
+    res.json({
+      success: true,
+      ghlPrompt,
+      tips,
+      originalPrompt: prompt
+    });
+  } catch (error: any) {
+    console.error('Workflow prompt generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to generate workflow prompt'
+    });
+  }
+});
+
+/**
  * GET /api/ai/models
  * Get available models per provider
  */

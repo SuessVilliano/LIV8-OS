@@ -33,6 +33,9 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
     // GHL state
     const [locId, setLocId] = useState('');
     const [apiKey, setApiKey] = useState('');
+    const [isNewGhl, setIsNewGhl] = useState(false);
+    const [ghlBusinessName, setGhlBusinessName] = useState('');
+    const [ghlEmail, setGhlEmail] = useState('');
 
     // LIV8 CRM (Vbout) state
     const [vboutEmail, setVboutEmail] = useState('');
@@ -49,24 +52,49 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
         setError(null);
 
         try {
-            // Validate credentials via backend API
-            const response = await fetch(`${API_BASE}/api/crm/validate-ghl`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ locationId: locId, apiKey })
-            });
+            if (isNewGhl) {
+                // Create new GHL sub-account
+                const response = await fetch(`${API_BASE}/api/crm/create-ghl-subaccount`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        businessName: ghlBusinessName || `${ghlEmail.split('@')[0]}'s Business`,
+                        email: ghlEmail
+                    })
+                });
 
-            const data = await response.json();
+                const data = await response.json();
 
-            if (!response.ok || !data.success) {
-                throw new Error(data.error || 'Invalid GHL credentials');
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to create GHL sub-account');
+                }
+
+                // Store the new credentials
+                localStorage.setItem('os_ghl_account', JSON.stringify(data.account));
+
+                // Success - proceed to onboarding with the new credentials
+                onConnect('ghl', { locationId: data.account.locationId, apiKey: data.account.apiKey });
+
+            } else {
+                // Validate existing credentials via backend API
+                const response = await fetch(`${API_BASE}/api/crm/validate-ghl`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ locationId: locId, apiKey })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Invalid GHL credentials');
+                }
+
+                // Success - proceed to onboarding
+                onConnect('ghl', { locationId: locId, apiKey });
             }
 
-            // Success - proceed to onboarding
-            onConnect('ghl', { locationId: locId, apiKey });
-
         } catch (err: any) {
-            setError(err.message || 'Failed to validate GHL credentials. Please check your Location ID and API Token.');
+            setError(err.message || 'Failed to connect to GHL. Please try again.');
         } finally {
             setIsVerifying(false);
         }
@@ -217,10 +245,10 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
     // GoHighLevel Connection Form
     if (step === 'ghl') {
         return (
-            <div className="h-full bg-[var(--os-bg)] flex flex-col font-sans text-[var(--os-text)] relative overflow-hidden transition-colors duration-500">
-                <div className="absolute top-[-5%] left-[-5%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse"></div>
+            <div className="min-h-full bg-[var(--os-bg)] font-sans text-[var(--os-text)] relative overflow-y-auto transition-colors duration-500">
+                <div className="absolute top-[-5%] left-[-5%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse pointer-events-none"></div>
 
-                <div className="flex-1 flex items-center justify-center p-10 relative z-10">
+                <div className="min-h-full flex items-center justify-center p-10 py-16 relative z-10">
                     <div className="w-full max-w-xl space-y-8">
                         {/* Back Button */}
                         <button
@@ -233,48 +261,129 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
 
                         <header className="text-center space-y-4">
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[9px] font-black uppercase tracking-widest">
-                                <Shield className="h-3 w-3" /> Secure Handshake
+                                <Shield className="h-3 w-3" /> {isNewGhl ? 'Auto-Setup' : 'Secure Handshake'}
                             </div>
                             <h1 className="text-4xl md:text-5xl font-black text-[var(--os-text)] tracking-tighter leading-none">
-                                Connect <span className="text-blue-400">GoHighLevel</span>
+                                {isNewGhl ? 'Setup' : 'Connect'} <span className="text-blue-400">GoHighLevel</span>
                             </h1>
                             <p className="text-[var(--os-text-muted)] text-sm font-medium max-w-sm mx-auto">
-                                We'll validate your credentials securely with GHL's API to ensure a proper connection.
+                                {isNewGhl
+                                    ? "We'll create your GHL sub-account automatically so you can get started right away."
+                                    : "We'll validate your credentials securely with GHL's API to ensure a proper connection."
+                                }
                             </p>
                         </header>
 
+                        {/* Toggle between new/existing GHL account */}
+                        <div className="flex items-center justify-center gap-4">
+                            <button
+                                type="button"
+                                onClick={() => setIsNewGhl(false)}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                                    !isNewGhl
+                                        ? 'bg-blue-500 text-white'
+                                        : 'bg-[var(--os-surface)] text-[var(--os-text-muted)] hover:text-[var(--os-text)]'
+                                }`}
+                            >
+                                I Have GHL
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsNewGhl(true)}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                                    isNewGhl
+                                        ? 'bg-blue-500 text-white'
+                                        : 'bg-[var(--os-surface)] text-[var(--os-text-muted)] hover:text-[var(--os-text)]'
+                                }`}
+                            >
+                                New to GHL
+                            </button>
+                        </div>
+
                         <form onSubmit={handleGhlSubmit} className="bg-[var(--os-surface)] border border-[var(--os-border)] rounded-3xl p-8 space-y-6 shadow-2xl shadow-blue-900/5">
                             <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Location Identifier</label>
-                                    <div className="relative group">
-                                        <Layout className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-blue-400 transition-colors" />
-                                        <input
-                                            type="text"
-                                            value={locId}
-                                            onChange={(e) => setLocId(e.target.value)}
-                                            className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                                            placeholder="Paste GHL Location ID"
-                                            required
-                                        />
-                                    </div>
-                                </div>
+                                {isNewGhl ? (
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Business Name</label>
+                                            <div className="relative group">
+                                                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-blue-400 transition-colors" />
+                                                <input
+                                                    type="text"
+                                                    value={ghlBusinessName}
+                                                    onChange={(e) => setGhlBusinessName(e.target.value)}
+                                                    className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                                    placeholder="Your Business Name"
+                                                />
+                                            </div>
+                                        </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Private Integration Token</label>
-                                    <div className="relative group">
-                                        <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-blue-400 transition-colors" />
-                                        <input
-                                            type="password"
-                                            value={apiKey}
-                                            onChange={(e) => setApiKey(e.target.value)}
-                                            className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                                            placeholder="••••••••••••••••"
-                                            required
-                                        />
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Email Address</label>
+                                            <div className="relative group">
+                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-blue-400 transition-colors" />
+                                                <input
+                                                    type="email"
+                                                    value={ghlEmail}
+                                                    onChange={(e) => setGhlEmail(e.target.value)}
+                                                    className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                                    placeholder="you@yourbusiness.com"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Location Identifier</label>
+                                            <div className="relative group">
+                                                <Layout className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-blue-400 transition-colors" />
+                                                <input
+                                                    type="text"
+                                                    value={locId}
+                                                    onChange={(e) => setLocId(e.target.value)}
+                                                    className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                                    placeholder="Paste GHL Location ID"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Private Integration Token</label>
+                                            <div className="relative group">
+                                                <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-blue-400 transition-colors" />
+                                                <input
+                                                    type="password"
+                                                    value={apiKey}
+                                                    onChange={(e) => setApiKey(e.target.value)}
+                                                    className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                                    placeholder="••••••••••••••••"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {isNewGhl && (
+                                <div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                                    <div className="flex items-start gap-3">
+                                        <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                        <div className="text-sm">
+                                            <p className="font-semibold text-emerald-400">What we'll set up for you:</p>
+                                            <ul className="mt-2 space-y-1 text-[var(--os-text-muted)]">
+                                                <li>• GHL sub-account with full CRM access</li>
+                                                <li>• Contact management and pipelines</li>
+                                                <li>• Automation workflows ready to go</li>
+                                                <li>• MCP integration for AI operations</li>
+                                            </ul>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Error Message */}
                             {error && (
@@ -324,10 +433,10 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
     // LIV8 CRM (Vbout) Connection Form
     if (step === 'liv8') {
         return (
-            <div className="h-full bg-[var(--os-bg)] flex flex-col font-sans text-[var(--os-text)] relative overflow-hidden transition-colors duration-500">
-                <div className="absolute top-[-5%] right-[-5%] w-[40%] h-[40%] bg-purple-500/5 blur-[120px] rounded-full animate-pulse"></div>
+            <div className="min-h-full bg-[var(--os-bg)] font-sans text-[var(--os-text)] relative overflow-y-auto transition-colors duration-500">
+                <div className="absolute top-[-5%] right-[-5%] w-[40%] h-[40%] bg-purple-500/5 blur-[120px] rounded-full animate-pulse pointer-events-none"></div>
 
-                <div className="flex-1 flex items-center justify-center p-10 relative z-10">
+                <div className="min-h-full flex items-center justify-center p-10 py-16 relative z-10">
                     <div className="w-full max-w-xl space-y-8">
                         {/* Back Button */}
                         <button
