@@ -1,0 +1,108 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "liv8-moltworker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // AI Gateway for secure API key management
+  "ai": {
+    "binding": "AI"
+  },
+
+  // R2 Storage for Brand Brain, documents, conversation history
+  "r2_buckets": [
+    {
+      "binding": "BRAND_BRAIN",
+      "bucket_name": "liv8-brand-brain"
+    },
+    {
+      "binding": "DOCUMENTS",
+      "bucket_name": "liv8-documents"
+    }
+  ],
+
+  // KV for session state, quick lookups
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      "id": "YOUR_KV_NAMESPACE_ID"
+    },
+    {
+      "binding": "CLIENT_CONFIG",
+      "id": "YOUR_KV_NAMESPACE_ID"
+    }
+  ],
+
+  // Durable Objects for persistent agent state
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AI_MANAGER",
+        "class_name": "AIManagerDO"
+      },
+      {
+        "name": "AGENT_STAFF",
+        "class_name": "AgentStaffDO"
+      }
+    ]
+  },
+
+  // Queues for async task processing
+  "queues": {
+    "producers": [
+      {
+        "binding": "TASK_QUEUE",
+        "queue": "liv8-tasks"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "liv8-tasks",
+        "max_batch_size": 10,
+        "max_batch_timeout": 30
+      }
+    ]
+  },
+
+  // Environment variables (non-secret)
+  "vars": {
+    "ENVIRONMENT": "development",
+    "LIV8_API_URL": "https://api.liv8ai.com",
+    "GHL_API_VERSION": "2021-07-28"
+  },
+
+  // Secrets (set via wrangler secret put):
+  // - ANTHROPIC_API_KEY
+  // - GOOGLE_AI_KEY (Gemini)
+  // - TELEGRAM_BOT_TOKEN
+  // - DISCORD_BOT_TOKEN
+  // - SLACK_BOT_TOKEN
+  // - GHL_API_KEY (per-client, stored in KV)
+  // - VBOUT_API_KEY (per-client, stored in KV)
+  // - AI_GATEWAY_API_KEY
+  // - R2_ACCESS_KEY_ID
+  // - R2_SECRET_ACCESS_KEY
+
+  // Production environment
+  "env": {
+    "staging": {
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "LIV8_API_URL": "https://staging-api.liv8ai.com"
+      }
+    },
+    "production": {
+      "vars": {
+        "ENVIRONMENT": "production",
+        "LIV8_API_URL": "https://api.liv8ai.com"
+      },
+      "routes": [
+        {
+          "pattern": "agent.liv8ai.com/*",
+          "zone_name": "liv8ai.com"
+        }
+      ]
+    }
+  }
+}
