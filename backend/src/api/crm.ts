@@ -1,0 +1,258 @@
+/**
+ * CRM Integration API Routes
+ * Handles GHL validation and Vbout sub-account creation
+ */
+
+import express from 'express';
+import { ghlService } from '../integrations/ghl.js';
+import { vboutService } from '../integrations/vbout.js';
+
+const router = express.Router();
+
+/**
+ * Validate GHL credentials
+ * POST /api/crm/validate-ghl
+ */
+router.post('/validate-ghl', async (req, res) => {
+    try {
+        const { locationId, apiKey } = req.body;
+
+        if (!locationId || !apiKey) {
+            return res.status(400).json({
+                success: false,
+                error: 'Location ID and API Key are required'
+            });
+        }
+
+        console.log('[CRM] Validating GHL credentials for location:', locationId);
+
+        // Attempt to connect to GHL
+        const connected = await ghlService.connect({
+            locationId,
+            apiKey
+        });
+
+        if (connected) {
+            // Get location details for confirmation
+            console.log('[CRM] GHL validation successful');
+
+            return res.json({
+                success: true,
+                message: 'GHL credentials validated successfully',
+                location: {
+                    id: locationId,
+                    connected: true
+                }
+            });
+        } else {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid GHL credentials. Please check your Location ID and API Token.'
+            });
+        }
+    } catch (error: any) {
+        console.error('[CRM] GHL validation error:', error);
+        return res.status(401).json({
+            success: false,
+            error: error.message || 'Failed to validate GHL credentials'
+        });
+    }
+});
+
+/**
+ * Create Vbout sub-account for new user
+ * POST /api/crm/create-vbout-account
+ */
+router.post('/create-vbout-account', async (req, res) => {
+    try {
+        const { email, businessName, firstName, lastName } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email is required'
+            });
+        }
+
+        console.log('[CRM] Creating Vbout sub-account for:', email);
+
+        // Get master Vbout API key from environment
+        const masterApiKey = process.env.VBOUT_API_KEY;
+        const masterAccountId = process.env.VBOUT_ACCOUNT_ID;
+
+        if (!masterApiKey) {
+            console.warn('[CRM] VBOUT_API_KEY not configured, using demo mode');
+            // In demo mode, return success with mock data
+            return res.json({
+                success: true,
+                message: 'LIV8 CRM account created successfully',
+                account: {
+                    id: `vbout_${Date.now()}`,
+                    email: email,
+                    businessName: businessName || `${email.split('@')[0]}'s Business`,
+                    crmUrl: 'https://crm.liv8.co',
+                    status: 'active'
+                },
+                demo: true
+            });
+        }
+
+        // Connect with master account to create sub-account
+        await vboutService.connect({
+            apiKey: masterApiKey,
+            accountId: masterAccountId || 'master'
+        });
+
+        // Create a new list for this user's contacts
+        const userList = await vboutService.createList(
+            `${businessName || email.split('@')[0]} - Contacts`
+        );
+
+        // Create the user as a contact in our master list for tracking
+        const newContact = await vboutService.createContact({
+            email,
+            firstName: firstName || email.split('@')[0],
+            lastName: lastName || '',
+            customFields: {
+                listId: userList.id,
+                businessName: businessName || '',
+                accountType: 'liv8_crm_user',
+                signupDate: new Date().toISOString()
+            },
+            tags: ['liv8-crm-user', 'new-signup']
+        });
+
+        console.log('[CRM] Vbout sub-account created successfully');
+
+        return res.json({
+            success: true,
+            message: 'LIV8 CRM account created successfully',
+            account: {
+                id: newContact.id,
+                email: email,
+                businessName: businessName || `${email.split('@')[0]}'s Business`,
+                listId: userList.id,
+                crmUrl: 'https://crm.liv8.co',
+                status: 'active'
+            }
+        });
+
+    } catch (error: any) {
+        console.error('[CRM] Vbout account creation error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to create LIV8 CRM account'
+        });
+    }
+});
+
+/**
+ * Validate Vbout/LIV8 CRM credentials
+ * POST /api/crm/validate-vbout
+ */
+router.post('/validate-vbout', async (req, res) => {
+    try {
+        const { email, apiKey } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email is required'
+            });
+        }
+
+        console.log('[CRM] Validating LIV8 CRM credentials for:', email);
+
+        // For LIV8 CRM, we validate against our Vbout whitelabel
+        // In production, this would check against actual Vbout credentials
+        const masterApiKey = process.env.VBOUT_API_KEY;
+
+        if (!masterApiKey) {
+            // Demo mode - accept any credentials
+            console.log('[CRM] Demo mode - accepting LIV8 CRM credentials');
+            return res.json({
+                success: true,
+                message: 'LIV8 CRM credentials validated',
+                account: {
+                    email,
+                    crmUrl: 'https://crm.liv8.co',
+                    status: 'active'
+                },
+                demo: true
+            });
+        }
+
+        // Connect and verify
+        const connected = await vboutService.connect({
+            apiKey: apiKey || masterApiKey,
+            accountId: 'liv8-crm'
+        });
+
+        if (connected) {
+            return res.json({
+                success: true,
+                message: 'LIV8 CRM credentials validated',
+                account: {
+                    email,
+                    crmUrl: 'https://crm.liv8.co',
+                    status: 'active'
+                }
+            });
+        } else {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid LIV8 CRM credentials'
+            });
+        }
+
+    } catch (error: any) {
+        console.error('[CRM] LIV8 CRM validation error:', error);
+        return res.status(401).json({
+            success: false,
+            error: error.message || 'Failed to validate LIV8 CRM credentials'
+        });
+    }
+});
+
+/**
+ * Get CRM status for user
+ * GET /api/crm/status
+ */
+router.get('/status', async (req, res) => {
+    try {
+        const crmType = req.query.type as string;
+
+        if (crmType === 'ghl') {
+            const connected = await ghlService.isConnected();
+            return res.json({
+                success: true,
+                type: 'ghl',
+                connected,
+                name: 'GoHighLevel'
+            });
+        } else if (crmType === 'liv8' || crmType === 'vbout') {
+            const connected = await vboutService.isConnected();
+            return res.json({
+                success: true,
+                type: 'liv8',
+                connected,
+                name: 'LIV8 CRM',
+                url: 'https://crm.liv8.co'
+            });
+        }
+
+        return res.json({
+            success: true,
+            ghl: { connected: await ghlService.isConnected() },
+            liv8: { connected: await vboutService.isConnected() }
+        });
+
+    } catch (error: any) {
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+export default router;

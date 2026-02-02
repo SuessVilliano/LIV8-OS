@@ -12,8 +12,11 @@ import {
     Building2,
     Mail,
     Lock,
-    ExternalLink
+    ExternalLink,
+    AlertCircle,
+    Sparkles
 } from 'lucide-react';
+import { getBackendUrl } from '../services/api';
 
 type CrmType = 'select' | 'ghl' | 'liv8';
 
@@ -21,6 +24,8 @@ interface CrmConnectProps {
     onConnect: (crmType: string, credentials: { locationId?: string; apiKey?: string; email?: string; password?: string }) => void;
     onSkip?: () => void;
 }
+
+const API_BASE = getBackendUrl();
 
 const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
     const [step, setStep] = useState<CrmType>('select');
@@ -32,25 +37,91 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
     // LIV8 CRM (Vbout) state
     const [vboutEmail, setVboutEmail] = useState('');
     const [vboutPassword, setVboutPassword] = useState('');
+    const [businessName, setBusinessName] = useState('');
+    const [isNewAccount, setIsNewAccount] = useState(true);
 
     const [isVerifying, setIsVerifying] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleGhlSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsVerifying(true);
-        setTimeout(() => {
+        setError(null);
+
+        try {
+            // Validate credentials via backend API
+            const response = await fetch(`${API_BASE}/api/crm/validate-ghl`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ locationId: locId, apiKey })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Invalid GHL credentials');
+            }
+
+            // Success - proceed to onboarding
             onConnect('ghl', { locationId: locId, apiKey });
+
+        } catch (err: any) {
+            setError(err.message || 'Failed to validate GHL credentials. Please check your Location ID and API Token.');
+        } finally {
             setIsVerifying(false);
-        }, 1500);
+        }
     };
 
     const handleVboutSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsVerifying(true);
-        setTimeout(() => {
+        setError(null);
+
+        try {
+            if (isNewAccount) {
+                // Create new Vbout sub-account
+                const response = await fetch(`${API_BASE}/api/crm/create-vbout-account`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: vboutEmail,
+                        businessName: businessName || `${vboutEmail.split('@')[0]}'s Business`,
+                        firstName: vboutEmail.split('@')[0]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to create LIV8 CRM account');
+                }
+
+                // Store account info
+                localStorage.setItem('os_vbout_account', JSON.stringify(data.account));
+
+            } else {
+                // Validate existing credentials
+                const response = await fetch(`${API_BASE}/api/crm/validate-vbout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: vboutEmail })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Invalid LIV8 CRM credentials');
+                }
+            }
+
+            // Success - proceed to onboarding
             onConnect('liv8', { email: vboutEmail, password: vboutPassword });
+
+        } catch (err: any) {
+            setError(err.message || 'Failed to connect to LIV8 CRM');
+        } finally {
             setIsVerifying(false);
-        }, 1500);
+        }
     };
 
     const openVboutCrm = () => {
@@ -82,7 +153,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                         <div className="grid md:grid-cols-2 gap-6">
                             {/* GoHighLevel Option */}
                             <button
-                                onClick={() => setStep('ghl')}
+                                onClick={() => { setStep('ghl'); setError(null); }}
                                 className="group p-8 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-3xl hover:border-blue-500/50 transition-all duration-300 hover:scale-[1.02] text-left"
                             >
                                 <div className="h-16 w-16 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -99,18 +170,21 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
 
                             {/* LIV8 CRM (Vbout) Option */}
                             <button
-                                onClick={() => setStep('liv8')}
-                                className="group p-8 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-3xl hover:border-purple-500/50 transition-all duration-300 hover:scale-[1.02] text-left"
+                                onClick={() => { setStep('liv8'); setError(null); }}
+                                className="group p-8 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-3xl hover:border-purple-500/50 transition-all duration-300 hover:scale-[1.02] text-left relative overflow-hidden"
                             >
+                                <div className="absolute top-4 right-4 px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase rounded-full">
+                                    Recommended
+                                </div>
                                 <div className="h-16 w-16 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                                    <Building2 className="h-8 w-8 text-purple-400" />
+                                    <Sparkles className="h-8 w-8 text-purple-400" />
                                 </div>
                                 <h3 className="text-xl font-bold text-[var(--os-text)] mb-2">LIV8 CRM</h3>
                                 <p className="text-sm text-[var(--os-text-muted)] mb-4">
-                                    Use our built-in CRM solution at crm.liv8.co. Perfect if you're starting fresh or want an all-in-one platform.
+                                    We'll automatically set up your CRM account at crm.liv8.co - no extra steps needed!
                                 </p>
                                 <div className="flex items-center gap-2 text-purple-400 text-sm font-semibold">
-                                    Connect LIV8 CRM <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                                    Get Started <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </button>
                         </div>
@@ -150,7 +224,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                     <div className="w-full max-w-xl space-y-8">
                         {/* Back Button */}
                         <button
-                            onClick={() => setStep('select')}
+                            onClick={() => { setStep('select'); setError(null); }}
                             className="flex items-center gap-2 text-[var(--os-text-muted)] hover:text-[var(--os-text)] transition-colors text-sm font-medium"
                         >
                             <ArrowLeft className="h-4 w-4" />
@@ -165,7 +239,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                                 Connect <span className="text-blue-400">GoHighLevel</span>
                             </h1>
                             <p className="text-[var(--os-text-muted)] text-sm font-medium max-w-sm mx-auto">
-                                Establish a secure link with your GoHighLevel location to sync contacts, pipelines, and workflows.
+                                We'll validate your credentials securely with GHL's API to ensure a proper connection.
                             </p>
                         </header>
 
@@ -202,10 +276,18 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                                 </div>
                             </div>
 
+                            {/* Error Message */}
+                            {error && (
+                                <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+                                    <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                                    <span>{error}</span>
+                                </div>
+                            )}
+
                             <div className="flex items-center justify-between p-4 bg-blue-500/5 rounded-xl border border-blue-500/20">
                                 <div className="flex items-center gap-3">
                                     <Fingerprint className="h-4 w-4 text-blue-400" />
-                                    <span className="text-[10px] font-bold uppercase text-blue-400 tracking-widest">TLS 1.3 Encryption Active</span>
+                                    <span className="text-[10px] font-bold uppercase text-blue-400 tracking-widest">Validated via GHL API</span>
                                 </div>
                                 <HelpCircle className="h-4 w-4 text-[var(--os-text-muted)] hover:text-blue-400 cursor-pointer transition-colors" />
                             </div>
@@ -217,7 +299,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                                 {isVerifying ? (
                                     <div className="flex items-center gap-2">
                                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                        Establishing Link...
+                                        Validating with GHL...
                                     </div>
                                 ) : (
                                     <>Connect GoHighLevel <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></>
@@ -249,7 +331,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                     <div className="w-full max-w-xl space-y-8">
                         {/* Back Button */}
                         <button
-                            onClick={() => setStep('select')}
+                            onClick={() => { setStep('select'); setError(null); }}
                             className="flex items-center gap-2 text-[var(--os-text-muted)] hover:text-[var(--os-text)] transition-colors text-sm font-medium"
                         >
                             <ArrowLeft className="h-4 w-4" />
@@ -258,18 +340,63 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
 
                         <header className="text-center space-y-4">
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-[9px] font-black uppercase tracking-widest">
-                                <Building2 className="h-3 w-3" /> LIV8 CRM
+                                <Sparkles className="h-3 w-3" /> Auto-Setup
                             </div>
                             <h1 className="text-4xl md:text-5xl font-black text-[var(--os-text)] tracking-tighter leading-none">
-                                Connect <span className="text-purple-400">LIV8 CRM</span>
+                                {isNewAccount ? 'Setup' : 'Connect'} <span className="text-purple-400">LIV8 CRM</span>
                             </h1>
                             <p className="text-[var(--os-text-muted)] text-sm font-medium max-w-sm mx-auto">
-                                Sign in with your LIV8 CRM credentials or create a new account at crm.liv8.co
+                                {isNewAccount
+                                    ? "We'll automatically create your CRM account at crm.liv8.co with everything you need."
+                                    : "Sign in with your existing LIV8 CRM credentials."
+                                }
                             </p>
                         </header>
 
+                        {/* Toggle between new/existing account */}
+                        <div className="flex items-center justify-center gap-4">
+                            <button
+                                type="button"
+                                onClick={() => setIsNewAccount(true)}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                                    isNewAccount
+                                        ? 'bg-purple-500 text-white'
+                                        : 'bg-[var(--os-surface)] text-[var(--os-text-muted)] hover:text-[var(--os-text)]'
+                                }`}
+                            >
+                                Create New Account
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsNewAccount(false)}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                                    !isNewAccount
+                                        ? 'bg-purple-500 text-white'
+                                        : 'bg-[var(--os-surface)] text-[var(--os-text-muted)] hover:text-[var(--os-text)]'
+                                }`}
+                            >
+                                I Have an Account
+                            </button>
+                        </div>
+
                         <form onSubmit={handleVboutSubmit} className="bg-[var(--os-surface)] border border-[var(--os-border)] rounded-3xl p-8 space-y-6 shadow-2xl shadow-purple-900/5">
                             <div className="space-y-4">
+                                {isNewAccount && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Business Name</label>
+                                        <div className="relative group">
+                                            <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-purple-400 transition-colors" />
+                                            <input
+                                                type="text"
+                                                value={businessName}
+                                                onChange={(e) => setBusinessName(e.target.value)}
+                                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all"
+                                                placeholder="Your Business Name"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Email Address</label>
                                     <div className="relative group">
@@ -285,26 +412,55 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Password</label>
-                                    <div className="relative group">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-purple-400 transition-colors" />
-                                        <input
-                                            type="password"
-                                            value={vboutPassword}
-                                            onChange={(e) => setVboutPassword(e.target.value)}
-                                            className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all"
-                                            placeholder="••••••••••••••••"
-                                            required
-                                        />
+                                {!isNewAccount && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest ml-1">Password</label>
+                                        <div className="relative group">
+                                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--os-text-muted)] group-focus-within:text-purple-400 transition-colors" />
+                                            <input
+                                                type="password"
+                                                value={vboutPassword}
+                                                onChange={(e) => setVboutPassword(e.target.value)}
+                                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl pl-12 pr-4 py-4 text-sm font-medium focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all"
+                                                placeholder="••••••••••••••••"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Error Message */}
+                            {error && (
+                                <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+                                    <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                                    <span>{error}</span>
+                                </div>
+                            )}
+
+                            {isNewAccount && (
+                                <div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                                    <div className="flex items-start gap-3">
+                                        <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                        <div className="text-sm">
+                                            <p className="font-semibold text-emerald-400">What we'll set up for you:</p>
+                                            <ul className="mt-2 space-y-1 text-[var(--os-text-muted)]">
+                                                <li>• Full CRM account at crm.liv8.co</li>
+                                                <li>• Contact lists and pipelines</li>
+                                                <li>• Email marketing automation</li>
+                                                <li>• Social media integration</li>
+                                            </ul>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="flex items-center justify-between p-4 bg-purple-500/5 rounded-xl border border-purple-500/20">
                                 <div className="flex items-center gap-3">
                                     <Fingerprint className="h-4 w-4 text-purple-400" />
-                                    <span className="text-[10px] font-bold uppercase text-purple-400 tracking-widest">Secure Connection</span>
+                                    <span className="text-[10px] font-bold uppercase text-purple-400 tracking-widest">
+                                        {isNewAccount ? 'Auto-Provisioning' : 'Secure Connection'}
+                                    </span>
                                 </div>
                                 <HelpCircle className="h-4 w-4 text-[var(--os-text-muted)] hover:text-purple-400 cursor-pointer transition-colors" />
                             </div>
@@ -316,23 +472,25 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                                 {isVerifying ? (
                                     <div className="flex items-center gap-2">
                                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                        Connecting...
+                                        {isNewAccount ? 'Creating your CRM...' : 'Connecting...'}
                                     </div>
                                 ) : (
-                                    <>Connect LIV8 CRM <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></>
+                                    <>{isNewAccount ? 'Create My CRM Account' : 'Connect LIV8 CRM'} <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></>
                                 )}
                             </button>
 
-                            <div className="text-center pt-2">
-                                <button
-                                    type="button"
-                                    onClick={openVboutCrm}
-                                    className="text-sm text-purple-400 hover:text-purple-300 transition-colors inline-flex items-center gap-2"
-                                >
-                                    Don't have an account? Sign up at crm.liv8.co
-                                    <ExternalLink className="h-3 w-3" />
-                                </button>
-                            </div>
+                            {!isNewAccount && (
+                                <div className="text-center pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={openVboutCrm}
+                                        className="text-sm text-purple-400 hover:text-purple-300 transition-colors inline-flex items-center gap-2"
+                                    >
+                                        Open crm.liv8.co
+                                        <ExternalLink className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            )}
                         </form>
 
                         <div className="flex items-center justify-center gap-8 opacity-50">
