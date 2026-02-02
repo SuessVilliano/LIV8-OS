@@ -11,12 +11,13 @@ import Workflows from './pages/Workflows';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import Pricing from './pages/Pricing';
 import Sidebar from './components/Sidebar';
 import CrmConnect from './components/CrmConnect';
 import GhlOnboarding from './components/GhlOnboarding';
-import CommandSidebar from './components/CommandSidebar';
+import UnifiedCommandPanel from './components/UnifiedCommandPanel';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Terminal } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
@@ -123,6 +124,7 @@ function App() {
               <Route path="/analytics" element={isCoreActive ? <Analytics /> : <Navigate to="/login" replace />} />
               <Route path="/settings" element={isCoreActive ? <Settings /> : <Navigate to="/login" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/pricing" element={<Pricing />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -133,13 +135,13 @@ function App() {
                 onClick={toggleCommand}
                 className={`fixed bottom-10 right-10 h-16 w-16 rounded-[1.8rem] bg-neuro text-white flex items-center justify-center shadow-2xl shadow-neuro/40 hover:scale-110 active:scale-95 transition-all z-[90] ${isCommandOpen ? 'opacity-0 scale-0' : 'opacity-100 scale-100'}`}
               >
-                <Terminal className="h-7 w-7" />
+                <Sparkles className="h-7 w-7" />
               </button>
             )}
 
-            {/* Neural Command Sidebar */}
+            {/* Unified Neural Command Panel */}
             {isCoreActive && (
-              <CommandSidebar isOpen={isCommandOpen} onClose={toggleCommand} />
+              <UnifiedCommandPanel isOpen={isCommandOpen} onClose={toggleCommand} />
             )}
           </main>
         </div>
