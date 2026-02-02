@@ -106,6 +106,81 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
     const fileInputRef = useRef<HTMLInputElement>(null);
     const API_BASE = getBackendUrl();
 
+    // Progressive save - store each field as it's collected
+    const saveField = (field: string, value: any) => {
+        // Get existing onboarding data from localStorage
+        const existing = localStorage.getItem('os_onboarding_progress');
+        const progress = existing ? JSON.parse(existing) : {};
+
+        // Update the field
+        progress[field] = value;
+        progress.lastUpdated = new Date().toISOString();
+        progress.step = currentStep;
+
+        // Save back to localStorage
+        localStorage.setItem('os_onboarding_progress', JSON.stringify(progress));
+
+        console.log(`[Onboarding] Saved field: ${field}`, value);
+    };
+
+    // Send webhook to TaskMagic on completion (goes to Telegram bot)
+    const sendCompletionWebhook = async (finalData: OnboardingData) => {
+        const taskmagicUrl = import.meta.env.VITE_TASKMAGIC_WEBHOOK_URL ||
+                            localStorage.getItem('taskmagic_webhook_url');
+
+        if (!taskmagicUrl) {
+            console.log('[Onboarding] No TaskMagic webhook URL configured');
+            return;
+        }
+
+        const userData = localStorage.getItem('os_user');
+        let userInfo = { email: '', name: '' };
+        try {
+            if (userData) userInfo = JSON.parse(userData);
+        } catch {}
+
+        const webhookPayload = {
+            event: 'onboarding_complete',
+            timestamp: new Date().toISOString(),
+            user: {
+                email: userInfo.email,
+                name: userInfo.name
+            },
+            business: {
+                name: finalData.businessName,
+                industry: finalData.industry,
+                website: finalData.websiteUrl,
+                description: finalData.description
+            },
+            brand: {
+                voice: finalData.brandVoice,
+                colors: finalData.colors,
+                targetAudience: finalData.targetAudience,
+                uniqueValue: finalData.uniqueValue
+            },
+            market: {
+                competitors: finalData.competitors,
+                topInIndustry: finalData.topInIndustry
+            },
+            goals: finalData.goals,
+            painPoints: finalData.painPoints,
+            socialAccounts: finalData.socialAccounts,
+            aiStaffActivated: finalData.aiStaffNeeded,
+            documentsUploaded: finalData.documents.length
+        };
+
+        try {
+            await fetch(taskmagicUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(webhookPayload)
+            });
+            console.log('[Onboarding] Webhook sent to TaskMagic -> Telegram');
+        } catch (err) {
+            console.error('[Onboarding] Webhook error:', err);
+        }
+    };
+
     const userName = (() => {
         const userData = localStorage.getItem('os_user');
         if (userData) {
@@ -324,6 +399,8 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
 
         if (current.field) {
             setData(prev => ({ ...prev, [current.field!]: inputValue }));
+            // Save field progressively
+            saveField(current.field, inputValue);
         }
 
         setInputValue('');
@@ -345,6 +422,8 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
             addUserMessage(option.label);
             if (current.field) {
                 setData(prev => ({ ...prev, [current.field!]: option.value }));
+                // Save field progressively
+                saveField(current.field, option.value);
             }
             await goToNextStep();
         }
@@ -361,6 +440,8 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
 
         if (current.field) {
             setData(prev => ({ ...prev, [current.field!]: selectedOptions }));
+            // Save field progressively
+            saveField(current.field, selectedOptions);
         }
 
         setSelectedOptions([]);
@@ -383,6 +464,8 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
 
         if (current.field) {
             setData(prev => ({ ...prev, [current.field!]: multiItems }));
+            // Save field progressively
+            saveField(current.field, multiItems);
         }
 
         setMultiItems([]);
@@ -393,10 +476,13 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
         const filled = Object.entries(socialInputs).filter(([_, v]) => v.trim());
         addUserMessage(filled.length > 0 ? `Connected: ${filled.map(([k]) => k).join(', ')}` : 'Skipped social connections');
 
+        const socialData = Object.fromEntries(filled);
         setData(prev => ({
             ...prev,
-            socialAccounts: Object.fromEntries(filled)
+            socialAccounts: socialData
         }));
+        // Save field progressively
+        saveField('socialAccounts', socialData);
 
         await goToNextStep();
     };
@@ -410,6 +496,8 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
 
     const handleColorsConfirm = async () => {
         addUserMessage(`Colors: ${data.colors.primary}, ${data.colors.secondary}, ${data.colors.accent}`);
+        // Save field progressively
+        saveField('colors', data.colors);
         await goToNextStep();
     };
 
@@ -431,6 +519,9 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
 
     const handleUploadConfirm = async () => {
         addUserMessage(data.documents.length > 0 ? `Uploaded ${data.documents.length} document(s)` : 'No documents uploaded');
+        // Save document metadata (can't serialize File objects)
+        const docMeta = data.documents.map(f => ({ name: f.name, size: f.size, type: f.type }));
+        saveField('documents', docMeta);
         await goToNextStep();
     };
 
@@ -478,9 +569,15 @@ export default function ConversationalOnboarding({ onComplete, locationId }: Pro
 
             localStorage.setItem('locationId', locId);
             localStorage.setItem('os_loc_id', locId);
+
+            // Send webhook to TaskMagic -> Telegram on completion
+            await sendCompletionWebhook(data);
         } catch (err) {
             console.error('Training save error:', err);
         }
+
+        // Clear progress since onboarding is complete
+        localStorage.removeItem('os_onboarding_progress');
 
         await new Promise(r => setTimeout(r, 500));
         setIsTraining(false);
