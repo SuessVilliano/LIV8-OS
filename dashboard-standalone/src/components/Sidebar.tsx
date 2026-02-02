@@ -15,7 +15,8 @@ import {
     Moon,
     Target,
     BarChart,
-    Palette
+    Palette,
+    Ticket
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -32,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
     const menuItems = [
         { icon: LayoutDashboard, label: 'Overview', path: '/dashboard' },
         { icon: Target, label: 'Opportunities', path: '/opportunities' },
+        { icon: Ticket, label: 'Support Tickets', path: '/tickets' },
         { icon: Users, label: 'Agencies', path: '/agencies' },
         { icon: MessageSquare, label: 'Staff Hub', path: '/staff' },
         { icon: Palette, label: 'Brand Hub', path: '/brand' },

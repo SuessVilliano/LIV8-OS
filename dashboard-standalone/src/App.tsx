@@ -11,6 +11,7 @@ import Workflows from './pages/Workflows';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import Tickets from './pages/Tickets';
 import Sidebar from './components/Sidebar';
 import CrmConnect from './components/CrmConnect';
 import GhlOnboarding from './components/GhlOnboarding';
@@ -121,6 +122,7 @@ function App() {
               <Route path="/brand" element={isCoreActive ? <Brand /> : <Navigate to="/login" replace />} />
               <Route path="/workflows" element={isCoreActive ? <Workflows /> : <Navigate to="/login" replace />} />
               <Route path="/analytics" element={isCoreActive ? <Analytics /> : <Navigate to="/login" replace />} />
+              <Route path="/tickets" element={isCoreActive ? <Tickets /> : <Navigate to="/login" replace />} />
               <Route path="/settings" element={isCoreActive ? <Settings /> : <Navigate to="/login" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
 
