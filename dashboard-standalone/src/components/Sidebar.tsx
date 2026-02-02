@@ -19,6 +19,7 @@ import {
     Wand2
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import LocationSwitcher from './LocationSwitcher';
 
 interface SidebarProps {
     onLogout: () => void;
@@ -43,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
     ];
 
     const handleOpenSupport = () => {
-        window.open('https://os.liv8ai.com/support', 'LIV8_Support', 'width=450,height=700');
+        window.open('https://api.anychat.one/embed/4a4d5890-b444-3906-8f87-1cedb3342c68', 'LIV8_Support', 'width=450,height=700');
     };
 
     const handleLogoutClick = () => {
@@ -71,6 +72,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
                     </span>
                 )}
             </div>
+
+            {/* Location Switcher for Agency Accounts */}
+            {!isCollapsed && (
+                <div className="border-b border-[var(--os-border)] pb-4">
+                    <LocationSwitcher compact={false} />
+                </div>
+            )}
+            {isCollapsed && <LocationSwitcher compact={true} />}
 
             <nav className="flex-1 space-y-2 mt-4">
                 {menuItems.map((item) => {

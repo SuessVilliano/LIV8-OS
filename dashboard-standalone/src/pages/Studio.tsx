@@ -29,7 +29,12 @@ import {
     ImagePlus,
     Film,
     MousePointer,
-    Clock
+    Clock,
+    Search,
+    ArrowRightLeft,
+    AlertTriangle,
+    CheckCircle2,
+    Undo2
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
@@ -91,6 +96,13 @@ const Studio = () => {
     const [siteEditHistory, setSiteEditHistory] = useState<string[]>([]);
     const [customDomain, setCustomDomain] = useState('');
     const [publishedUrl, setPublishedUrl] = useState('');
+
+    // Website analyzer state
+    const [showAnalyzer, setShowAnalyzer] = useState(false);
+    const [analyzeUrl, setAnalyzeUrl] = useState('');
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<any>(null);
+    const [analysisError, setAnalysisError] = useState('');
 
     // Get comprehensive brand context from Brand Hub / Business Twin
     const getBrandContext = () => {
@@ -329,6 +341,89 @@ const Studio = () => {
             setGeneratedHtml(lastHtml);
             setGeneratedCode(lastHtml);
             setSiteEditHistory(prev => prev.slice(0, -1));
+        }
+    };
+
+    // Analyze existing website
+    const analyzeWebsite = async (autoMigrate = false) => {
+        if (!analyzeUrl.trim()) return;
+
+        setIsAnalyzing(true);
+        setAnalysisError('');
+        setAnalysisResult(null);
+
+        try {
+            const token = localStorage.getItem('os_token');
+            const response = await fetch(`${API_BASE}/api/studio/analyze-website`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    url: analyzeUrl,
+                    autoMigrate
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setAnalysisResult(data.analysis);
+
+                // If auto-migrate was requested and we got improved HTML
+                if (autoMigrate && data.improvedHtml) {
+                    if (generatedHtml) {
+                        setSiteEditHistory(prev => [...prev, generatedHtml]);
+                    }
+                    setGeneratedHtml(data.improvedHtml);
+                    setGeneratedCode(data.improvedHtml);
+                    setSiteName(data.analysis.title?.split('|')[0]?.trim() || 'Migrated Site');
+                }
+            } else {
+                const error = await response.json();
+                setAnalysisError(error.message || 'Failed to analyze website');
+            }
+        } catch (error: any) {
+            console.error('Website analysis failed:', error);
+            setAnalysisError(error.message || 'Failed to connect to analyzer');
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    // Generate improved version from analysis
+    const generateImprovedFromAnalysis = async () => {
+        if (!analysisResult) return;
+
+        setIsGenerating(true);
+        try {
+            const token = localStorage.getItem('os_token');
+            const response = await fetch(`${API_BASE}/api/studio/generate-improved`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    analysis: analysisResult,
+                    brandContext: getBrandContext()
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (generatedHtml) {
+                    setSiteEditHistory(prev => [...prev, generatedHtml]);
+                }
+                setGeneratedHtml(data.html);
+                setGeneratedCode(data.html);
+                setSiteName(analysisResult.title?.split('|')[0]?.trim() || 'Improved Site');
+                setShowAnalyzer(false);
+            }
+        } catch (error) {
+            console.error('Failed to generate improved version:', error);
+        } finally {
+            setIsGenerating(false);
         }
     };
 
@@ -1175,9 +1270,18 @@ const Studio = () => {
                             className="p-2 hover:bg-[var(--os-bg)] rounded-lg text-[var(--os-text-muted)] hover:text-neuro"
                             title="Undo last change"
                         >
-                            <ChevronRight className="h-4 w-4 rotate-180" />
+                            <Undo2 className="h-4 w-4" />
                         </button>
                     )}
+
+                    {/* Analyze Existing Site Button */}
+                    <button
+                        onClick={() => setShowAnalyzer(true)}
+                        className="px-3 py-2 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-lg text-xs font-bold flex items-center gap-2 hover:border-amber-500 hover:text-amber-500 transition-all"
+                    >
+                        <Search className="h-3.5 w-3.5" />
+                        Analyze Site
+                    </button>
 
                     {/* Improve Button */}
                     {generatedHtml && (
@@ -1705,6 +1809,175 @@ const Studio = () => {
                                     Save Settings
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Website Analyzer Modal */}
+            {showAnalyzer && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                    <div className="w-full max-w-2xl bg-[var(--os-surface)] rounded-2xl border border-[var(--os-border)] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-[var(--os-border)] flex items-center justify-between sticky top-0 bg-[var(--os-surface)] z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center">
+                                    <Search className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-lg">Website Analyzer</h3>
+                                    <p className="text-xs text-[var(--os-text-muted)]">Analyze any website and create an improved version</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setShowAnalyzer(false); setAnalysisResult(null); setAnalysisError(''); }} className="p-2 hover:bg-[var(--os-bg)] rounded-lg">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            {/* URL Input */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                    Website URL
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="url"
+                                        value={analyzeUrl}
+                                        onChange={(e) => setAnalyzeUrl(e.target.value)}
+                                        placeholder="https://example.com"
+                                        className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-amber-500 outline-none"
+                                    />
+                                    <button
+                                        onClick={() => analyzeWebsite(false)}
+                                        disabled={!analyzeUrl.trim() || isAnalyzing}
+                                        className="px-6 py-3 bg-amber-500 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:scale-105 transition-all disabled:opacity-50"
+                                    >
+                                        {isAnalyzing ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Search className="h-4 w-4" />
+                                        )}
+                                        Analyze
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-[var(--os-text-muted)] mt-2">
+                                    Limited to 10 analyses per day to prevent API overuse
+                                </p>
+                            </div>
+
+                            {/* Error Display */}
+                            {analysisError && (
+                                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+                                    <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                                    <div>
+                                        <p className="font-bold text-red-500 text-sm">Analysis Failed</p>
+                                        <p className="text-xs text-red-400 mt-1">{analysisError}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Analysis Results */}
+                            {analysisResult && (
+                                <div className="space-y-4">
+                                    {/* Header */}
+                                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-start gap-3">
+                                        <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                                        <div>
+                                            <p className="font-bold text-emerald-500 text-sm">Analysis Complete</p>
+                                            <p className="text-xs text-emerald-400 mt-1">{analysisResult.title || 'Website analyzed successfully'}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Site Info */}
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                            Site Information
+                                        </label>
+                                        <div className="bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl p-4 space-y-2">
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-[var(--os-text-muted)]">Title</span>
+                                                <span className="font-bold truncate max-w-[60%]">{analysisResult.title || 'N/A'}</span>
+                                            </div>
+                                            {analysisResult.description && (
+                                                <div className="text-xs">
+                                                    <span className="text-[var(--os-text-muted)]">Description:</span>
+                                                    <p className="mt-1 text-[var(--os-text)] line-clamp-2">{analysisResult.description}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Detected Colors */}
+                                    {analysisResult.colors && analysisResult.colors.length > 0 && (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                                Detected Colors
+                                            </label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {analysisResult.colors.slice(0, 8).map((color: string, i: number) => (
+                                                    <div
+                                                        key={i}
+                                                        className="w-10 h-10 rounded-lg border border-[var(--os-border)] flex items-center justify-center text-[8px] font-mono"
+                                                        style={{ backgroundColor: color }}
+                                                        title={color}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Improvements */}
+                                    {analysisResult.improvements && analysisResult.improvements.length > 0 && (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                                Suggested Improvements
+                                            </label>
+                                            <div className="bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl p-4 space-y-2">
+                                                {analysisResult.improvements.slice(0, 5).map((imp: string, i: number) => (
+                                                    <div key={i} className="flex items-start gap-2 text-xs">
+                                                        <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                                        <span>{imp}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-3 pt-4 border-t border-[var(--os-border)]">
+                                        <button
+                                            onClick={generateImprovedFromAnalysis}
+                                            disabled={isGenerating}
+                                            className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            {isGenerating ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <ArrowRightLeft className="h-4 w-4" />
+                                            )}
+                                            Generate Improved Version
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-center text-[var(--os-text-muted)]">
+                                        Creates a brand-new LIV8-optimized version based on the analyzed content
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Quick Migrate Option */}
+                            {!analysisResult && !isAnalyzing && analyzeUrl.trim() && (
+                                <div className="pt-4 border-t border-[var(--os-border)]">
+                                    <button
+                                        onClick={() => analyzeWebsite(true)}
+                                        className="w-full py-3 border border-amber-500/30 bg-amber-500/5 text-amber-500 rounded-xl font-bold text-sm hover:bg-amber-500/10 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Wand2 className="h-4 w-4" />
+                                        Auto-Analyze & Generate Improved Version
+                                    </button>
+                                    <p className="text-[10px] text-center text-[var(--os-text-muted)] mt-2">
+                                        One-click: Analyze the site and automatically generate a better version
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

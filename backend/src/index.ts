@@ -29,6 +29,8 @@ import dashboardRouter from './api/dashboard.js'; // Dashboard data API
 import webhooksRouter from './api/webhooks.js'; // Webhook management
 import brandRouter from './api/brand.js'; // Brand assets & knowledge base
 import studioRouter from './api/studio.js'; // Creative Studio API
+import actionsRouter from './api/actions.js'; // Action Execution API
+import voiceCredentialsRouter from './api/voice-credentials.js'; // Voice Credentials Vault
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -154,6 +156,8 @@ app.use('/api/dashboard', rateLimitPresets.api, dashboardRouter); // Dashboard d
 app.use('/api/webhooks', rateLimitPresets.webhook, webhooksRouter); // Webhook management (lenient for incoming webhooks)
 app.use('/api/brand', rateLimitPresets.api, brandRouter); // Brand assets & knowledge base
 app.use('/api/studio', rateLimitPresets.ai, studioRouter); // Creative Studio API (AI rate limiting)
+app.use('/api/actions', rateLimitPresets.ai, actionsRouter); // Action Execution API (AI rate limiting)
+app.use('/api/voice-credentials', rateLimitPresets.api, voiceCredentialsRouter); // Voice Credentials Vault
 
 
 // --- MCP Integration ---

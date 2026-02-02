@@ -62,7 +62,7 @@ export const MOCK_APPROVAL_PACK = {
 // Automation & Webhooks - Use environment variables for sensitive data
 export const TASKMAGIC_WEBHOOK_URL = import.meta.env.VITE_TASKMAGIC_WEBHOOK_URL || '';
 export const TASKMAGIC_MCP_TOKEN = import.meta.env.VITE_TASKMAGIC_MCP_TOKEN || '';
-export const SUPPORT_URL = import.meta.env.VITE_SUPPORT_URL || 'https://os.liv8ai.com/support';
+export const SUPPORT_URL = import.meta.env.VITE_SUPPORT_URL || 'https://api.anychat.one/embed/4a4d5890-b444-3906-8f87-1cedb3342c68';
 export const FEEDBACK_WEBHOOK_URL = import.meta.env.VITE_FEEDBACK_WEBHOOK_URL || TASKMAGIC_WEBHOOK_URL;
 
 export const PLATFORM_NAME = 'LIV8 OS';

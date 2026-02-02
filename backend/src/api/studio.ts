@@ -7,8 +7,15 @@
 import express, { Request, Response } from 'express';
 import { authService } from '../services/auth.js';
 import OpenAI from 'openai';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 const router = express.Router();
+
+// Rate limiting for website analysis (per user)
+const analysisRateLimits = new Map<string, { count: number; resetAt: number }>();
+const MAX_ANALYSES_PER_DAY = 10;
+const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -423,6 +430,376 @@ User Request: ${prompt}`;
         res.status(500).json({ error: error.message });
     }
 });
+
+/**
+ * POST /api/studio/analyze-website
+ * Analyze an existing website and create an improved version
+ */
+router.post('/analyze-website', authenticate, async (req: Request, res: Response) => {
+    try {
+        const { url, autoMigrate } = req.body;
+        const user = (req as any).user;
+        const userId = user.userId || user.email || 'unknown';
+
+        if (!url) {
+            return res.status(400).json({ error: 'URL is required' });
+        }
+
+        // Rate limiting check
+        const now = Date.now();
+        const userLimit = analysisRateLimits.get(userId);
+
+        if (userLimit) {
+            if (now < userLimit.resetAt) {
+                if (userLimit.count >= MAX_ANALYSES_PER_DAY) {
+                    return res.status(429).json({
+                        error: 'Rate limit exceeded',
+                        message: `You've reached the limit of ${MAX_ANALYSES_PER_DAY} website analyses per day. Please try again tomorrow.`,
+                        resetAt: new Date(userLimit.resetAt).toISOString()
+                    });
+                }
+                userLimit.count++;
+            } else {
+                // Reset the window
+                analysisRateLimits.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+            }
+        } else {
+            analysisRateLimits.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+        }
+
+        console.log(`[Studio] Analyzing website: ${url} for user ${userId}`);
+
+        // Normalize URL
+        const targetUrl = url.startsWith('http') ? url : `https://${url}`;
+
+        // Scrape the website
+        const scrapedData = await scrapeWebsite(targetUrl);
+
+        if (!scrapedData) {
+            return res.status(400).json({
+                error: 'Unable to fetch website',
+                message: 'The website could not be accessed. Please check the URL and try again.'
+            });
+        }
+
+        // Extract design elements
+        const analysis = {
+            url: targetUrl,
+            title: scrapedData.title,
+            description: scrapedData.metaDescription,
+            headings: scrapedData.headings,
+            colors: scrapedData.extractedColors,
+            fonts: scrapedData.fonts,
+            images: scrapedData.images.slice(0, 10), // Limit to 10 images
+            sections: scrapedData.sections,
+            contentPreview: scrapedData.content.substring(0, 1000),
+            performance: {
+                hasResponsiveMetaTag: scrapedData.hasViewportMeta,
+                hasHttps: targetUrl.startsWith('https'),
+                estimatedLoadTime: 'Unknown'
+            },
+            improvements: generateImprovementSuggestions(scrapedData)
+        };
+
+        // Generate improved version if autoMigrate is true
+        let improvedHtml = null;
+        if (autoMigrate) {
+            improvedHtml = await generateImprovedVersion(scrapedData, analysis);
+        }
+
+        res.json({
+            success: true,
+            analysis,
+            improvedHtml,
+            message: autoMigrate
+                ? 'Website analyzed and improved version generated'
+                : 'Website analyzed successfully. Click "Generate Improved Version" to create a better site.'
+        });
+
+    } catch (error: any) {
+        console.error('Website analysis error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/studio/generate-improved
+ * Generate an improved version of an analyzed website
+ */
+router.post('/generate-improved', authenticate, async (req: Request, res: Response) => {
+    try {
+        const { analysis, brandContext } = req.body;
+
+        if (!analysis) {
+            return res.status(400).json({ error: 'Analysis data is required' });
+        }
+
+        // Merge extracted data with brand context
+        const mergedBrand = {
+            name: brandContext?.name || analysis.title?.split('|')[0]?.trim() || 'My Brand',
+            colors: brandContext?.colors || {
+                primary: analysis.colors?.[0] || '#6366f1',
+                secondary: analysis.colors?.[1] || '#8b5cf6',
+                accent: analysis.colors?.[2] || '#10b981'
+            },
+            tagline: brandContext?.tagline || analysis.description || '',
+            industry: brandContext?.industry || 'business'
+        };
+
+        const improvedHtml = await generateImprovedVersion(
+            { title: analysis.title, metaDescription: analysis.description, content: analysis.contentPreview, headings: analysis.headings },
+            analysis,
+            mergedBrand
+        );
+
+        res.json({
+            success: true,
+            html: improvedHtml,
+            brandUsed: mergedBrand.name
+        });
+
+    } catch (error: any) {
+        console.error('Generate improved error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Helper function to scrape a website
+async function scrapeWebsite(url: string): Promise<any | null> {
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; LIV8-StudioBot/1.0; +https://liv8ai.com/bot)',
+                'Accept': 'text/html,application/xhtml+xml'
+            },
+            timeout: 15000,
+            maxRedirects: 3,
+            validateStatus: (status) => status < 400
+        });
+
+        const html = response.data;
+        const $ = cheerio.load(html);
+
+        // Remove non-content elements
+        $('script, style, noscript, nav[aria-label="cookie"], .cookie-banner, #cookie-consent, .popup').remove();
+
+        // Extract title
+        const title = $('title').text().trim();
+
+        // Extract meta description
+        const metaDescription = $('meta[name="description"]').attr('content') ||
+            $('meta[property="og:description"]').attr('content') || '';
+
+        // Extract headings
+        const headings: { level: string; text: string }[] = [];
+        $('h1, h2, h3').each((_, el) => {
+            const text = $(el).text().trim();
+            if (text && text.length > 2 && text.length < 200) {
+                headings.push({ level: el.tagName.toLowerCase(), text });
+            }
+        });
+
+        // Extract colors from inline styles and CSS
+        const extractedColors: string[] = [];
+        const colorRegex = /#[0-9A-Fa-f]{3,6}\b|rgb\([^)]+\)|rgba\([^)]+\)/g;
+
+        $('[style]').each((_, el) => {
+            const style = $(el).attr('style') || '';
+            const matches = style.match(colorRegex);
+            if (matches) extractedColors.push(...matches);
+        });
+
+        // Also check CSS in style tags
+        $('style').each((_, el) => {
+            const css = $(el).html() || '';
+            const matches = css.match(colorRegex);
+            if (matches) extractedColors.push(...matches);
+        });
+
+        // Deduplicate and limit colors
+        const uniqueColors = [...new Set(extractedColors)].slice(0, 10);
+
+        // Extract fonts
+        const fonts: string[] = [];
+        const fontRegex = /font-family:\s*([^;]+)/g;
+        $('[style]').each((_, el) => {
+            const style = $(el).attr('style') || '';
+            const matches = style.matchAll(fontRegex);
+            for (const match of matches) {
+                fonts.push(match[1].trim());
+            }
+        });
+
+        // Extract images
+        const images: { src: string; alt: string }[] = [];
+        $('img').each((_, el) => {
+            const src = $(el).attr('src') || $(el).attr('data-src') || '';
+            const alt = $(el).attr('alt') || '';
+            if (src && !src.includes('data:image/') && !src.includes('pixel')) {
+                // Convert relative URLs to absolute
+                const absoluteSrc = src.startsWith('http') ? src : new URL(src, url).href;
+                images.push({ src: absoluteSrc, alt });
+            }
+        });
+
+        // Extract main content
+        let content = '';
+        const mainContent = $('main, article, .content, #content, .main-content, [role="main"]').first();
+        if (mainContent.length) {
+            content = mainContent.text().replace(/\s+/g, ' ').trim();
+        } else {
+            content = $('body').text().replace(/\s+/g, ' ').trim();
+        }
+
+        // Identify sections
+        const sections: { type: string; content: string }[] = [];
+        $('section, .section, [class*="hero"], [class*="features"], [class*="testimonial"], [class*="pricing"], [class*="contact"], [class*="about"]').each((_, el) => {
+            const className = $(el).attr('class') || '';
+            const text = $(el).text().substring(0, 200).trim();
+            let type = 'general';
+
+            if (className.includes('hero') || $(el).find('h1').length) type = 'hero';
+            else if (className.includes('feature')) type = 'features';
+            else if (className.includes('testimonial') || className.includes('review')) type = 'testimonials';
+            else if (className.includes('pricing') || className.includes('price')) type = 'pricing';
+            else if (className.includes('contact')) type = 'contact';
+            else if (className.includes('about')) type = 'about';
+
+            if (text.length > 10) {
+                sections.push({ type, content: text });
+            }
+        });
+
+        // Check for viewport meta tag
+        const hasViewportMeta = $('meta[name="viewport"]').length > 0;
+
+        return {
+            title,
+            metaDescription,
+            headings,
+            extractedColors: uniqueColors,
+            fonts: [...new Set(fonts)].slice(0, 5),
+            images: images.slice(0, 20),
+            sections,
+            content: content.substring(0, 5000),
+            hasViewportMeta
+        };
+
+    } catch (error: any) {
+        console.error(`[Studio] Failed to scrape ${url}:`, error.message);
+        return null;
+    }
+}
+
+// Generate improvement suggestions
+function generateImprovementSuggestions(scrapedData: any): string[] {
+    const suggestions: string[] = [];
+
+    if (!scrapedData.hasViewportMeta) {
+        suggestions.push('Add responsive viewport meta tag for mobile optimization');
+    }
+
+    if (scrapedData.extractedColors.length < 2) {
+        suggestions.push('Establish a consistent color palette with primary, secondary, and accent colors');
+    }
+
+    if (!scrapedData.headings.find((h: any) => h.level === 'h1')) {
+        suggestions.push('Add a clear H1 heading for better SEO and accessibility');
+    }
+
+    if (scrapedData.images.length > 0 && scrapedData.images.filter((i: any) => !i.alt).length > 0) {
+        suggestions.push('Add alt text to images for accessibility and SEO');
+    }
+
+    if (!scrapedData.metaDescription) {
+        suggestions.push('Add a meta description for better search engine visibility');
+    }
+
+    if (scrapedData.sections.length < 3) {
+        suggestions.push('Structure content into clear sections (hero, features, testimonials, CTA)');
+    }
+
+    suggestions.push('Implement modern design patterns like glassmorphism and gradient backgrounds');
+    suggestions.push('Add scroll-triggered animations for better engagement');
+    suggestions.push('Optimize for Core Web Vitals (LCP, FID, CLS)');
+
+    return suggestions;
+}
+
+// Generate an improved version using AI
+async function generateImprovedVersion(scrapedData: any, analysis: any, brandOverride?: any): Promise<string> {
+    const brand = brandOverride || {
+        name: scrapedData.title?.split('|')[0]?.trim() || 'Brand',
+        colors: {
+            primary: analysis.colors?.[0] || '#6366f1',
+            secondary: analysis.colors?.[1] || '#8b5cf6'
+        }
+    };
+
+    // Try to use OpenAI for better generation
+    if (process.env.OPENAI_API_KEY) {
+        try {
+            const completion = await openai.chat.completions.create({
+                model: 'gpt-4o',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are redesigning an existing website to be 10x better. Create a stunning, modern HTML page that keeps the core content but dramatically improves the design.
+
+Original Site Analysis:
+- Title: ${scrapedData.title || 'Unknown'}
+- Description: ${scrapedData.metaDescription || 'No description'}
+- Key Headings: ${scrapedData.headings?.slice(0, 5).map((h: any) => h.text).join(', ') || 'None'}
+- Detected Colors: ${analysis.colors?.join(', ') || 'None detected'}
+- Content Preview: ${scrapedData.content?.substring(0, 1500) || 'No content'}
+
+## Brand Context
+- Name: ${brand.name}
+- Primary Color: ${brand.colors?.primary || '#6366f1'}
+- Secondary Color: ${brand.colors?.secondary || '#8b5cf6'}
+
+## Improvements to Make
+${analysis.improvements?.join('\n- ') || 'General improvements needed'}
+
+## Requirements
+1. Keep the core content/messaging but rewrite for better impact
+2. Use Tailwind CSS via CDN
+3. Add glassmorphism, animated gradients, scroll animations
+4. Dark theme with vibrant accents
+5. Fully responsive
+6. Output ONLY complete HTML, no markdown`
+                    },
+                    {
+                        role: 'user',
+                        content: `Redesign this website to be modern, stunning, and professional. Keep the business message but make it 10x more visually impressive.`
+                    }
+                ],
+                max_tokens: 8192,
+                temperature: 0.8
+            });
+
+            let html = completion.choices[0].message.content || '';
+
+            // Clean up response
+            if (html.includes('```html')) {
+                html = html.split('```html')[1].split('```')[0];
+            } else if (html.includes('```')) {
+                html = html.split('```')[1].split('```')[0];
+            }
+
+            return html.trim();
+        } catch (error) {
+            console.error('[Studio] AI improvement generation failed:', error);
+        }
+    }
+
+    // Fallback to template-based improvement
+    return generateProfessionalHtml(
+        scrapedData.content?.substring(0, 200) || brand.name,
+        'landing',
+        brand
+    );
+}
 
 /**
  * POST /api/studio/publish

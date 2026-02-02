@@ -18,10 +18,28 @@ import {
     ChevronDown,
     CheckCircle2,
     AlertCircle,
-    Settings
+    Settings,
+    Play,
+    Mail,
+    Phone,
+    Share2,
+    Search,
+    BarChart3
 } from 'lucide-react';
 import { generateActionPlan } from '../services/geminiService';
 import { getBackendUrl } from '../services/api';
+import {
+    parseIntent,
+    parseIntentWithAI,
+    executeAction,
+    formatActionResult,
+    requiresConfirmation,
+    getActionDisplayName,
+    getSuggestedActions,
+    type ActionIntent,
+    type ActionResult,
+    type ActionContext
+} from '../services/ActionEngine';
 
 type PanelMode = 'staff' | 'mcp' | 'group';
 
@@ -35,6 +53,9 @@ interface Message {
         sourcedFacts?: number;
         requiresApproval?: boolean;
         sopExecuted?: string;
+        actionResult?: ActionResult;
+        actionIntent?: ActionIntent;
+        pendingAction?: boolean;
     };
 }
 
@@ -68,10 +89,22 @@ const UnifiedCommandPanel: React.FC<UnifiedCommandPanelProps> = ({ isOpen, onClo
     const [selectedStaff, setSelectedStaff] = useState<StaffRole | null>(null);
     const [showStaffSelector, setShowStaffSelector] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [pendingIntent, setPendingIntent] = useState<ActionIntent | null>(null);
+    const [pendingData, setPendingData] = useState<Record<string, any>>({});
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const API_BASE = getBackendUrl();
+
+    // Get action context from localStorage
+    const getActionContext = (): ActionContext => {
+        const locationId = localStorage.getItem('os_loc_id') || 'default';
+        const crmType = (localStorage.getItem('os_crm_type') as 'ghl' | 'vbout') || 'ghl';
+        const twinData = localStorage.getItem('os_business_twin');
+        const brandContext = twinData ? JSON.parse(twinData) : {};
+
+        return { locationId, crmType, brandContext };
+    };
 
     // Initialize with welcome message based on mode
     useEffect(() => {
@@ -156,6 +189,71 @@ const UnifiedCommandPanel: React.FC<UnifiedCommandPanelProps> = ({ isOpen, onClo
         }
     };
 
+    // Execute a confirmed action
+    const executeConfirmedAction = async (intent: ActionIntent, additionalData?: Record<string, any>) => {
+        setIsProcessing(true);
+        const context = getActionContext();
+
+        try {
+            const result = await executeAction(intent, context, additionalData);
+
+            setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                role: 'assistant',
+                content: formatActionResult(result),
+                timestamp: new Date(),
+                agentName: 'Action Engine',
+                metadata: {
+                    actionResult: result,
+                    actionIntent: intent
+                }
+            }]);
+
+            // If action needs more info, prompt for it
+            if (result.requiresConfirmation && result.confirmationPrompt) {
+                setPendingIntent(intent);
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    content: result.confirmationPrompt || 'Please provide more details.',
+                    timestamp: new Date(),
+                    agentName: 'Action Engine',
+                    metadata: { pendingAction: true }
+                }]);
+            } else {
+                setPendingIntent(null);
+                setPendingData({});
+            }
+
+            // Handle agent switching
+            if (result.data?.action === 'switch_agent' && result.data?.agent) {
+                const agentMap: Record<string, string> = {
+                    marketing: 'marketing',
+                    sales: 'sales',
+                    support: 'support',
+                    operations: 'operations',
+                    manager: 'manager',
+                    assistant: 'assistant'
+                };
+                const targetAgent = staffRoles.find(r => r.id === agentMap[result.data.agent]);
+                if (targetAgent) {
+                    setMode('staff');
+                    setSelectedStaff(targetAgent);
+                }
+            }
+        } catch (error: any) {
+            setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                role: 'assistant',
+                content: `❌ Action failed: ${error.message}`,
+                timestamp: new Date(),
+                agentName: 'System'
+            }]);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() || isProcessing) return;
@@ -175,46 +273,102 @@ const UnifiedCommandPanel: React.FC<UnifiedCommandPanelProps> = ({ isOpen, onClo
 
         try {
             if (mode === 'mcp') {
-                // MCP mode - use Gemini for action planning
-                const actionPlan = await generateActionPlan(userMessage, { source: 'command_panel' });
-                setMessages(prev => [...prev, {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: actionPlan.summary || "Command processed. Executing workflow...",
-                    timestamp: new Date(),
-                    agentName: 'Orchestrator'
-                }]);
-            } else if (mode === 'staff' && selectedStaff) {
-                // Staff mode - call staff API
-                const token = localStorage.getItem('os_token');
-                const locationId = localStorage.getItem('os_loc_id') || 'default';
+                // MCP mode - Parse intent and execute actions
+                const context = getActionContext();
 
-                const response = await fetch(`${API_BASE}/api/staff/chat`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        locationId,
-                        agentRole: selectedStaff.id,
-                        message: userMessage,
-                        sessionId
-                    })
-                });
+                // If we have a pending action, use input as additional data
+                if (pendingIntent) {
+                    const entityKey = getEntityKeyForAction(pendingIntent.type);
+                    const newData = { ...pendingData, [entityKey]: userMessage };
+                    setPendingData(newData);
+                    await executeConfirmedAction(pendingIntent, newData);
+                    return;
+                }
 
-                if (response.ok) {
-                    const data = await response.json();
+                // Parse intent (try AI first, fall back to local)
+                let intent: ActionIntent;
+                try {
+                    intent = await parseIntentWithAI(userMessage, context);
+                } catch {
+                    intent = parseIntent(userMessage);
+                }
+
+                // If unknown intent, use Gemini for general response
+                if (intent.type === 'unknown' || intent.confidence < 0.5) {
+                    const actionPlan = await generateActionPlan(userMessage, { source: 'command_panel' });
                     setMessages(prev => [...prev, {
                         id: (Date.now() + 1).toString(),
                         role: 'assistant',
-                        content: data.response || "I've processed your request.",
+                        content: actionPlan.summary || "I understand. How can I help you further?",
                         timestamp: new Date(),
-                        agentName: selectedStaff.name,
-                        metadata: data.metadata
+                        agentName: 'Orchestrator'
                     }]);
                 } else {
-                    throw new Error('Staff API error');
+                    // Execute the detected action
+                    if (requiresConfirmation(intent.type)) {
+                        // Show confirmation before executing
+                        const actionName = getActionDisplayName(intent.type);
+                        setMessages(prev => [...prev, {
+                            id: (Date.now() + 1).toString(),
+                            role: 'assistant',
+                            content: `I'll ${actionName.toLowerCase()}. ${intent.entities?.recipient || intent.entities?.phone || intent.entities?.platform ? '' : 'Please provide the details:'}`,
+                            timestamp: new Date(),
+                            agentName: 'Action Engine',
+                            metadata: { actionIntent: intent }
+                        }]);
+
+                        // If we have enough info, execute; otherwise prompt
+                        const hasEnoughInfo = checkHasEnoughInfo(intent);
+                        if (hasEnoughInfo) {
+                            await executeConfirmedAction(intent);
+                        } else {
+                            setPendingIntent(intent);
+                        }
+                    } else {
+                        // Execute immediately for non-sensitive actions
+                        await executeConfirmedAction(intent);
+                    }
+                }
+            } else if (mode === 'staff' && selectedStaff) {
+                // Staff mode - call staff API with action awareness
+                const token = localStorage.getItem('os_token');
+                const locationId = localStorage.getItem('os_loc_id') || 'default';
+
+                // Also parse for actions in staff mode
+                const intent = parseIntent(userMessage);
+
+                if (intent.type !== 'unknown' && intent.confidence >= 0.7) {
+                    // Execute action on behalf of the staff member
+                    await executeConfirmedAction(intent);
+                } else {
+                    // Regular staff chat
+                    const response = await fetch(`${API_BASE}/api/staff/chat`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            locationId,
+                            agentRole: selectedStaff.id,
+                            message: userMessage,
+                            sessionId
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        setMessages(prev => [...prev, {
+                            id: (Date.now() + 1).toString(),
+                            role: 'assistant',
+                            content: data.response || "I've processed your request.",
+                            timestamp: new Date(),
+                            agentName: selectedStaff.name,
+                            metadata: data.metadata
+                        }]);
+                    } else {
+                        throw new Error('Staff API error');
+                    }
                 }
             } else if (mode === 'group') {
                 // Group mode - broadcast to all staff
@@ -242,6 +396,39 @@ const UnifiedCommandPanel: React.FC<UnifiedCommandPanelProps> = ({ isOpen, onClo
             setIsProcessing(false);
             inputRef.current?.focus();
         }
+    };
+
+    // Helper to get entity key based on action type
+    const getEntityKeyForAction = (actionType: string): string => {
+        const keys: Record<string, string> = {
+            send_email: 'recipient',
+            send_sms: 'phone',
+            schedule_post: 'content',
+            create_contact: 'name',
+            make_call: 'phone',
+            search_contacts: 'query',
+            create_task: 'title',
+            generate_content: 'topic'
+        };
+        return keys[actionType] || 'value';
+    };
+
+    // Check if intent has enough info to execute
+    const checkHasEnoughInfo = (intent: ActionIntent): boolean => {
+        const required: Record<string, string[]> = {
+            send_email: ['recipient', 'subject'],
+            send_sms: ['phone', 'message'],
+            schedule_post: ['content'],
+            create_contact: ['firstName', 'name', 'email', 'phone'],
+            make_call: ['phone', 'target'],
+            search_contacts: ['query'],
+            create_task: ['title']
+        };
+
+        const requiredFields = required[intent.type] || [];
+        if (requiredFields.length === 0) return true;
+
+        return requiredFields.some(field => intent.entities[field]);
     };
 
     const selectStaff = (staff: StaffRole) => {
@@ -463,22 +650,44 @@ const UnifiedCommandPanel: React.FC<UnifiedCommandPanelProps> = ({ isOpen, onClo
                     </div>
 
                     {/* Quick Actions */}
-                    {mode === 'mcp' && (
+                    {(mode === 'mcp' || (mode === 'staff' && selectedStaff)) && (
                         <div className="px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar border-t border-[var(--os-border)]">
-                            {[
-                                { label: 'SEO Audit', icon: Zap },
-                                { label: 'Draft Post', icon: MessageSquare },
-                                { label: 'Check Vitals', icon: Sparkles }
-                            ].map(action => (
-                                <button
-                                    key={action.label}
-                                    onClick={() => setInput(action.label)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--os-surface)] border border-[var(--os-border)] text-[10px] font-bold text-[var(--os-text-muted)] hover:text-neuro hover:border-neuro transition-all whitespace-nowrap"
-                                >
-                                    <action.icon className="h-3 w-3" />
-                                    {action.label}
-                                </button>
-                            ))}
+                            {getSuggestedActions(mode === 'staff' ? selectedStaff?.id : undefined).slice(0, 5).map(action => {
+                                const iconMap: Record<string, React.ElementType> = {
+                                    '📧': Mail,
+                                    '📱': Share2,
+                                    '💬': MessageSquare,
+                                    '🔍': Search,
+                                    '📊': BarChart3,
+                                    '🎯': TrendingUp,
+                                    '📅': Sparkles,
+                                    '✍️': Sparkles,
+                                    '👤': Users,
+                                    '📩': Mail,
+                                    '💰': Zap,
+                                    '🎫': Sparkles,
+                                    '↩️': MessageSquare,
+                                    '📋': Sparkles,
+                                    '⚡': Play,
+                                    '🔄': Sparkles,
+                                    '✅': CheckCircle2,
+                                    '📈': BarChart3,
+                                    '👥': Users,
+                                    '🚨': AlertCircle,
+                                    '📞': Phone
+                                };
+                                const IconComponent = iconMap[action.icon] || Sparkles;
+                                return (
+                                    <button
+                                        key={action.label}
+                                        onClick={() => setInput(action.command)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--os-surface)] border border-[var(--os-border)] text-[10px] font-bold text-[var(--os-text-muted)] hover:text-neuro hover:border-neuro transition-all whitespace-nowrap"
+                                    >
+                                        <IconComponent className="h-3 w-3" />
+                                        {action.label}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
 

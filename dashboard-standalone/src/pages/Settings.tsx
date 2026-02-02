@@ -13,6 +13,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import WebhookManager from '../components/WebhookManager';
 import APIKeyManager from '../components/APIKeyManager';
+import VoiceSettingsManager from '../components/VoiceSettingsManager';
 
 const Settings = () => {
     const { config, updateConfig, isDark, toggleTheme } = useTheme();
@@ -125,6 +126,11 @@ const Settings = () => {
                 {/* AI & Webhook Configuration */}
                 <div className="border-t border-[var(--os-border)] pt-12">
                     <APIKeyManager />
+                </div>
+
+                {/* Voice Credentials */}
+                <div className="border-t border-[var(--os-border)] pt-12">
+                    <VoiceSettingsManager />
                 </div>
 
                 {/* Mobile Webhook Integration */}
