@@ -220,14 +220,15 @@ export class StripeService {
     planId: PlanId,
     interval: 'monthly' | 'yearly',
     successUrl: string,
-    cancelUrl: string
+    cancelUrl: string,
+    affiliateId?: string // PushLap Growth affiliate tracking
   ): Promise<string> {
     const plan = PRICING_PLANS[planId];
     if (!plan) throw new Error('Invalid plan');
 
     const priceId = interval === 'yearly' ? plan.stripePriceIdYearly : plan.stripePriceIdMonthly;
 
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -243,10 +244,21 @@ export class StripeService {
       billing_address_collection: 'auto',
       subscription_data: {
         metadata: {
-          planId
+          planId,
+          ...(affiliateId && { pushLapAffiliateId: affiliateId })
         }
+      },
+      metadata: {
+        ...(affiliateId && { pushLapAffiliateId: affiliateId })
       }
-    });
+    };
+
+    // Add client_reference_id for PushLap affiliate tracking
+    if (affiliateId) {
+      sessionParams.client_reference_id = affiliateId;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     return session.url || '';
   }
@@ -529,6 +541,171 @@ export class StripeService {
    */
   getAllPlans() {
     return PRICING_PLANS;
+  }
+
+  /**
+   * Create a coupon in Stripe
+   */
+  async createCoupon(params: {
+    code: string;
+    percentOff?: number;
+    amountOff?: number;
+    currency?: string;
+    duration: 'once' | 'repeating' | 'forever';
+    durationInMonths?: number;
+    maxRedemptions?: number;
+    expiresAt?: Date;
+  }): Promise<{ coupon: Stripe.Coupon; promotionCode: Stripe.PromotionCode }> {
+    // Create the coupon
+    const couponParams: Stripe.CouponCreateParams = {
+      duration: params.duration,
+    };
+
+    if (params.percentOff) {
+      couponParams.percent_off = params.percentOff;
+    } else if (params.amountOff) {
+      couponParams.amount_off = params.amountOff;
+      couponParams.currency = params.currency || 'usd';
+    }
+
+    if (params.duration === 'repeating' && params.durationInMonths) {
+      couponParams.duration_in_months = params.durationInMonths;
+    }
+
+    if (params.maxRedemptions) {
+      couponParams.max_redemptions = params.maxRedemptions;
+    }
+
+    const coupon = await stripe.coupons.create(couponParams);
+
+    // Create a promotion code for the coupon (user-facing code)
+    const promotionCode = await stripe.promotionCodes.create({
+      coupon: coupon.id,
+      code: params.code.toUpperCase(),
+      max_redemptions: params.maxRedemptions,
+      expires_at: params.expiresAt ? Math.floor(params.expiresAt.getTime() / 1000) : undefined,
+    });
+
+    return { coupon, promotionCode };
+  }
+
+  /**
+   * Validate a promotion code
+   */
+  async validatePromotionCode(code: string): Promise<{
+    valid: boolean;
+    discount?: { percentOff?: number; amountOff?: number; currency?: string };
+    promotionCode?: Stripe.PromotionCode;
+  }> {
+    try {
+      const promotionCodes = await stripe.promotionCodes.list({
+        code: code.toUpperCase(),
+        active: true,
+        limit: 1,
+      });
+
+      if (promotionCodes.data.length === 0) {
+        return { valid: false };
+      }
+
+      const promoCode = promotionCodes.data[0];
+      const coupon = promoCode.coupon;
+
+      // Check if coupon is still valid
+      if (!coupon.valid) {
+        return { valid: false };
+      }
+
+      return {
+        valid: true,
+        discount: {
+          percentOff: coupon.percent_off || undefined,
+          amountOff: coupon.amount_off || undefined,
+          currency: coupon.currency || undefined,
+        },
+        promotionCode: promoCode,
+      };
+    } catch (error) {
+      return { valid: false };
+    }
+  }
+
+  /**
+   * Apply a promotion code to a checkout session
+   */
+  async createCheckoutSessionWithCoupon(
+    customerId: string,
+    planId: PlanId,
+    interval: 'monthly' | 'yearly',
+    successUrl: string,
+    cancelUrl: string,
+    promotionCode?: string,
+    affiliateId?: string // PushLap Growth affiliate tracking
+  ): Promise<string> {
+    const plan = PRICING_PLANS[planId];
+    if (!plan) throw new Error('Invalid plan');
+
+    const priceId = interval === 'yearly' ? plan.stripePriceIdYearly : plan.stripePriceIdMonthly;
+
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      customer: customerId,
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1
+        }
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      billing_address_collection: 'auto',
+      subscription_data: {
+        metadata: {
+          planId,
+          ...(affiliateId && { pushLapAffiliateId: affiliateId })
+        }
+      },
+      metadata: {
+        ...(affiliateId && { pushLapAffiliateId: affiliateId })
+      }
+    };
+
+    // Add client_reference_id for PushLap affiliate tracking
+    if (affiliateId) {
+      sessionParams.client_reference_id = affiliateId;
+    }
+
+    // If a specific promotion code is provided, use it; otherwise allow user to enter any
+    if (promotionCode) {
+      const validation = await this.validatePromotionCode(promotionCode);
+      if (validation.valid && validation.promotionCode) {
+        sessionParams.discounts = [{ promotion_code: validation.promotionCode.id }];
+      }
+    } else {
+      sessionParams.allow_promotion_codes = true;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+    return session.url || '';
+  }
+
+  /**
+   * List all promotion codes
+   */
+  async listPromotionCodes(limit: number = 25): Promise<Stripe.PromotionCode[]> {
+    const codes = await stripe.promotionCodes.list({
+      limit,
+      active: true,
+    });
+    return codes.data;
+  }
+
+  /**
+   * Deactivate a promotion code
+   */
+  async deactivatePromotionCode(promotionCodeId: string): Promise<Stripe.PromotionCode> {
+    return stripe.promotionCodes.update(promotionCodeId, { active: false });
   }
 }
 

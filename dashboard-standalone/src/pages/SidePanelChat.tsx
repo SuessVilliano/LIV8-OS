@@ -120,10 +120,10 @@ const SidePanelChat = () => {
                     </button>
                 </div>
                 <div className="flex justify-center mt-3 gap-4">
-                    <button onClick={() => window.open('https://os.liv8ai.com/dashboard', '_blank')} className="text-[10px] font-bold text-slate-400 hover:text-blue-500 uppercase tracking-widest transition-colors flex items-center gap-1">
+                    <button onClick={() => window.open('https://os.liv8.co/dashboard', '_blank')} className="text-[10px] font-bold text-slate-400 hover:text-blue-500 uppercase tracking-widest transition-colors flex items-center gap-1">
                         Open Dashboard
                     </button>
-                    <button onClick={() => window.open('https://os.liv8ai.com/onboarding', '_blank')} className="text-[10px] font-bold text-slate-400 hover:text-blue-500 uppercase tracking-widest transition-colors flex items-center gap-1">
+                    <button onClick={() => window.open('https://os.liv8.co/onboarding', '_blank')} className="text-[10px] font-bold text-slate-400 hover:text-blue-500 uppercase tracking-widest transition-colors flex items-center gap-1">
                         Help & Setup
                     </button>
                 </div>

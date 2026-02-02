@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Opportunities from './pages/Opportunities';
@@ -11,14 +12,11 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Sidebar from './components/Sidebar';
-import GhlConnect from './components/GhlConnect';
+import CrmConnect from './components/CrmConnect';
 import GhlOnboarding from './components/GhlOnboarding';
 import CommandSidebar from './components/CommandSidebar';
-import DashboardLayout from './components/DashboardLayout';
-import ConversationalOnboarding from './components/ConversationalOnboarding';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Terminal, Mic, MicOff } from 'lucide-react';
-import { useVoiceCommands } from './hooks/useVoiceCommands';
+import { Terminal } from 'lucide-react';
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
@@ -38,8 +36,8 @@ function App() {
     return localStorage.getItem('os_auth') === 'true';
   });
 
-  const [isGhlConnected, setIsGhlConnected] = useState(() => {
-    return localStorage.getItem('os_ghl_connected') === 'true';
+  const [isCrmConnected, setIsCrmConnected] = useState(() => {
+    return localStorage.getItem('os_crm_connected') === 'true';
   });
 
   const [isOnboarded, setIsOnboarded] = useState(() => {
@@ -56,15 +54,23 @@ function App() {
   const handleLogout = () => {
     localStorage.clear();
     setIsAuthenticated(false);
-    setIsGhlConnected(false);
+    setIsCrmConnected(false);
     setIsOnboarded(false);
   };
 
-  const handleGhlConnect = (locId: string, apiKey: string) => {
-    localStorage.setItem('os_ghl_connected', 'true');
-    localStorage.setItem('os_loc_id', locId);
-    localStorage.setItem('os_api_key', apiKey);
-    setIsGhlConnected(true);
+  const handleCrmConnect = (crmType: string, credentials: { locationId?: string; apiKey?: string; email?: string; password?: string }) => {
+    localStorage.setItem('os_crm_connected', 'true');
+    localStorage.setItem('os_crm_type', crmType);
+
+    if (crmType === 'ghl') {
+      localStorage.setItem('os_loc_id', credentials.locationId || '');
+      localStorage.setItem('os_api_key', credentials.apiKey || '');
+    } else if (crmType === 'liv8') {
+      localStorage.setItem('os_vbout_email', credentials.email || '');
+      // Note: Don't store password in localStorage for security
+    }
+
+    setIsCrmConnected(true);
   };
 
   const handleOnboardingComplete = () => {
@@ -74,31 +80,36 @@ function App() {
 
   const toggleCommand = () => setIsCommandOpen(!isCommandOpen);
 
-  const isCoreActive = isAuthenticated && isGhlConnected && isOnboarded;
+  const isCoreActive = isAuthenticated && isCrmConnected && isOnboarded;
 
   return (
     <ThemeProvider>
       <Router>
-        <div className="flex min-h-screen bg-[var(--os-bg)] text-[var(--os-text)] transition-colors duration-500 overflow-hidden">
+        <div className="flex h-screen bg-[var(--os-bg)] text-[var(--os-text)] transition-colors duration-500 overflow-hidden">
           {isCoreActive && <Sidebar onLogout={handleLogout} />}
 
           <main className="flex-1 overflow-auto relative custom-scrollbar">
             <Routes>
+              {/* 0. Public Landing Page */}
+              <Route path="/" element={
+                isAuthenticated ? <Navigate to={isCrmConnected ? (isOnboarded ? "/dashboard" : "/onboarding") : "/connect"} replace /> : <Landing />
+              } />
+
               {/* 1. Base Authentication Layer */}
               <Route path="/login" element={
                 isAuthenticated ? <Navigate to="/connect" replace /> : <Login onLogin={handleLogin} />
               } />
 
-              {/* 2. GHL Connection Layer */}
+              {/* 2. CRM Connection Layer */}
               <Route path="/connect" element={
                 !isAuthenticated ? <Navigate to="/login" replace /> :
-                  isGhlConnected ? <Navigate to="/onboarding" replace /> : <GhlConnect onConnect={handleGhlConnect} />
+                  isCrmConnected ? <Navigate to="/onboarding" replace /> : <CrmConnect onConnect={handleCrmConnect} />
               } />
 
               {/* 3. OS Onboarding Layer */}
               <Route path="/onboarding" element={
                 !isAuthenticated ? <Navigate to="/login" replace /> :
-                  !isGhlConnected ? <Navigate to="/connect" replace /> :
+                  !isCrmConnected ? <Navigate to="/connect" replace /> :
                     isOnboarded ? <Navigate to="/dashboard" replace /> : <GhlOnboarding onComplete={handleOnboardingComplete} />
               } />
 
@@ -113,8 +124,7 @@ function App() {
               <Route path="/settings" element={isCoreActive ? <Settings /> : <Navigate to="/login" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
 
-              <Route path="/" element={<Navigate to={isAuthenticated ? (isGhlConnected ? (isOnboarded ? "/dashboard" : "/onboarding") : "/connect") : "/login"} replace />} />
-              <Route path="*" element={<Navigate to="/login" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
 
             {/* Universal Command Toggle */}

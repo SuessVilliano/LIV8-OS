@@ -1,4 +1,5 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
+import type { ReactNode } from 'react';
 import ContentStudio from './ContentStudio';
 import IntegrationsDashboard from './IntegrationsDashboard';
 import AIStaffChat from './AIStaffChat';
@@ -21,7 +22,7 @@ const defaultTheme: ThemeConfig = {
   primaryColor: '#6366f1',  // indigo-500
   secondaryColor: '#8b5cf6',  // violet-500
   accentColor: '#10b981',  // emerald-500
-  mode: 'light',
+  mode: 'dark',
   preset: 'default'
 };
 
@@ -38,25 +39,25 @@ const THEME_PRESETS = {
     primaryColor: '#6366f1',
     secondaryColor: '#8b5cf6',
     accentColor: '#10b981',
-    mode: 'light' as const
+    mode: 'dark' as const
   },
   ocean: {
     primaryColor: '#0ea5e9',
     secondaryColor: '#06b6d4',
     accentColor: '#14b8a6',
-    mode: 'light' as const
+    mode: 'dark' as const
   },
   sunset: {
     primaryColor: '#f97316',
     secondaryColor: '#f59e0b',
     accentColor: '#ef4444',
-    mode: 'light' as const
+    mode: 'dark' as const
   },
   forest: {
     primaryColor: '#22c55e',
     secondaryColor: '#10b981',
     accentColor: '#84cc16',
-    mode: 'light' as const
+    mode: 'dark' as const
   },
   midnight: {
     primaryColor: '#8b5cf6',
@@ -68,7 +69,7 @@ const THEME_PRESETS = {
     primaryColor: '#3b82f6',
     secondaryColor: '#1d4ed8',
     accentColor: '#0ea5e9',
-    mode: 'light' as const
+    mode: 'dark' as const
   }
 };
 
@@ -90,7 +91,7 @@ interface DashboardLayoutProps {
   initialView?: ViewType;
 }
 
-export default function DashboardLayout({ children, initialView = 'dashboard' }: DashboardLayoutProps) {
+export default function DashboardLayout({ children: _children, initialView = 'dashboard' }: DashboardLayoutProps) {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>(initialView);
@@ -123,10 +124,11 @@ export default function DashboardLayout({ children, initialView = 'dashboard' }:
 
   const checkExtensionConnection = () => {
     // Check if extension is installed and connected
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      // Try to communicate with extension
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chromeRuntime = (typeof chrome !== 'undefined' && (chrome as any).runtime) as any;
+    if (chromeRuntime?.sendMessage) {
       try {
-        chrome.runtime.sendMessage({ type: 'LIV8_PING' }, (response) => {
+        chromeRuntime.sendMessage({ type: 'LIV8_PING' }, (response: any) => {
           if (response?.connected) {
             setExtensionConnected(true);
             setRightSidebarOpen(false); // Hide right sidebar when extension is connected
@@ -156,10 +158,12 @@ export default function DashboardLayout({ children, initialView = 'dashboard' }:
     window.postMessage({ type: 'LIV8_THEME_CHANGE', theme: newTheme }, '*');
 
     // Also try direct extension communication
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chromeRuntime = (typeof chrome !== 'undefined' && (chrome as any).runtime) as any;
+    if (chromeRuntime?.sendMessage) {
       try {
-        chrome.runtime.sendMessage({ type: 'LIV8_SET_THEME', theme: newTheme });
-      } catch (e) {}
+        chromeRuntime.sendMessage({ type: 'LIV8_SET_THEME', theme: newTheme });
+      } catch (e) { /* Extension not available */ }
     }
   };
 
@@ -602,7 +606,7 @@ function CalendarView() {
 }
 
 // Settings View
-function SettingsView({ theme, setTheme, showThemePicker, setShowThemePicker }: {
+function SettingsView({ theme, setTheme, showThemePicker: _showThemePicker, setShowThemePicker }: {
   theme: ThemeConfig;
   setTheme: (theme: ThemeConfig) => void;
   showThemePicker: boolean;
