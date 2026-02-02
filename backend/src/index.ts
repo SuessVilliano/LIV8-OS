@@ -26,6 +26,8 @@ import billingRouter from './api/billing.js'; // Stripe payments & subscriptions
 import notificationsRouter from './api/notifications.js'; // Notification system
 import crmRouter from './api/crm.js'; // CRM validation & account creation
 import dashboardRouter from './api/dashboard.js'; // Dashboard data API
+import webhooksRouter from './api/webhooks.js'; // Webhook management
+import brandRouter from './api/brand.js'; // Brand assets & knowledge base
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -148,6 +150,8 @@ app.use('/api/billing', rateLimitPresets.api, billingRouter);
 app.use('/api/notifications', rateLimitPresets.webhook, notificationsRouter); // Lenient for webhooks
 app.use('/api/crm', rateLimitPresets.api, crmRouter); // CRM validation & account creation
 app.use('/api/dashboard', rateLimitPresets.api, dashboardRouter); // Dashboard data API
+app.use('/api/webhooks', rateLimitPresets.webhook, webhooksRouter); // Webhook management (lenient for incoming webhooks)
+app.use('/api/brand', rateLimitPresets.api, brandRouter); // Brand assets & knowledge base
 
 
 // --- MCP Integration ---

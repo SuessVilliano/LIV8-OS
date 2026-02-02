@@ -1,695 +1,887 @@
 import { useState, useRef, useEffect } from 'react';
+import {
+    Sparkles,
+    Send,
+    Upload,
+    FileText,
+    Instagram,
+    Facebook,
+    Linkedin,
+    Twitter,
+    Loader2,
+    CheckCircle2,
+    Brain,
+    Users,
+    Zap,
+    X,
+    Plus,
+    Bot,
+    Target,
+    TrendingUp
+} from 'lucide-react';
+import { getBackendUrl } from '../services/api';
 
-// Message types
 interface Message {
-  id: string;
-  type: 'assistant' | 'user' | 'options' | 'input' | 'progress';
-  content: string;
-  options?: QuickOption[];
-  inputType?: 'text' | 'url' | 'email' | 'textarea' | 'social';
-  inputPlaceholder?: string;
-  progress?: { step: number; total: number; label: string };
+    id: string;
+    type: 'assistant' | 'user' | 'options' | 'input' | 'progress' | 'multi-input' | 'social' | 'upload' | 'colors' | 'training' | 'complete';
+    content: string;
+    options?: QuickOption[];
+    inputType?: 'text' | 'url' | 'email' | 'textarea';
+    inputPlaceholder?: string;
+    field?: string;
+    progress?: { step: number; total: number; label: string };
+    multiSelect?: boolean;
 }
 
 interface QuickOption {
-  id: string;
-  label: string;
-  value: string;
-  icon?: string;
-  description?: string;
+    id: string;
+    label: string;
+    value: string;
+    icon?: any;
+    description?: string;
 }
 
 interface OnboardingData {
-  businessName: string;
-  industry: string;
-  websiteUrl: string;
-  description: string;
-  targetAudience: string[];
-  brandTone: string[];
-  goals: string[];
-  services: string[];
-  socialAccounts: {
-    instagram?: string;
-    facebook?: string;
-    linkedin?: string;
-    twitter?: string;
-    tiktok?: string;
-    youtube?: string;
-  };
-  crmType: 'ghl' | 'vbout' | 'none';
-  aiStaffNeeded: string[];
+    businessName: string;
+    industry: string;
+    websiteUrl: string;
+    description: string;
+    targetAudience: string;
+    brandVoice: string;
+    uniqueValue: string;
+    goals: string;
+    painPoints: string;
+    competitors: string[];
+    topInIndustry: string[];
+    socialAccounts: Record<string, string>;
+    colors: { primary: string; secondary: string; accent: string };
+    documents: File[];
+    aiStaffNeeded: string[];
 }
 
-// Onboarding conversation flow
-const CONVERSATION_STEPS = [
-  {
-    id: 'welcome',
-    messages: [
-      {
-        content: "Hi there! 👋 I'm your LIV8 AI Manager. I'll help set up your Digital Twin - an AI version of your business that never hallucinates.",
-        delay: 500
-      },
-      {
-        content: "This will take about 5 minutes, and I'll do most of the heavy lifting. Ready to get started?",
-        delay: 1500,
-        options: [
-          { id: 'start', label: "Let's go!", value: 'start', icon: '🚀' },
-          { id: 'learn', label: 'Tell me more first', value: 'learn', icon: '📖' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'learn_more',
-    trigger: { step: 'welcome', value: 'learn' },
-    messages: [
-      {
-        content: "Great question! Your Digital Twin is a verified knowledge base that our AI staff uses to represent your business accurately.",
-        delay: 500
-      },
-      {
-        content: "This means: ✅ No hallucinations - only facts from your website\n✅ Consistent brand voice\n✅ 24/7 AI staff that sounds like you",
-        delay: 1500,
-        options: [
-          { id: 'start', label: "Got it, let's start!", value: 'start', icon: '🚀' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'business_name',
-    messages: [
-      {
-        content: "What's your business called?",
-        delay: 300,
-        inputType: 'text',
-        inputPlaceholder: "Enter your business name"
-      }
-    ],
-    dataKey: 'businessName'
-  },
-  {
-    id: 'industry',
-    messages: [
-      {
-        content: "Nice! What industry are you in?",
-        delay: 300,
-        options: [
-          { id: 'marketing', label: 'Marketing Agency', value: 'Marketing Agency', icon: '📢' },
-          { id: 'realestate', label: 'Real Estate', value: 'Real Estate', icon: '🏠' },
-          { id: 'healthcare', label: 'Healthcare', value: 'Healthcare', icon: '🏥' },
-          { id: 'ecommerce', label: 'E-commerce', value: 'E-commerce', icon: '🛒' },
-          { id: 'saas', label: 'SaaS/Tech', value: 'SaaS/Tech', icon: '💻' },
-          { id: 'consulting', label: 'Consulting', value: 'Consulting', icon: '💼' },
-          { id: 'fitness', label: 'Fitness/Wellness', value: 'Fitness/Wellness', icon: '💪' },
-          { id: 'legal', label: 'Legal Services', value: 'Legal Services', icon: '⚖️' },
-          { id: 'other', label: 'Other', value: 'Other', icon: '✨' }
-        ]
-      }
-    ],
-    dataKey: 'industry'
-  },
-  {
-    id: 'website',
-    messages: [
-      {
-        content: "Perfect! Drop your website URL and I'll scan it to build your knowledge base. 🔍",
-        delay: 300,
-        inputType: 'url',
-        inputPlaceholder: "https://your-website.com"
-      }
-    ],
-    dataKey: 'websiteUrl'
-  },
-  {
-    id: 'scanning',
-    messages: [
-      {
-        content: "Scanning your website now... This usually takes 30-60 seconds.",
-        delay: 300,
-        progress: { step: 1, total: 4, label: 'Scanning website' }
-      }
-    ],
-    action: 'scan_website'
-  },
-  {
-    id: 'brand_tone',
-    messages: [
-      {
-        content: "How would you describe your brand's voice? Pick all that apply:",
-        delay: 300,
-        options: [
-          { id: 'professional', label: 'Professional', value: 'professional', icon: '👔' },
-          { id: 'friendly', label: 'Friendly', value: 'friendly', icon: '😊' },
-          { id: 'authoritative', label: 'Authoritative', value: 'authoritative', icon: '📚' },
-          { id: 'casual', label: 'Casual', value: 'casual', icon: '🌴' },
-          { id: 'innovative', label: 'Innovative', value: 'innovative', icon: '💡' },
-          { id: 'trustworthy', label: 'Trustworthy', value: 'trustworthy', icon: '🤝' },
-          { id: 'energetic', label: 'Energetic', value: 'energetic', icon: '⚡' },
-          { id: 'empathetic', label: 'Empathetic', value: 'empathetic', icon: '💜' }
-        ],
-        multiSelect: true
-      }
-    ],
-    dataKey: 'brandTone'
-  },
-  {
-    id: 'target_audience',
-    messages: [
-      {
-        content: "Who's your ideal customer?",
-        delay: 300,
-        options: [
-          { id: 'smb', label: 'Small Businesses', value: 'Small Businesses', icon: '🏪' },
-          { id: 'enterprise', label: 'Enterprise', value: 'Enterprise', icon: '🏢' },
-          { id: 'consumers', label: 'Consumers (B2C)', value: 'Consumers', icon: '👥' },
-          { id: 'startups', label: 'Startups', value: 'Startups', icon: '🚀' },
-          { id: 'agencies', label: 'Agencies', value: 'Agencies', icon: '🎯' },
-          { id: 'professionals', label: 'Professionals', value: 'Professionals', icon: '💼' }
-        ],
-        multiSelect: true
-      }
-    ],
-    dataKey: 'targetAudience'
-  },
-  {
-    id: 'goals',
-    messages: [
-      {
-        content: "What do you want your AI staff to help with?",
-        delay: 300,
-        options: [
-          { id: 'content', label: 'Content Creation', value: 'content', icon: '✍️', description: 'Social posts, blogs, emails' },
-          { id: 'sales', label: 'Sales & Outreach', value: 'sales', icon: '💰', description: 'Lead qualification, follow-ups' },
-          { id: 'support', label: 'Customer Support', value: 'support', icon: '🎧', description: '24/7 chat & email support' },
-          { id: 'scheduling', label: 'Scheduling', value: 'scheduling', icon: '📅', description: 'Appointments & reminders' },
-          { id: 'calling', label: 'Voice Calls', value: 'calling', icon: '📞', description: 'AI voice agent calls' },
-          { id: 'analytics', label: 'Analytics', value: 'analytics', icon: '📊', description: 'Reports & insights' }
-        ],
-        multiSelect: true
-      }
-    ],
-    dataKey: 'goals'
-  },
-  {
-    id: 'social_connect',
-    messages: [
-      {
-        content: "Want to connect your social media accounts? This helps us post content directly.",
-        delay: 300,
-        options: [
-          { id: 'yes', label: 'Yes, connect them', value: 'connect', icon: '🔗' },
-          { id: 'later', label: 'Skip for now', value: 'skip', icon: '⏭️' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'social_accounts',
-    trigger: { step: 'social_connect', value: 'connect' },
-    messages: [
-      {
-        content: "Which platforms do you use? (You can always add more later)",
-        delay: 300,
-        inputType: 'social'
-      }
-    ],
-    dataKey: 'socialAccounts'
-  },
-  {
-    id: 'crm_choice',
-    messages: [
-      {
-        content: "Do you use a CRM?",
-        delay: 300,
-        options: [
-          { id: 'ghl', label: 'GoHighLevel', value: 'ghl', icon: '🟠', description: 'Full native integration' },
-          { id: 'vbout', label: 'Vbout / Other', value: 'vbout', icon: '🔵', description: 'Email marketing CRM' },
-          { id: 'none', label: "I don't have one", value: 'none', icon: '🆕', description: "We'll set you up" }
-        ]
-      }
-    ],
-    dataKey: 'crmType'
-  },
-  {
-    id: 'ai_staff',
-    messages: [
-      {
-        content: "Last step! Which AI staff members would you like to activate?",
-        delay: 300,
-        options: [
-          { id: 'marketing', label: 'Marketing Manager', value: 'marketing', icon: '📢', description: 'Content & campaigns' },
-          { id: 'sales', label: 'Sales Rep', value: 'sales', icon: '💼', description: 'Lead engagement' },
-          { id: 'support', label: 'Support Agent', value: 'support', icon: '🎧', description: 'Customer service' },
-          { id: 'assistant', label: 'Executive Assistant', value: 'assistant', icon: '📋', description: 'Scheduling & tasks' },
-          { id: 'caller', label: 'Voice Agent', value: 'caller', icon: '📞', description: 'Phone calls' },
-          { id: 'all', label: 'Activate All', value: 'all', icon: '✨', description: 'Full AI team' }
-        ],
-        multiSelect: true
-      }
-    ],
-    dataKey: 'aiStaffNeeded'
-  },
-  {
-    id: 'finishing',
-    messages: [
-      {
-        content: "Building your Digital Twin...",
-        delay: 300,
-        progress: { step: 3, total: 4, label: 'Creating AI agents' }
-      }
-    ],
-    action: 'create_twin'
-  },
-  {
-    id: 'complete',
-    messages: [
-      {
-        content: "🎉 You're all set! Your Digital Twin is ready and your AI staff is activated.",
-        delay: 500
-      },
-      {
-        content: "You can now:\n• Chat with your AI staff\n• Create content\n• Manage integrations\n• View analytics",
-        delay: 1000,
-        options: [
-          { id: 'dashboard', label: 'Go to Dashboard', value: 'dashboard', icon: '🏠' },
-          { id: 'chat', label: 'Chat with AI Staff', value: 'chat', icon: '💬' }
-        ]
-      }
-    ]
-  }
-];
-
 interface Props {
-  onComplete: (data: OnboardingData) => void;
-  locationId: string;
+    onComplete: (data: OnboardingData) => void;
+    locationId?: string;
 }
 
 export default function ConversationalOnboarding({ onComplete, locationId }: Props) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [data, setData] = useState<Partial<OnboardingData>>({
-    socialAccounts: {},
-    brandTone: [],
-    targetAudience: [],
-    goals: [],
-    aiStaffNeeded: []
-  });
-  const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
-  const [socialInputs, setSocialInputs] = useState({
-    instagram: '',
-    facebook: '',
-    linkedin: '',
-    twitter: '',
-    tiktok: '',
-    youtube: ''
-  });
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [currentStep, setCurrentStep] = useState(0);
+    const [inputValue, setInputValue] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+    const [multiItems, setMultiItems] = useState<string[]>([]);
+    const [isTraining, setIsTraining] = useState(false);
+    const [trainingStep, setTrainingStep] = useState(0);
+    const [trainingProgress, setTrainingProgress] = useState(0);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    // Start conversation
-    processStep(CONVERSATION_STEPS[0]);
-  }, []);
-
-  const addMessage = (message: Partial<Message>) => {
-    const newMessage: Message = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'assistant',
-      content: '',
-      ...message
-    };
-    setMessages(prev => [...prev, newMessage]);
-    return newMessage;
-  };
-
-  const processStep = async (step: any) => {
-    setIsTyping(true);
-
-    for (const msg of step.messages) {
-      await new Promise(resolve => setTimeout(resolve, msg.delay || 500));
-
-      const newMsg: Partial<Message> = {
-        type: 'assistant',
-        content: msg.content
-      };
-
-      if (msg.options) {
-        newMsg.type = 'options';
-        newMsg.options = msg.options;
-      }
-
-      if (msg.inputType) {
-        newMsg.type = 'input';
-        newMsg.inputType = msg.inputType;
-        newMsg.inputPlaceholder = msg.inputPlaceholder;
-      }
-
-      if (msg.progress) {
-        newMsg.type = 'progress';
-        newMsg.progress = msg.progress;
-      }
-
-      addMessage(newMsg);
-    }
-
-    setIsTyping(false);
-
-    // Execute actions if any
-    if (step.action === 'scan_website' && data.websiteUrl) {
-      await scanWebsite();
-    } else if (step.action === 'create_twin') {
-      await createTwin();
-    }
-  };
-
-  const scanWebsite = async () => {
-    try {
-      await fetch(`${API_BASE}/api/twin/onboard`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          locationId,
-          websiteUrl: data.websiteUrl,
-          businessName: data.businessName,
-          industry: data.industry
-        })
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate scanning
-
-      addMessage({
-        type: 'assistant',
-        content: `Found ${Math.floor(Math.random() * 20) + 10} verified facts from your website.`
-      });
-
-      // Move to next step
-      goToNextStep();
-    } catch (error) {
-      addMessage({
-        type: 'assistant',
-        content: "I couldn't scan your website, but no worries - we can add facts manually later."
-      });
-      goToNextStep();
-    }
-  };
-
-  const createTwin = async () => {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    addMessage({
-      type: 'progress',
-      content: '',
-      progress: { step: 4, total: 4, label: 'Finalizing setup' }
+    const [data, setData] = useState<OnboardingData>({
+        businessName: '',
+        industry: '',
+        websiteUrl: '',
+        description: '',
+        targetAudience: '',
+        brandVoice: '',
+        uniqueValue: '',
+        goals: '',
+        painPoints: '',
+        competitors: [],
+        topInIndustry: [],
+        socialAccounts: {},
+        colors: { primary: '#6366F1', secondary: '#10B981', accent: '#F59E0B' },
+        documents: [],
+        aiStaffNeeded: ['support', 'sales', 'manager']
     });
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const [socialInputs, setSocialInputs] = useState({
+        instagram: '',
+        facebook: '',
+        linkedin: '',
+        twitter: '',
+        tiktok: '',
+        youtube: ''
+    });
 
-    goToNextStep();
-  };
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const API_BASE = getBackendUrl();
 
-  const handleOptionSelect = (option: QuickOption, isMultiSelect?: boolean) => {
-    if (isMultiSelect) {
-      setSelectedOptions(prev =>
-        prev.includes(option.value)
-          ? prev.filter(v => v !== option.value)
-          : [...prev, option.value]
-      );
-    } else {
-      // Add user message
-      addMessage({
-        type: 'user',
-        content: option.label
-      });
-
-      // Store data
-      const step = CONVERSATION_STEPS.find(s => s.id === getCurrentStepId());
-      if (step?.dataKey) {
-        setData(prev => ({ ...prev, [step.dataKey]: option.value }));
-      }
-
-      // Handle special navigation
-      if (option.value === 'learn') {
-        const learnStep = CONVERSATION_STEPS.find(s => s.id === 'learn_more');
-        if (learnStep) {
-          processStep(learnStep);
-          return;
+    const userName = (() => {
+        const userData = localStorage.getItem('os_user');
+        if (userData) {
+            try {
+                const user = JSON.parse(userData);
+                return user.name || user.email?.split('@')[0] || 'there';
+            } catch { }
         }
-      }
+        return 'there';
+    })();
 
-      if (option.value === 'dashboard') {
-        onComplete(data as OnboardingData);
-        return;
-      }
+    // Conversation flow
+    const conversationFlow = [
+        {
+            type: 'assistant',
+            content: `Hey ${userName}! I'm your LIV8 AI setup assistant.\n\nI'll help you build your brand profile so your AI team knows exactly how to represent your business. This takes about 5 minutes.\n\nLet's start with the basics - what's your business name?`,
+            inputType: 'text',
+            inputPlaceholder: 'Enter your business name...',
+            field: 'businessName'
+        },
+        {
+            type: 'assistant',
+            content: `Great! And what industry or niche are you in?`,
+            inputType: 'text',
+            inputPlaceholder: 'e.g. Solar Installation, Real Estate, Marketing Agency...',
+            field: 'industry'
+        },
+        {
+            type: 'assistant',
+            content: `Do you have a website? I can scan it to learn about your business automatically.`,
+            inputType: 'url',
+            inputPlaceholder: 'https://yourwebsite.com (or type "skip")',
+            field: 'websiteUrl'
+        },
+        {
+            type: 'assistant',
+            content: `Now, who are your main competitors? This helps me understand your market positioning.\n\n(Add each one and press Enter, then click Continue when done)`,
+            multiInput: true,
+            inputPlaceholder: 'Add a competitor...',
+            field: 'competitors'
+        },
+        {
+            type: 'assistant',
+            content: `Who are the top players in your industry that you aspire to be like?`,
+            multiInput: true,
+            inputPlaceholder: 'Add a top brand...',
+            field: 'topInIndustry'
+        },
+        {
+            type: 'assistant',
+            content: `Let's connect your social media. Which platforms are you active on?\n\n(Add your profile URLs - you can skip any platform)`,
+            social: true,
+            field: 'socialAccounts'
+        },
+        {
+            type: 'assistant',
+            content: `How would you describe your brand voice?`,
+            options: [
+                { id: 'professional', label: 'Professional & Formal', value: 'professional' },
+                { id: 'friendly', label: 'Friendly & Approachable', value: 'friendly' },
+                { id: 'casual', label: 'Casual & Fun', value: 'casual' },
+                { id: 'technical', label: 'Technical & Expert', value: 'technical' },
+                { id: 'empathetic', label: 'Empathetic & Caring', value: 'empathetic' },
+                { id: 'bold', label: 'Bold & Confident', value: 'bold' },
+            ],
+            field: 'brandVoice'
+        },
+        {
+            type: 'assistant',
+            content: `Who is your ideal customer? Describe your target audience.`,
+            inputType: 'textarea',
+            inputPlaceholder: 'e.g. Homeowners aged 35-55 looking to reduce energy costs...',
+            field: 'targetAudience'
+        },
+        {
+            type: 'assistant',
+            content: `What makes you different from competitors? What's your unique selling point?`,
+            inputType: 'textarea',
+            inputPlaceholder: 'What sets you apart from the competition...',
+            field: 'uniqueValue'
+        },
+        {
+            type: 'assistant',
+            content: `What are your main business goals for the next 12 months?`,
+            inputType: 'textarea',
+            inputPlaceholder: 'Revenue targets, growth plans, expansion goals...',
+            field: 'goals'
+        },
+        {
+            type: 'assistant',
+            content: `What challenges are you currently facing that you want AI to help solve?`,
+            inputType: 'textarea',
+            inputPlaceholder: 'Missed calls, slow follow-ups, inconsistent marketing...',
+            field: 'painPoints'
+        },
+        {
+            type: 'assistant',
+            content: `Choose your brand colors. These will be used across all AI-generated content.`,
+            colors: true,
+            field: 'colors'
+        },
+        {
+            type: 'assistant',
+            content: `Now let's train your AI team! Upload any documents that will help them understand your business - SOPs, product guides, FAQs, scripts, etc.`,
+            upload: true,
+            field: 'documents'
+        },
+        {
+            type: 'assistant',
+            content: `Which AI staff members do you want to activate?`,
+            options: [
+                { id: 'marketing', label: 'Marketing Manager', value: 'marketing', icon: TrendingUp },
+                { id: 'operations', label: 'Operations Specialist', value: 'operations', icon: Users },
+                { id: 'support', label: 'Support Agent', value: 'support', icon: Bot },
+                { id: 'sales', label: 'Sales Agent', value: 'sales', icon: Target },
+                { id: 'manager', label: 'AI Manager', value: 'manager', icon: Brain },
+            ],
+            multiSelect: true,
+            field: 'aiStaffNeeded'
+        },
+        {
+            type: 'training',
+            content: 'Training your AI team...'
+        }
+    ];
 
-      goToNextStep();
-    }
-  };
+    const trainingSteps = [
+        { label: 'Analyzing your brand identity', duration: 800 },
+        { label: 'Processing business information', duration: 600 },
+        { label: 'Learning your industry context', duration: 700 },
+        { label: 'Studying your competitors', duration: 600 },
+        { label: 'Processing uploaded documents', duration: 900 },
+        { label: 'Configuring AI personalities', duration: 700 },
+        { label: 'Setting up communication protocols', duration: 500 },
+        { label: 'Training neural pathways', duration: 800 },
+        { label: 'Running final diagnostics', duration: 600 },
+        { label: 'Activating AI staff', duration: 500 },
+    ];
 
-  const handleMultiSelectConfirm = () => {
-    if (selectedOptions.length === 0) return;
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
-    addMessage({
-      type: 'user',
-      content: selectedOptions.join(', ')
-    });
+    useEffect(() => {
+        // Start conversation
+        setTimeout(() => {
+            addAssistantMessage(conversationFlow[0]);
+        }, 500);
+    }, []);
 
-    const step = CONVERSATION_STEPS.find(s => s.id === getCurrentStepId());
-    if (step?.dataKey) {
-      setData(prev => ({ ...prev, [step.dataKey]: selectedOptions }));
-    }
+    const addAssistantMessage = async (step: any) => {
+        setIsTyping(true);
+        await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
+        setIsTyping(false);
 
-    setSelectedOptions([]);
-    goToNextStep();
-  };
+        const msg: Message = {
+            id: `msg_${Date.now()}`,
+            type: step.type || 'assistant',
+            content: step.content,
+            field: step.field
+        };
 
-  const handleInputSubmit = () => {
-    if (!inputValue.trim()) return;
+        if (step.options) {
+            msg.type = 'options';
+            msg.options = step.options;
+            msg.multiSelect = step.multiSelect;
+        }
+        if (step.inputType) {
+            msg.type = 'input';
+            msg.inputType = step.inputType;
+            msg.inputPlaceholder = step.inputPlaceholder;
+        }
+        if (step.multiInput) {
+            msg.type = 'multi-input';
+            msg.inputPlaceholder = step.inputPlaceholder;
+        }
+        if (step.social) {
+            msg.type = 'social';
+        }
+        if (step.colors) {
+            msg.type = 'colors';
+        }
+        if (step.upload) {
+            msg.type = 'upload';
+        }
+        if (step.type === 'training') {
+            msg.type = 'training';
+            startTraining();
+        }
 
-    addMessage({
-      type: 'user',
-      content: inputValue
-    });
+        setMessages(prev => [...prev, msg]);
+    };
 
-    const step = CONVERSATION_STEPS.find(s => s.id === getCurrentStepId());
-    if (step?.dataKey) {
-      setData(prev => ({ ...prev, [step.dataKey]: inputValue }));
-    }
+    const addUserMessage = (content: string) => {
+        setMessages(prev => [...prev, {
+            id: `user_${Date.now()}`,
+            type: 'user',
+            content
+        }]);
+    };
 
-    setInputValue('');
-    goToNextStep();
-  };
+    const goToNextStep = async () => {
+        const nextStep = currentStep + 1;
+        setCurrentStep(nextStep);
 
-  const handleSocialSubmit = () => {
-    const filledAccounts = Object.fromEntries(
-      Object.entries(socialInputs).filter(([_, v]) => v.trim())
-    );
+        if (nextStep < conversationFlow.length) {
+            await addAssistantMessage(conversationFlow[nextStep]);
+        }
+    };
 
-    addMessage({
-      type: 'user',
-      content: Object.keys(filledAccounts).length > 0
-        ? `Connected: ${Object.keys(filledAccounts).join(', ')}`
-        : 'Skipped social connections'
-    });
+    const handleInputSubmit = async () => {
+        if (!inputValue.trim()) return;
 
-    setData(prev => ({ ...prev, socialAccounts: filledAccounts }));
-    goToNextStep();
-  };
+        const current = conversationFlow[currentStep];
+        addUserMessage(inputValue);
 
-  const getCurrentStepId = () => {
-    const visibleSteps = CONVERSATION_STEPS.filter(s => !s.trigger);
-    return visibleSteps[currentStep]?.id || '';
-  };
+        if (current.field) {
+            setData(prev => ({ ...prev, [current.field!]: inputValue }));
+        }
 
-  const goToNextStep = () => {
-    const visibleSteps = CONVERSATION_STEPS.filter(s => !s.trigger);
-    const nextIndex = currentStep + 1;
+        setInputValue('');
+        await goToNextStep();
+    };
 
-    if (nextIndex < visibleSteps.length) {
-      setCurrentStep(nextIndex);
-      processStep(visibleSteps[nextIndex]);
-    }
-  };
+    const handleOptionSelect = async (option: QuickOption) => {
+        const current = conversationFlow[currentStep];
 
-  const isMultiSelectStep = () => {
-    const lastMessage = messages[messages.length - 1];
-    return lastMessage?.type === 'options' && (lastMessage.options?.length ?? 0) > 3;
-  };
+        if (current.multiSelect) {
+            // Toggle selection for multi-select
+            setSelectedOptions(prev =>
+                prev.includes(option.value)
+                    ? prev.filter(v => v !== option.value)
+                    : [...prev, option.value]
+            );
+        } else {
+            // Single select - immediately proceed
+            addUserMessage(option.label);
+            if (current.field) {
+                setData(prev => ({ ...prev, [current.field!]: option.value }));
+            }
+            await goToNextStep();
+        }
+    };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold">L8</span>
-          </div>
-          <div>
-            <h1 className="font-semibold text-gray-900">LIV8 AI Manager</h1>
-            <p className="text-xs text-gray-500">Setting up your Digital Twin</p>
-          </div>
-        </div>
-      </div>
+    const handleMultiSelectConfirm = async () => {
+        const current = conversationFlow[currentStep];
+        const labels = selectedOptions.map(v => {
+            const opt = current.options?.find(o => o.value === v);
+            return opt?.label || v;
+        });
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-3xl mx-auto space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              {message.type === 'user' ? (
-                <div className="bg-indigo-600 text-white px-4 py-2 rounded-2xl rounded-br-md max-w-md">
-                  {message.content}
+        addUserMessage(labels.join(', '));
+
+        if (current.field) {
+            setData(prev => ({ ...prev, [current.field!]: selectedOptions }));
+        }
+
+        setSelectedOptions([]);
+        await goToNextStep();
+    };
+
+    const handleMultiItemAdd = () => {
+        if (!inputValue.trim()) return;
+        setMultiItems(prev => [...prev, inputValue]);
+        setInputValue('');
+    };
+
+    const handleMultiItemRemove = (index: number) => {
+        setMultiItems(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleMultiInputConfirm = async () => {
+        const current = conversationFlow[currentStep];
+        addUserMessage(multiItems.length > 0 ? multiItems.join(', ') : 'None specified');
+
+        if (current.field) {
+            setData(prev => ({ ...prev, [current.field!]: multiItems }));
+        }
+
+        setMultiItems([]);
+        await goToNextStep();
+    };
+
+    const handleSocialSubmit = async () => {
+        const filled = Object.entries(socialInputs).filter(([_, v]) => v.trim());
+        addUserMessage(filled.length > 0 ? `Connected: ${filled.map(([k]) => k).join(', ')}` : 'Skipped social connections');
+
+        setData(prev => ({
+            ...prev,
+            socialAccounts: Object.fromEntries(filled)
+        }));
+
+        await goToNextStep();
+    };
+
+    const handleColorChange = (type: 'primary' | 'secondary' | 'accent', value: string) => {
+        setData(prev => ({
+            ...prev,
+            colors: { ...prev.colors, [type]: value }
+        }));
+    };
+
+    const handleColorsConfirm = async () => {
+        addUserMessage(`Colors: ${data.colors.primary}, ${data.colors.secondary}, ${data.colors.accent}`);
+        await goToNextStep();
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+        setData(prev => ({
+            ...prev,
+            documents: [...prev.documents, ...Array.from(files)]
+        }));
+    };
+
+    const handleRemoveFile = (index: number) => {
+        setData(prev => ({
+            ...prev,
+            documents: prev.documents.filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleUploadConfirm = async () => {
+        addUserMessage(data.documents.length > 0 ? `Uploaded ${data.documents.length} document(s)` : 'No documents uploaded');
+        await goToNextStep();
+    };
+
+    const startTraining = async () => {
+        setIsTraining(true);
+
+        for (let i = 0; i < trainingSteps.length; i++) {
+            setTrainingStep(i);
+            setTrainingProgress(Math.round((i / trainingSteps.length) * 100));
+            await new Promise(r => setTimeout(r, trainingSteps[i].duration));
+        }
+
+        setTrainingProgress(100);
+
+        // Save to backend
+        const locId = locationId || localStorage.getItem('os_loc_id') || `loc_${Date.now()}`;
+        const token = localStorage.getItem('os_token');
+
+        try {
+            await fetch(`${API_BASE}/api/twin/onboard`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    locationId: locId,
+                    identity: {
+                        businessName: data.businessName,
+                        domain: data.websiteUrl,
+                        industry: data.industry,
+                        colors: data.colors,
+                        socialLinks: data.socialAccounts
+                    },
+                    brandVoice: { tone: data.brandVoice },
+                    competitors: data.competitors,
+                    topInIndustry: data.topInIndustry,
+                    targetAudience: data.targetAudience,
+                    uniqueValue: data.uniqueValue,
+                    goals: data.goals,
+                    painPoints: data.painPoints,
+                    selectedRoles: data.aiStaffNeeded
+                })
+            });
+
+            localStorage.setItem('locationId', locId);
+            localStorage.setItem('os_loc_id', locId);
+        } catch (err) {
+            console.error('Training save error:', err);
+        }
+
+        await new Promise(r => setTimeout(r, 500));
+        setIsTraining(false);
+
+        // Add completion message
+        setMessages(prev => [...prev, {
+            id: 'complete',
+            type: 'complete',
+            content: `Your AI team is trained and ready!\n\nI've learned everything about ${data.businessName || 'your business'}:\n\n• Industry: ${data.industry || 'Not specified'}\n• Competitors Analyzed: ${data.competitors.length}\n• Documents Processed: ${data.documents.length}\n• AI Staff Activated: ${data.aiStaffNeeded.length}\n\nYour AI team is now ready to work 24/7!`
+        }]);
+    };
+
+    const handleComplete = () => {
+        localStorage.setItem('os_brand', JSON.stringify(data));
+        onComplete(data);
+    };
+
+    const currentMsg = messages[messages.length - 1];
+
+    return (
+        <div className="h-full bg-[var(--os-bg)] flex flex-col font-sans text-[var(--os-text)] relative overflow-hidden">
+            <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.md"
+                onChange={handleFileUpload}
+            />
+
+            {/* Header */}
+            <div className="p-6 border-b border-[var(--os-border)] bg-[var(--os-surface)]">
+                <div className="max-w-2xl mx-auto flex items-center gap-4">
+                    <div className="h-12 w-12 bg-neuro rounded-2xl flex items-center justify-center shadow-lg shadow-neuro/20">
+                        <Sparkles className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold">Hi {userName}</h2>
+                        <p className="text-sm text-[var(--os-text-muted)]">Where should we start?</p>
+                    </div>
                 </div>
-              ) : message.type === 'progress' ? (
-                <div className="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-md max-w-md w-full">
-                  <div className="flex items-center gap-3">
-                    <div className="animate-spin w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full" />
-                    <div className="flex-1">
-                      <div className="text-sm text-gray-600">{message.progress?.label}</div>
-                      <div className="mt-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                <div className="max-w-2xl mx-auto space-y-6">
+                    {messages.map((message) => (
                         <div
-                          className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                          style={{ width: `${((message.progress?.step || 0) / (message.progress?.total || 1)) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : message.type === 'options' ? (
-                <div className="space-y-2 max-w-md w-full">
-                  <div className="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-md">
-                    {message.content}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {message.options?.map((option) => (
-                      <button
-                        key={option.id}
-                        onClick={() => handleOptionSelect(option, isMultiSelectStep())}
-                        className={`px-4 py-2 rounded-xl border transition-all flex items-center gap-2 ${
-                          selectedOptions.includes(option.value)
-                            ? 'bg-indigo-100 border-indigo-500 text-indigo-700'
-                            : 'bg-white border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
-                        }`}
-                      >
-                        {option.icon && <span>{option.icon}</span>}
-                        <span className="text-sm font-medium">{option.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {isMultiSelectStep() && selectedOptions.length > 0 && (
-                    <button
-                      onClick={handleMultiSelectConfirm}
-                      className="w-full py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700"
-                    >
-                      Continue with {selectedOptions.length} selected
-                    </button>
-                  )}
-                </div>
-              ) : message.type === 'input' ? (
-                <div className="space-y-2 max-w-md w-full">
-                  <div className="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-md">
-                    {message.content}
-                  </div>
-                  {message.inputType === 'social' ? (
-                    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-                      {[
-                        { key: 'instagram', label: 'Instagram', icon: '📸', placeholder: '@username' },
-                        { key: 'facebook', label: 'Facebook', icon: '👤', placeholder: 'Page URL' },
-                        { key: 'linkedin', label: 'LinkedIn', icon: '💼', placeholder: 'Company URL' },
-                        { key: 'twitter', label: 'X/Twitter', icon: '🐦', placeholder: '@username' },
-                        { key: 'tiktok', label: 'TikTok', icon: '🎵', placeholder: '@username' },
-                        { key: 'youtube', label: 'YouTube', icon: '▶️', placeholder: 'Channel URL' }
-                      ].map(social => (
-                        <div key={social.key} className="flex items-center gap-2">
-                          <span className="text-lg w-6">{social.icon}</span>
-                          <input
-                            type="text"
-                            value={socialInputs[social.key as keyof typeof socialInputs]}
-                            onChange={e => setSocialInputs(prev => ({ ...prev, [social.key]: e.target.value }))}
-                            placeholder={social.placeholder}
-                            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          />
+                            key={message.id}
+                            className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                        >
+                            {message.type !== 'user' && message.type !== 'training' && message.type !== 'complete' && (
+                                <div className="h-8 w-8 rounded-full bg-neuro/10 flex items-center justify-center mr-3 flex-shrink-0">
+                                    <Sparkles className="h-4 w-4 text-neuro" />
+                                </div>
+                            )}
+                            <div className={`max-w-[85%] ${message.type === 'user'
+                                    ? 'bg-neuro text-white rounded-2xl rounded-tr-none px-5 py-3'
+                                    : message.type === 'training' || message.type === 'complete'
+                                        ? 'w-full'
+                                        : 'bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl rounded-tl-none px-5 py-4'
+                                }`}>
+
+                                {/* Training UI */}
+                                {message.type === 'training' && isTraining && (
+                                    <div className="bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl p-8 space-y-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-16 w-16 bg-neuro rounded-2xl flex items-center justify-center">
+                                                <Brain className="h-8 w-8 text-white animate-pulse" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-bold">Training Your AI Team</h3>
+                                                <p className="text-sm text-[var(--os-text-muted)]">{trainingSteps[trainingStep]?.label}...</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="h-3 bg-[var(--os-bg)] rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-neuro rounded-full transition-all duration-500"
+                                                    style={{ width: `${trainingProgress}%` }}
+                                                />
+                                            </div>
+                                            <div className="flex justify-between text-xs text-[var(--os-text-muted)]">
+                                                <span>Step {trainingStep + 1} of {trainingSteps.length}</span>
+                                                <span>{trainingProgress}%</span>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {trainingSteps.map((step, i) => (
+                                                <div
+                                                    key={i}
+                                                    className={`flex items-center gap-2 text-xs ${i <= trainingStep ? 'text-neuro' : 'text-[var(--os-text-muted)]'
+                                                        }`}
+                                                >
+                                                    {i < trainingStep ? (
+                                                        <CheckCircle2 className="h-4 w-4" />
+                                                    ) : i === trainingStep ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <div className="h-4 w-4 rounded-full border border-current" />
+                                                    )}
+                                                    <span>{step.label}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Completion UI */}
+                                {message.type === 'complete' && (
+                                    <div className="bg-[var(--os-surface)] border border-emerald-500/30 rounded-2xl p-8 space-y-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-16 w-16 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                                                <CheckCircle2 className="h-8 w-8 text-white" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-bold text-emerald-600">Setup Complete!</h3>
+                                                <p className="text-sm text-[var(--os-text-muted)]">Your AI team is ready to work</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {data.aiStaffNeeded.map(staff => (
+                                                <span key={staff} className="px-3 py-1.5 bg-emerald-500/10 text-emerald-600 rounded-lg text-xs font-medium capitalize">
+                                                    {staff} Ready
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <button
+                                            onClick={handleComplete}
+                                            className="w-full h-14 bg-neuro text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-lg shadow-neuro/20"
+                                        >
+                                            <Zap className="h-5 w-5" />
+                                            Enter Your Dashboard
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Regular text message */}
+                                {message.type !== 'training' && message.type !== 'complete' && (
+                                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                                )}
+                            </div>
                         </div>
-                      ))}
-                      <button
-                        onClick={handleSocialSubmit}
-                        className="w-full py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                      >
-                        Continue
-                      </button>
+                    ))}
+
+                    {/* Typing indicator */}
+                    {isTyping && (
+                        <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-neuro/10 flex items-center justify-center">
+                                <Sparkles className="h-4 w-4 text-neuro" />
+                            </div>
+                            <div className="bg-[var(--os-surface)] border border-[var(--os-border)] rounded-2xl rounded-tl-none px-5 py-3">
+                                <div className="flex gap-1">
+                                    <div className="w-2 h-2 bg-neuro/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-2 h-2 bg-neuro/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-2 h-2 bg-neuro/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div ref={messagesEndRef} />
+                </div>
+            </div>
+
+            {/* Input Area */}
+            {!isTraining && currentMsg?.type !== 'complete' && (
+                <div className="p-6 border-t border-[var(--os-border)] bg-[var(--os-surface)]">
+                    <div className="max-w-2xl mx-auto">
+
+                        {/* Text Input */}
+                        {currentMsg?.type === 'input' && (
+                            <form onSubmit={(e) => { e.preventDefault(); handleInputSubmit(); }} className="flex gap-3">
+                                {currentMsg.inputType === 'textarea' ? (
+                                    <textarea
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        placeholder={currentMsg.inputPlaceholder}
+                                        rows={3}
+                                        className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none resize-none"
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <input
+                                        type={currentMsg.inputType === 'url' ? 'url' : 'text'}
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        placeholder={currentMsg.inputPlaceholder}
+                                        className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                        autoFocus
+                                    />
+                                )}
+                                <button
+                                    type="submit"
+                                    disabled={!inputValue.trim()}
+                                    className="h-12 w-12 bg-neuro text-white rounded-xl flex items-center justify-center shadow-lg shadow-neuro/20 hover:scale-105 transition-all disabled:opacity-50"
+                                >
+                                    <Send className="h-5 w-5" />
+                                </button>
+                            </form>
+                        )}
+
+                        {/* Multi-Input */}
+                        {currentMsg?.type === 'multi-input' && (
+                            <div className="space-y-4">
+                                {multiItems.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {multiItems.map((item, i) => (
+                                            <div key={i} className="px-3 py-1.5 bg-neuro/10 text-neuro rounded-lg text-sm font-medium flex items-center gap-2">
+                                                {item}
+                                                <button onClick={() => handleMultiItemRemove(i)} className="hover:text-red-500">
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleMultiItemAdd())}
+                                        placeholder={currentMsg.inputPlaceholder}
+                                        className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                    />
+                                    <button
+                                        onClick={handleMultiItemAdd}
+                                        disabled={!inputValue.trim()}
+                                        className="h-12 w-12 bg-[var(--os-bg)] border border-[var(--os-border)] text-neuro rounded-xl flex items-center justify-center hover:border-neuro disabled:opacity-50"
+                                    >
+                                        <Plus className="h-5 w-5" />
+                                    </button>
+                                    <button
+                                        onClick={handleMultiInputConfirm}
+                                        className="h-12 px-6 bg-neuro text-white rounded-xl font-medium text-sm hover:scale-105 transition-all"
+                                    >
+                                        Continue
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Options */}
+                        {currentMsg?.type === 'options' && (
+                            <div className="space-y-4">
+                                <div className="flex flex-wrap gap-3">
+                                    {currentMsg.options?.map((option) => {
+                                        const isSelected = currentMsg.multiSelect
+                                            ? selectedOptions.includes(option.value)
+                                            : false;
+                                        const Icon = option.icon;
+                                        return (
+                                            <button
+                                                key={option.id}
+                                                onClick={() => handleOptionSelect(option)}
+                                                className={`px-5 py-3 rounded-xl border-2 text-sm font-medium flex items-center gap-2 transition-all ${isSelected
+                                                        ? 'bg-neuro/10 border-neuro text-neuro'
+                                                        : 'bg-[var(--os-bg)] border-[var(--os-border)] hover:border-neuro/50'
+                                                    }`}
+                                            >
+                                                {Icon && <Icon className="h-4 w-4" />}
+                                                {option.label}
+                                                {isSelected && <CheckCircle2 className="h-4 w-4 ml-1" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {currentMsg.multiSelect && selectedOptions.length > 0 && (
+                                    <button
+                                        onClick={handleMultiSelectConfirm}
+                                        className="w-full h-12 bg-neuro text-white rounded-xl font-medium text-sm hover:scale-[1.02] transition-all"
+                                    >
+                                        Continue with {selectedOptions.length} selected
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Social Inputs */}
+                        {currentMsg?.type === 'social' && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        { key: 'instagram', icon: Instagram, label: 'Instagram', placeholder: '@username' },
+                                        { key: 'facebook', icon: Facebook, label: 'Facebook', placeholder: 'Page URL' },
+                                        { key: 'linkedin', icon: Linkedin, label: 'LinkedIn', placeholder: 'Profile URL' },
+                                        { key: 'twitter', icon: Twitter, label: 'X/Twitter', placeholder: '@username' },
+                                    ].map(social => (
+                                        <div key={social.key} className="flex items-center gap-2">
+                                            <social.icon className="h-4 w-4 text-[var(--os-text-muted)] flex-shrink-0" />
+                                            <input
+                                                type="text"
+                                                value={socialInputs[social.key as keyof typeof socialInputs]}
+                                                onChange={(e) => setSocialInputs(prev => ({ ...prev, [social.key]: e.target.value }))}
+                                                placeholder={social.placeholder}
+                                                className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-lg px-3 py-2 text-sm focus:border-neuro outline-none"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={handleSocialSubmit}
+                                    className="w-full h-12 bg-neuro text-white rounded-xl font-medium text-sm hover:scale-[1.02] transition-all"
+                                >
+                                    Continue
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Colors */}
+                        {currentMsg?.type === 'colors' && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-3 gap-4">
+                                    {(['primary', 'secondary', 'accent'] as const).map((type) => (
+                                        <div key={type} className="space-y-2">
+                                            <label className="text-xs font-medium text-[var(--os-text-muted)] capitalize">{type}</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="color"
+                                                    value={data.colors[type]}
+                                                    onChange={(e) => handleColorChange(type, e.target.value)}
+                                                    className="h-10 w-14 rounded-lg cursor-pointer border border-[var(--os-border)]"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={data.colors[type]}
+                                                    onChange={(e) => handleColorChange(type, e.target.value)}
+                                                    className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-lg px-2 py-2 text-xs font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={handleColorsConfirm}
+                                    className="w-full h-12 bg-neuro text-white rounded-xl font-medium text-sm hover:scale-[1.02] transition-all"
+                                >
+                                    Continue
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Upload */}
+                        {currentMsg?.type === 'upload' && (
+                            <div className="space-y-4">
+                                {data.documents.length > 0 && (
+                                    <div className="space-y-2">
+                                        {data.documents.map((file, i) => (
+                                            <div key={i} className="flex items-center justify-between p-3 bg-[var(--os-bg)] rounded-lg">
+                                                <div className="flex items-center gap-3">
+                                                    <FileText className="h-4 w-4 text-neuro" />
+                                                    <span className="text-sm font-medium">{file.name}</span>
+                                                    <span className="text-xs text-[var(--os-text-muted)]">({(file.size / 1024 / 1024).toFixed(1)} MB)</span>
+                                                </div>
+                                                <button onClick={() => handleRemoveFile(i)} className="p-1 hover:text-red-500">
+                                                    <X className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex-1 h-12 bg-[var(--os-bg)] border-2 border-dashed border-[var(--os-border)] rounded-xl font-medium text-sm flex items-center justify-center gap-2 hover:border-neuro transition-all"
+                                    >
+                                        <Upload className="h-4 w-4" />
+                                        Upload Documents
+                                    </button>
+                                    <button
+                                        onClick={handleUploadConfirm}
+                                        className="h-12 px-6 bg-neuro text-white rounded-xl font-medium text-sm hover:scale-105 transition-all"
+                                    >
+                                        {data.documents.length > 0 ? 'Continue' : 'Skip'}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-[var(--os-text-muted)] text-center">Supported: PDF, DOC, DOCX, TXT, MD</p>
+                            </div>
+                        )}
                     </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type={message.inputType}
-                        value={inputValue}
-                        onChange={e => setInputValue(e.target.value)}
-                        onKeyPress={e => e.key === 'Enter' && handleInputSubmit()}
-                        placeholder={message.inputPlaceholder}
-                        className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      />
-                      <button
-                        onClick={handleInputSubmit}
-                        disabled={!inputValue.trim()}
-                        className="px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        →
-                      </button>
+                </div>
+            )}
+
+            {/* Progress */}
+            {!isTraining && currentMsg?.type !== 'complete' && (
+                <div className="px-6 pb-4 bg-[var(--os-surface)]">
+                    <div className="max-w-2xl mx-auto">
+                        <div className="flex items-center gap-3 text-xs text-[var(--os-text-muted)]">
+                            <span>Step {Math.min(currentStep + 1, conversationFlow.length - 1)} of {conversationFlow.length - 1}</span>
+                            <div className="flex-1 h-1 bg-[var(--os-border)] rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-neuro rounded-full transition-all duration-300"
+                                    style={{ width: `${(currentStep / (conversationFlow.length - 2)) * 100}%` }}
+                                />
+                            </div>
+                        </div>
                     </div>
-                  )}
                 </div>
-              ) : (
-                <div className="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-md max-w-md whitespace-pre-line">
-                  {message.content}
-                </div>
-              )}
-            </div>
-          ))}
-
-          {isTyping && (
-            <div className="flex justify-start">
-              <div className="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-md">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
+            )}
         </div>
-      </div>
-
-      {/* Progress indicator */}
-      <div className="p-4 border-t border-gray-100 bg-white/80 backdrop-blur-sm">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span>Step {Math.min(currentStep + 1, 10)} of 10</span>
-            <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                style={{ width: `${((currentStep + 1) / 10) * 100}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    );
 }
