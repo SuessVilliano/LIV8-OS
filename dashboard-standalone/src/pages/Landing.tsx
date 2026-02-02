@@ -8,11 +8,14 @@ import {
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
-// Extend window for PushLap affiliate tracking
+// Extend window for PushLap affiliate tracking and MakeForm
 declare global {
   interface Window {
     affiliateId?: string;
     affiliateRef?: string;
+    makeforms?: {
+      Embed: new (config: { sourceId: string; root: string }) => { build: () => void };
+    };
   }
 }
 
@@ -212,6 +215,31 @@ const Landing = () => {
     return () => {
       window.removeEventListener('affiliate_id_ready', handleAffiliateReady);
       clearInterval(checkInterval);
+    };
+  }, []);
+
+  // Initialize MakeForm booking embed
+  useEffect(() => {
+    const initMakeForm = () => {
+      const container = document.getElementById('makeform-booking');
+      if (container && window.makeforms && !container.hasChildNodes()) {
+        new window.makeforms.Embed({
+          sourceId: "697e5b928a27e519fecb6c47",
+          root: "makeform-booking"
+        }).build();
+      }
+    };
+
+    // Try immediately
+    initMakeForm();
+
+    // Also try after a delay in case script is still loading
+    const timer = setTimeout(initMakeForm, 1000);
+    const timer2 = setTimeout(initMakeForm, 2500);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(timer2);
     };
   }, []);
 
@@ -583,21 +611,10 @@ const Landing = () => {
               your biggest time-wasters and help you scale faster.
             </p>
 
-            {/* MakeForm Embed Placeholder - Replace with actual embed */}
-            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-3xl border border-purple-500/30 p-8 md:p-12">
-              <div className="bg-slate-800/80 rounded-2xl p-8 backdrop-blur-xl border border-white/10">
-                {/* Replace this div with your MakeForm embed code */}
-                <div id="makeform-embed" className="min-h-[400px] flex items-center justify-center">
-                  <div className="text-center">
-                    <Phone className="h-16 w-16 text-purple-400 mx-auto mb-4 animate-bounce" />
-                    <h3 className="text-2xl font-bold text-white mb-2">Schedule Your Call</h3>
-                    <p className="text-slate-400 mb-6">Pick a time that works for you</p>
-                    {/* MakeForm embed code goes here */}
-                    <p className="text-sm text-slate-500">
-                      [MakeForm Embed - Add your embed code here]
-                    </p>
-                  </div>
-                </div>
+            {/* MakeForm Booking Embed */}
+            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-3xl border border-purple-500/30 p-4 md:p-8">
+              <div className="bg-slate-800/80 rounded-2xl p-4 md:p-8 backdrop-blur-xl border border-white/10 overflow-hidden">
+                <div id="makeform-booking" className="min-h-[500px] w-full"></div>
               </div>
             </div>
 
