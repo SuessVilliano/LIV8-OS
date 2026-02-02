@@ -46,7 +46,6 @@ const Dashboard = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'kanban'>('overview');
     const [isLoading, setIsLoading] = useState(true);
-    const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
     const locationId = localStorage.getItem('locationId') || localStorage.getItem('os_loc_id') || 'default';
     const crmType = localStorage.getItem('os_crm_type') || 'liv8';
     const navigate = useNavigate();
@@ -145,7 +144,6 @@ const Dashboard = () => {
             console.error('Failed to fetch dashboard data:', error);
         } finally {
             setIsLoading(false);
-            setLastRefresh(new Date());
         }
     };
 

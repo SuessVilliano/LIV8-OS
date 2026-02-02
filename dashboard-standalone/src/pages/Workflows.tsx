@@ -17,14 +17,11 @@ import {
     MoreVertical,
     Copy,
     Trash2,
-    Edit3,
     Download,
     RefreshCw,
     Search,
-    Filter,
     Clock,
-    CheckCircle2,
-    AlertCircle
+    CheckCircle2
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 

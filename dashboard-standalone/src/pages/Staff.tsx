@@ -12,7 +12,6 @@ import {
     BookOpen,
     Zap,
     Search,
-    Filter,
     Clock,
     UserCheck,
     Bot,
@@ -21,12 +20,9 @@ import {
     Mail,
     RefreshCw,
     X,
-    ChevronRight,
     Play,
     Pause,
-    Edit3,
-    Trash2,
-    ExternalLink
+    Edit3
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 

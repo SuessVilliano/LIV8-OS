@@ -6,7 +6,6 @@ import {
     MoreVertical,
     Globe,
     Eye,
-    Settings,
     Trash2,
     ExternalLink,
     Building2,
@@ -22,9 +21,6 @@ import {
     LayoutGrid,
     List
 } from 'lucide-react';
-import { getBackendUrl } from '../services/api';
-
-const API_BASE = getBackendUrl();
 
 interface Agency {
     id: string;
