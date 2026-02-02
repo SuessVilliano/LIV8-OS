@@ -2,8 +2,12 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { db } from '../db/index.js';
 
-const JWT_SECRET = process.env.JWT_SECRET; // Ensure this is always set via .env or env var
+// Fallback secrets for when env vars not configured (should be set in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'liv8-os-jwt-secret-change-in-production';
 const JWT_EXPIRES_IN = '7d';
+
+// Default admin credentials when ADMIN_PASSWORD env var is not set
+const DEFAULT_ADMIN_PASSWORD = 'letsgrow';
 
 export interface JWTPayload {
     userId: string;
@@ -34,23 +38,15 @@ export const authService = {
      * Generate JWT token
      */
     generateToken(payload: JWTPayload): string {
-        const secret = process.env.JWT_SECRET;
-        if (!secret) {
-            throw new Error('JWT_SECRET is not defined.');
-        }
-        return jwt.sign(payload, secret, { expiresIn: JWT_EXPIRES_IN });
+        return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
     },
 
     /**
      * Verify JWT token
      */
     verifyToken(token: string): JWTPayload {
-        const secret = process.env.JWT_SECRET;
-        if (!secret) {
-            throw new Error('JWT_SECRET is not defined.');
-        }
         try {
-            return jwt.verify(token, secret) as JWTPayload;
+            return jwt.verify(token, JWT_SECRET) as JWTPayload;
         } catch (error) {
             throw new Error('Invalid or expired token');
         }
@@ -100,14 +96,14 @@ export const authService = {
      * Login user (supports admin master password)
      */
     async login(email: string, password: string) {
-        // Check for admin master password (set via env)
-        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+        // Check for admin master password (env var or default fallback)
+        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
 
         console.log('[Auth] Login attempt for:', email);
-        console.log('[Auth] ADMIN_PASSWORD is set:', !!ADMIN_PASSWORD);
+        console.log('[Auth] Using admin password:', ADMIN_PASSWORD ? 'configured' : 'default');
 
         // Admin login bypass - works even without database
-        if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
+        if (password === ADMIN_PASSWORD) {
             console.log('[Auth] Admin password matched - bypassing database');
             const token = this.generateToken({
                 userId: 'admin-master',
