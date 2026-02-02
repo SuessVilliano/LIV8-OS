@@ -128,7 +128,7 @@ const Landing = () => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<{ individual: Plan[]; agency: Plan[] }>(FALLBACK_PLANS);
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
-  const [loading, setLoading] = useState(false);
+  const [_loading, _setLoading] = useState(false);
   const [affiliateId, setAffiliateId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -485,7 +485,7 @@ const Landing = () => {
           </div>
         </div>
 
-        {loading ? (
+        {_loading ? (
           <div className="text-center py-20">
             <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
           </div>
