@@ -9,7 +9,7 @@ interface ThemeConfig {
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
-  mode: 'dark' | 'dark';
+  mode: 'light' | 'dark';
   preset: string;
 }
 
