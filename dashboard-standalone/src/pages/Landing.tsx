@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles, Check, ArrowRight, Zap, Brain, Users, BarChart3,
   MessageSquare, Calendar, Shield, Clock, TrendingUp, Bot,
-  Workflow, Target, Rocket, Star
+  Workflow, Target, Rocket, Star, Play, Phone, ChevronDown,
+  DollarSign, UserCheck, Repeat
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
@@ -124,12 +125,65 @@ const FALLBACK_PLANS = {
   ]
 };
 
+// Intersection Observer Hook for scroll animations
+const useInView = (options = {}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setIsInView(true);
+      }
+    }, { threshold: 0.1, ...options });
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, isInView };
+};
+
+// Animated Counter Component
+const AnimatedCounter = ({ end, duration = 2000, suffix = '' }: { end: number; duration?: number; suffix?: string }) => {
+  const [count, setCount] = useState(0);
+  const { ref, isInView } = useInView();
+
+  useEffect(() => {
+    if (!isInView) return;
+
+    let startTime: number;
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const progress = Math.min((currentTime - startTime) / duration, 1);
+      setCount(Math.floor(progress * end));
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    requestAnimationFrame(animate);
+  }, [isInView, end, duration]);
+
+  return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
+};
+
 const Landing = () => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<{ individual: Plan[]; agency: Plan[] }>(FALLBACK_PLANS);
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
   const [_loading, _setLoading] = useState(false);
   const [affiliateId, setAffiliateId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'individual' | 'agency'>('individual');
+
+  // Animation refs
+  const heroRef = useInView();
+  const problemRef = useInView();
+  const howRef = useInView();
+  const valueRef = useInView();
+  const bookingRef = useInView();
 
   useEffect(() => {
     fetchPlans();
@@ -185,6 +239,10 @@ const Landing = () => {
     navigate('/login');
   };
 
+  const scrollToBooking = () => {
+    document.getElementById('book-call')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const problemSolutions = [
     {
       problem: "Spending hours on repetitive tasks?",
@@ -235,6 +293,37 @@ const Landing = () => {
     }
   ];
 
+  const valueProps = [
+    {
+      icon: DollarSign,
+      title: "Save $50K+/Year",
+      description: "Replace expensive hires with AI that works 24/7. One AI agent costs less than one day of a virtual assistant.",
+      stat: "$50K+",
+      statLabel: "Annual Savings"
+    },
+    {
+      icon: Clock,
+      title: "Get 40+ Hours Back",
+      description: "Stop doing repetitive tasks. AI handles follow-ups, content, scheduling, and customer support automatically.",
+      stat: "40+",
+      statLabel: "Hours Saved Weekly"
+    },
+    {
+      icon: UserCheck,
+      title: "Never Miss a Lead",
+      description: "Instant response times. AI engages every lead within seconds, qualifying and nurturing them on autopilot.",
+      stat: "5x",
+      statLabel: "More Conversions"
+    },
+    {
+      icon: Repeat,
+      title: "Scale Infinitely",
+      description: "Add unlimited AI agents as you grow. No hiring, training, or management overhead.",
+      stat: "∞",
+      statLabel: "Scalability"
+    }
+  ];
+
   const features = [
     { icon: Brain, title: 'AI-Powered Automation', description: 'Let AI handle repetitive tasks while you focus on growth and strategy' },
     { icon: Users, title: 'Virtual AI Staff', description: 'Deploy AI agents that work 24/7 on your business without breaks' },
@@ -268,11 +357,18 @@ const Landing = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-x-hidden">
+      {/* Animated Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-500/10 blur-[150px] rounded-full animate-pulse"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 blur-[150px] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-[30%] right-[10%] w-[30%] h-[30%] bg-pink-500/5 blur-[100px] rounded-full animate-pulse" style={{ animationDelay: '2s' }}></div>
+      </div>
+
       {/* Header */}
-      <header className="container mx-auto px-6 py-6 flex items-center justify-between">
+      <header className="container mx-auto px-6 py-6 flex items-center justify-between relative z-10">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+          <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center animate-pulse">
             <Sparkles className="h-6 w-6 text-white" />
           </div>
           <span className="text-2xl font-black tracking-tight">LIV8<span className="text-blue-400">OS</span></span>
@@ -281,47 +377,68 @@ const Landing = () => {
           <a href="#why" className="text-slate-400 hover:text-white transition-colors">Why LIV8</a>
           <a href="#how" className="text-slate-400 hover:text-white transition-colors">How It Works</a>
           <a href="#pricing" className="text-slate-400 hover:text-white transition-colors">Pricing</a>
+          <button
+            onClick={scrollToBooking}
+            className="text-blue-400 hover:text-blue-300 transition-colors font-semibold"
+          >
+            Book a Call
+          </button>
         </nav>
         <button
           onClick={() => navigate('/login')}
-          className="px-6 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg font-semibold transition-all"
+          className="px-6 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg font-semibold transition-all hover:scale-105"
         >
           Login
         </button>
       </header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-6 py-16 md:py-24 text-center">
+      <section
+        ref={heroRef.ref}
+        className={`container mx-auto px-6 py-16 md:py-24 text-center relative z-10 transition-all duration-1000 ${
+          heroRef.isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+        }`}
+      >
         <div className="max-w-5xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 rounded-full text-blue-400 text-sm font-semibold mb-8 border border-blue-500/30">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 rounded-full text-blue-400 text-sm font-semibold mb-8 border border-blue-500/30 animate-bounce">
             <Sparkles className="h-4 w-4" />
             AI-Powered Business Operating System
           </div>
+
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-black mb-6 leading-tight">
-            Your Business.{' '}
-            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Powered by AI Agents.
+            <span className="inline-block animate-fade-in">Stop Trading</span>{' '}
+            <span className="inline-block text-red-400 animate-fade-in" style={{ animationDelay: '0.2s' }}>Time</span>{' '}
+            <span className="inline-block animate-fade-in" style={{ animationDelay: '0.4s' }}>for</span>{' '}
+            <span className="inline-block text-green-400 animate-fade-in" style={{ animationDelay: '0.6s' }}>Money.</span>
+            <br />
+            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient">
+              Let AI Multiply Both.
             </span>
           </h1>
-          <p className="text-lg md:text-xl text-slate-400 mb-10 max-w-3xl mx-auto">
+
+          <p className="text-lg md:text-xl text-slate-400 mb-10 max-w-3xl mx-auto animate-fade-in" style={{ animationDelay: '0.8s' }}>
             Deploy AI staff that handles lead follow-up, content creation, and customer support 24/7.
             Built for entrepreneurs, agents, coaches, and business owners ready to scale without the overhead.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+            <button
+              onClick={scrollToBooking}
+              className="group px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl font-bold text-lg hover:scale-105 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 animate-pulse-slow"
+            >
+              <Phone className="h-5 w-5" />
+              Book a Free Strategy Call
+              <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+            </button>
             <button
               onClick={() => handleGetStarted()}
-              className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl font-bold text-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25"
+              className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-lg transition-all border border-white/10 hover:scale-105"
             >
-              Start Free 14-Day Trial <ArrowRight className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => document.getElementById('how')?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-lg transition-all border border-white/10"
-            >
-              See How It Works
+              Start Free Trial
             </button>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-8 text-sm text-slate-400">
+
+          <div className="flex flex-wrap items-center justify-center gap-8 text-sm text-slate-400 mb-12">
             <div className="flex items-center gap-2">
               <Check className="h-5 w-5 text-green-400" />
               No credit card required
@@ -335,26 +452,37 @@ const Landing = () => {
               Cancel anytime
             </div>
           </div>
+
+          {/* Scroll indicator */}
+          <div className="animate-bounce">
+            <ChevronDown className="h-8 w-8 text-slate-500 mx-auto" />
+          </div>
         </div>
       </section>
 
-      {/* Social Proof Bar */}
-      <section className="border-y border-white/10 bg-white/5 py-8">
+      {/* Social Proof Bar - Animated */}
+      <section className="border-y border-white/10 bg-white/5 py-8 relative z-10">
         <div className="container mx-auto px-6">
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16 text-center">
-            <div>
-              <div className="text-3xl font-black text-white">500+</div>
+            <div className="group hover:scale-110 transition-transform">
+              <div className="text-3xl font-black text-white">
+                <AnimatedCounter end={500} suffix="+" />
+              </div>
               <div className="text-sm text-slate-400">Businesses Powered</div>
             </div>
-            <div>
-              <div className="text-3xl font-black text-white">2M+</div>
+            <div className="group hover:scale-110 transition-transform">
+              <div className="text-3xl font-black text-white">
+                <AnimatedCounter end={2} suffix="M+" />
+              </div>
               <div className="text-sm text-slate-400">AI Tasks Completed</div>
             </div>
-            <div>
-              <div className="text-3xl font-black text-white">50K+</div>
+            <div className="group hover:scale-110 transition-transform">
+              <div className="text-3xl font-black text-white">
+                <AnimatedCounter end={50} suffix="K+" />
+              </div>
               <div className="text-sm text-slate-400">Hours Saved Monthly</div>
             </div>
-            <div>
+            <div className="group hover:scale-110 transition-transform">
               <div className="text-3xl font-black text-white">4.9/5</div>
               <div className="text-sm text-slate-400">Customer Rating</div>
             </div>
@@ -362,9 +490,53 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Value Proposition Section - SCROLL STOPPING */}
+      <section
+        ref={valueRef.ref}
+        className="container mx-auto px-6 py-20 relative z-10"
+      >
+        <div className={`text-center mb-16 transition-all duration-700 ${valueRef.isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/20 rounded-full text-green-400 text-sm font-semibold mb-4 border border-green-500/30">
+            <DollarSign className="h-4 w-4" />
+            The Numbers Don't Lie
+          </div>
+          <h2 className="text-3xl md:text-5xl font-black mb-4">
+            What If You Could <span className="text-green-400">10x Your Output</span>
+            <br />Without Hiring Anyone?
+          </h2>
+          <p className="text-slate-400 max-w-2xl mx-auto text-lg">
+            LIV8 OS isn't just another tool. It's your unfair advantage.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          {valueProps.map((item, idx) => (
+            <div
+              key={idx}
+              className={`group p-6 bg-gradient-to-br from-white/10 to-white/5 rounded-2xl border border-white/10 hover:border-green-500/50 transition-all duration-500 hover:scale-105 hover:-translate-y-2 ${
+                valueRef.isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+              }`}
+              style={{ transitionDelay: `${idx * 150}ms` }}
+            >
+              <div className="h-14 w-14 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <item.icon className="h-7 w-7 text-green-400" />
+              </div>
+              <div className="text-4xl font-black text-green-400 mb-1">{item.stat}</div>
+              <div className="text-sm text-slate-500 mb-3">{item.statLabel}</div>
+              <h3 className="text-lg font-bold mb-2 text-white">{item.title}</h3>
+              <p className="text-slate-400 text-sm">{item.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Why Section - Problem/Solution */}
-      <section id="why" className="container mx-auto px-6 py-20">
-        <div className="text-center mb-16">
+      <section
+        id="why"
+        ref={problemRef.ref}
+        className="container mx-auto px-6 py-20 border-t border-white/10 relative z-10"
+      >
+        <div className={`text-center mb-16 transition-all duration-700 ${problemRef.isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Sound Familiar?</h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
             Every growing business hits these walls. Here's how LIV8 OS breaks through them.
@@ -372,14 +544,21 @@ const Landing = () => {
         </div>
         <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
           {problemSolutions.map((item, idx) => (
-            <div key={idx} className="p-6 bg-gradient-to-br from-white/5 to-white/0 rounded-2xl border border-white/10 hover:border-blue-500/50 transition-all group">
+            <div
+              key={idx}
+              className={`p-6 bg-gradient-to-br from-white/5 to-white/0 rounded-2xl border border-white/10 hover:border-blue-500/50 transition-all group hover:scale-[1.02] duration-500 ${
+                problemRef.isInView ? 'opacity-100 translate-x-0' : 'opacity-0 ' + (idx % 2 === 0 ? '-translate-x-10' : 'translate-x-10')
+              }`}
+              style={{ transitionDelay: `${idx * 100}ms` }}
+            >
               <div className="flex items-start gap-4">
-                <div className="h-12 w-12 bg-red-500/20 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-green-500/20 transition-colors">
-                  <item.icon className="h-6 w-6 text-red-400 group-hover:text-green-400 transition-colors" />
+                <div className="h-12 w-12 bg-red-500/20 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-green-500/20 transition-colors duration-500">
+                  <item.icon className="h-6 w-6 text-red-400 group-hover:text-green-400 transition-colors duration-500" />
                 </div>
                 <div>
                   <p className="text-red-400 font-semibold mb-2 group-hover:text-slate-500 transition-colors line-through decoration-slate-600">{item.problem}</p>
-                  <p className="text-green-400 font-medium">{item.solution}</p>
+                  <p className="text-green-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-500">{item.solution}</p>
+                  <p className="text-green-400 font-medium group-hover:opacity-0 transition-opacity duration-500 absolute">{item.solution}</p>
                 </div>
               </div>
             </div>
@@ -387,9 +566,66 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* BOOK A CALL SECTION - MakeForm Embed */}
+      <section id="book-call" ref={bookingRef.ref} className="relative z-10 py-20">
+        <div className="container mx-auto px-6">
+          <div className={`max-w-4xl mx-auto text-center transition-all duration-700 ${bookingRef.isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full text-purple-400 text-sm font-semibold mb-6 border border-purple-500/30 animate-pulse">
+              <Phone className="h-4 w-4" />
+              Limited Spots Available
+            </div>
+
+            <h2 className="text-3xl md:text-5xl font-black mb-4">
+              Ready to <span className="text-purple-400">Transform</span> Your Business?
+            </h2>
+            <p className="text-slate-400 text-lg mb-8 max-w-2xl mx-auto">
+              Book a free 30-minute strategy call. We'll show you exactly how AI can automate
+              your biggest time-wasters and help you scale faster.
+            </p>
+
+            {/* MakeForm Embed Placeholder - Replace with actual embed */}
+            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-3xl border border-purple-500/30 p-8 md:p-12">
+              <div className="bg-slate-800/80 rounded-2xl p-8 backdrop-blur-xl border border-white/10">
+                {/* Replace this div with your MakeForm embed code */}
+                <div id="makeform-embed" className="min-h-[400px] flex items-center justify-center">
+                  <div className="text-center">
+                    <Phone className="h-16 w-16 text-purple-400 mx-auto mb-4 animate-bounce" />
+                    <h3 className="text-2xl font-bold text-white mb-2">Schedule Your Call</h3>
+                    <p className="text-slate-400 mb-6">Pick a time that works for you</p>
+                    {/* MakeForm embed code goes here */}
+                    <p className="text-sm text-slate-500">
+                      [MakeForm Embed - Add your embed code here]
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-6 mt-8 text-sm text-slate-400">
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-400" />
+                No obligation
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-400" />
+                100% free
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-400" />
+                Custom strategy for your business
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* How It Works */}
-      <section id="how" className="container mx-auto px-6 py-20 border-t border-white/10">
-        <div className="text-center mb-16">
+      <section
+        id="how"
+        ref={howRef.ref}
+        className="container mx-auto px-6 py-20 border-t border-white/10 relative z-10"
+      >
+        <div className={`text-center mb-16 transition-all duration-700 ${howRef.isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">How LIV8 OS Works</h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
             Get up and running in minutes, not weeks. Our streamlined process gets AI working for you fast.
@@ -397,8 +633,14 @@ const Landing = () => {
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {howItWorks.map((item, idx) => (
-            <div key={idx} className="relative p-6 bg-white/5 rounded-2xl border border-white/10">
-              <div className="absolute -top-4 -left-4 h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-black text-lg">
+            <div
+              key={idx}
+              className={`relative p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-blue-500/50 transition-all hover:scale-105 duration-500 ${
+                howRef.isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+              }`}
+              style={{ transitionDelay: `${idx * 150}ms` }}
+            >
+              <div className="absolute -top-4 -left-4 h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-black text-lg shadow-lg shadow-blue-500/30">
                 {item.step}
               </div>
               <div className="pt-4">
@@ -414,7 +656,7 @@ const Landing = () => {
       </section>
 
       {/* Features Grid */}
-      <section className="container mx-auto px-6 py-20 border-t border-white/10">
+      <section className="container mx-auto px-6 py-20 border-t border-white/10 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need to Scale</h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
@@ -423,8 +665,8 @@ const Landing = () => {
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {features.map((feature, idx) => (
-            <div key={idx} className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-blue-500/50 transition-all">
-              <div className="h-12 w-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-4">
+            <div key={idx} className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-blue-500/50 transition-all hover:scale-105 duration-300 group">
+              <div className="h-12 w-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                 <feature.icon className="h-6 w-6 text-blue-400" />
               </div>
               <h3 className="text-lg font-bold mb-2">{feature.title}</h3>
@@ -435,14 +677,14 @@ const Landing = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="container mx-auto px-6 py-20 border-t border-white/10">
+      <section className="container mx-auto px-6 py-20 border-t border-white/10 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by Business Owners</h2>
           <p className="text-slate-400">See what entrepreneurs and professionals are saying</p>
         </div>
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {testimonials.map((testimonial, idx) => (
-            <div key={idx} className="p-6 bg-white/5 rounded-2xl border border-white/10">
+            <div key={idx} className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:scale-105 transition-all duration-300">
               <div className="flex gap-1 mb-4">
                 {[...Array(testimonial.rating)].map((_, i) => (
                   <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
@@ -459,17 +701,37 @@ const Landing = () => {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="container mx-auto px-6 py-20 border-t border-white/10">
+      <section id="pricing" className="container mx-auto px-6 py-20 border-t border-white/10 relative z-10">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
           <p className="text-slate-400 mb-8">Start free, scale as you grow. No hidden fees.</p>
+
+          {/* Plan Type Toggle */}
+          <div className="inline-flex items-center gap-4 p-1.5 bg-white/5 rounded-xl border border-white/10 mb-6">
+            <button
+              onClick={() => setActiveTab('individual')}
+              className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'individual' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Individual
+            </button>
+            <button
+              onClick={() => setActiveTab('agency')}
+              className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'agency' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Agency
+            </button>
+          </div>
 
           {/* Interval Toggle */}
           <div className="inline-flex items-center gap-4 p-1.5 bg-white/5 rounded-xl border border-white/10">
             <button
               onClick={() => setInterval('monthly')}
               className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
-                interval === 'monthly' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-white'
+                interval === 'monthly' ? 'bg-purple-500 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
               Monthly
@@ -477,7 +739,7 @@ const Landing = () => {
             <button
               onClick={() => setInterval('yearly')}
               className={`px-6 py-2.5 rounded-lg font-semibold transition-all flex items-center gap-2 ${
-                interval === 'yearly' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-white'
+                interval === 'yearly' ? 'bg-purple-500 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
               Yearly <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">Save 20%</span>
@@ -490,132 +752,74 @@ const Landing = () => {
             <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
           </div>
         ) : (
-          <>
-            {/* Individual Plans */}
-            <div className="mb-16">
-              <h3 className="text-2xl font-bold text-center mb-8">For Individuals & Small Teams</h3>
-              <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                {plans.individual.map((plan) => (
-                  <div
-                    key={plan.id}
-                    className={`relative p-8 rounded-2xl border transition-all ${
-                      plan.popular
-                        ? 'bg-gradient-to-b from-blue-500/20 to-purple-500/10 border-blue-500/50 scale-105 shadow-xl shadow-blue-500/10'
-                        : 'bg-white/5 border-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    {plan.popular && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full text-sm font-bold">
-                        Most Popular
-                      </div>
-                    )}
-                    <h4 className="text-xl font-bold mb-2">{plan.name}</h4>
-                    <p className="text-slate-400 text-sm mb-4">{plan.description}</p>
-                    <div className="mb-6">
-                      <span className="text-4xl font-black">
-                        ${interval === 'yearly' ? Math.round(plan.priceYearly / 12) : plan.priceMonthly}
-                      </span>
-                      <span className="text-slate-400">/mo</span>
-                      {interval === 'yearly' && (
-                        <div className="text-sm text-green-400 mt-1">Billed annually (${plan.priceYearly}/yr)</div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleGetStarted(plan.id)}
-                      className={`w-full py-3 rounded-xl font-bold mb-6 transition-all ${
-                        plan.popular
-                          ? 'bg-gradient-to-r from-blue-500 to-purple-500 hover:opacity-90 text-white'
-                          : 'bg-white/10 hover:bg-white/20'
-                      }`}
-                    >
-                      Start Free Trial
-                    </button>
-                    <ul className="space-y-3">
-                      {plan.features.map((feature, idx) => (
-                        <li key={idx} className="flex items-start gap-3 text-sm">
-                          <Check className="h-5 w-5 text-green-400 flex-shrink-0" />
-                          <span className="text-slate-300">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {plans[activeTab].map((plan) => (
+              <div
+                key={plan.id}
+                className={`relative p-8 rounded-2xl border transition-all duration-300 hover:scale-105 ${
+                  plan.popular
+                    ? 'bg-gradient-to-b from-blue-500/20 to-purple-500/10 border-blue-500/50 scale-105 shadow-xl shadow-blue-500/10'
+                    : 'bg-white/5 border-white/10 hover:border-white/20'
+                }`}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full text-sm font-bold animate-pulse">
+                    Most Popular
                   </div>
-                ))}
+                )}
+                <h4 className="text-xl font-bold mb-2">{plan.name}</h4>
+                <p className="text-slate-400 text-sm mb-4">{plan.description}</p>
+                <div className="mb-6">
+                  <span className="text-4xl font-black">
+                    ${interval === 'yearly' ? Math.round(plan.priceYearly / 12) : plan.priceMonthly}
+                  </span>
+                  <span className="text-slate-400">/mo</span>
+                  {interval === 'yearly' && (
+                    <div className="text-sm text-green-400 mt-1">Billed annually (${plan.priceYearly}/yr)</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleGetStarted(plan.id)}
+                  className={`w-full py-3 rounded-xl font-bold mb-6 transition-all ${
+                    plan.popular
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 hover:opacity-90 text-white'
+                      : 'bg-white/10 hover:bg-white/20'
+                  }`}
+                >
+                  Start Free Trial
+                </button>
+                <ul className="space-y-3">
+                  {plan.features.map((feature, idx) => (
+                    <li key={idx} className="flex items-start gap-3 text-sm">
+                      <Check className="h-5 w-5 text-green-400 flex-shrink-0" />
+                      <span className="text-slate-300">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
-
-            {/* Agency Plans */}
-            <div>
-              <h3 className="text-2xl font-bold text-center mb-8">For Agencies</h3>
-              <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                {plans.agency.map((plan) => (
-                  <div
-                    key={plan.id}
-                    className={`relative p-8 rounded-2xl border transition-all ${
-                      plan.popular
-                        ? 'bg-gradient-to-b from-purple-500/20 to-pink-500/10 border-purple-500/50 scale-105 shadow-xl shadow-purple-500/10'
-                        : 'bg-white/5 border-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    {plan.popular && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full text-sm font-bold">
-                        Best Value
-                      </div>
-                    )}
-                    <h4 className="text-xl font-bold mb-2">{plan.name}</h4>
-                    <p className="text-slate-400 text-sm mb-4">{plan.description}</p>
-                    <div className="mb-6">
-                      <span className="text-4xl font-black">
-                        ${interval === 'yearly' ? Math.round(plan.priceYearly / 12) : plan.priceMonthly}
-                      </span>
-                      <span className="text-slate-400">/mo</span>
-                      {interval === 'yearly' && (
-                        <div className="text-sm text-green-400 mt-1">Billed annually (${plan.priceYearly}/yr)</div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleGetStarted(plan.id)}
-                      className={`w-full py-3 rounded-xl font-bold mb-6 transition-all ${
-                        plan.popular
-                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white'
-                          : 'bg-white/10 hover:bg-white/20'
-                      }`}
-                    >
-                      Start Free Trial
-                    </button>
-                    <ul className="space-y-3">
-                      {plan.features.map((feature, idx) => (
-                        <li key={idx} className="flex items-start gap-3 text-sm">
-                          <Check className="h-5 w-5 text-green-400 flex-shrink-0" />
-                          <span className="text-slate-300">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
+            ))}
+          </div>
         )}
       </section>
 
       {/* FAQ Section */}
-      <section className="container mx-auto px-6 py-20 border-t border-white/10">
+      <section className="container mx-auto px-6 py-20 border-t border-white/10 relative z-10">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
           <div className="space-y-6">
-            <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+            <div className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
               <h3 className="font-bold mb-2">What CRMs and tools does LIV8 OS integrate with?</h3>
               <p className="text-slate-400">LIV8 OS integrates with popular CRMs like GoHighLevel, Vbout, HubSpot, and more. We also connect with social media platforms, email providers, and calendar tools.</p>
             </div>
-            <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+            <div className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
               <h3 className="font-bold mb-2">How long does setup take?</h3>
               <p className="text-slate-400">Most users are up and running within 5-10 minutes. Connect your tools, configure your AI agents, and you're ready to automate.</p>
             </div>
-            <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+            <div className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
               <h3 className="font-bold mb-2">What are AI Credits?</h3>
               <p className="text-slate-400">AI Credits power your AI staff actions - things like generating content, responding to leads, and running automations. Each plan includes a monthly allocation that resets.</p>
             </div>
-            <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+            <div className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
               <h3 className="font-bold mb-2">What types of businesses use LIV8 OS?</h3>
               <p className="text-slate-400">LIV8 OS is used by real estate agents, insurance agents, coaches, consultants, marketing agencies, e-commerce brands, and any business looking to automate operations with AI.</p>
             </div>
@@ -623,25 +827,37 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="container mx-auto px-6 py-20">
-        <div className="max-w-4xl mx-auto text-center p-12 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-3xl border border-white/10">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Put Your Business on Autopilot?</h2>
-          <p className="text-slate-400 mb-8 max-w-2xl mx-auto">
-            Join 500+ businesses already using LIV8 OS to scale their operations.
-            Start your free trial today - no credit card required.
-          </p>
-          <button
-            onClick={() => handleGetStarted()}
-            className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl font-bold text-lg hover:opacity-90 transition-all shadow-lg shadow-blue-500/25"
-          >
-            Start Your Free 14-Day Trial
-          </button>
+      {/* Final CTA Section */}
+      <section className="container mx-auto px-6 py-20 relative z-10">
+        <div className="max-w-4xl mx-auto text-center p-12 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-3xl border border-white/10 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 animate-pulse"></div>
+          <div className="relative z-10">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Put Your Business on Autopilot?</h2>
+            <p className="text-slate-400 mb-8 max-w-2xl mx-auto">
+              Join 500+ businesses already using LIV8 OS to scale their operations.
+              Start your free trial today - no credit card required.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={scrollToBooking}
+                className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2"
+              >
+                <Phone className="h-5 w-5" />
+                Book a Free Call
+              </button>
+              <button
+                onClick={() => handleGetStarted()}
+                className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-blue-500/25"
+              >
+                Start Your Free 14-Day Trial
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="container mx-auto px-6 py-10 border-t border-white/10">
+      <footer className="container mx-auto px-6 py-10 border-t border-white/10 relative z-10">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
@@ -656,6 +872,32 @@ const Landing = () => {
           </div>
         </div>
       </footer>
+
+      {/* Custom CSS for animations */}
+      <style>{`
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes gradient {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.8s ease-out forwards;
+        }
+
+        .animate-gradient {
+          background-size: 200% 200%;
+          animation: gradient 3s ease infinite;
+        }
+
+        .animate-pulse-slow {
+          animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+      `}</style>
     </div>
   );
 };
