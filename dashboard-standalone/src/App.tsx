@@ -77,7 +77,7 @@ function App() {
   return (
     <ThemeProvider>
       <Router>
-        <div className="flex min-h-screen bg-[var(--os-bg)] text-[var(--os-text)] transition-colors duration-500 overflow-hidden">
+        <div className="flex h-screen bg-[var(--os-bg)] text-[var(--os-text)] transition-colors duration-500 overflow-hidden">
           {isCoreActive && <Sidebar onLogout={handleLogout} />}
 
           <main className="flex-1 overflow-auto relative custom-scrollbar">
