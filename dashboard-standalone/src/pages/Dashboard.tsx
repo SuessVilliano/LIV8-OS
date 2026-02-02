@@ -442,7 +442,10 @@ const Dashboard = () => {
                                     <h3 className="text-xl font-black text-[var(--os-text)] uppercase italic">Active Campaigns</h3>
                                     <p className="text-[9px] font-bold text-[var(--os-text-muted)] mt-1 uppercase tracking-widest">High-Performance Neural Workflows</p>
                                 </div>
-                                <button className="text-[10px] font-black text-neuro flex items-center gap-2 hover:translate-x-1 transition-all uppercase tracking-widest">
+                                <button
+                                    onClick={() => navigate('/workflows')}
+                                    className="text-[10px] font-black text-neuro flex items-center gap-2 hover:translate-x-1 transition-all uppercase tracking-widest"
+                                >
                                     View All <ArrowUpRight className="h-4 w-4" />
                                 </button>
                             </div>

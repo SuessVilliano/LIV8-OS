@@ -1,7 +1,7 @@
 // Backend API Configuration
 export const getBackendUrl = () => {
-    // Use Vite environment variable or default to Render backend
-    return import.meta.env.VITE_API_URL || 'https://liv8-backend.onrender.com';
+    // Use Vite environment variable or default to production API
+    return import.meta.env.VITE_API_URL || 'https://api.liv8ai.com';
 };
 
 export const BACKEND_URL = getBackendUrl();
