@@ -43,8 +43,10 @@
   ],
   "host_permissions": [
     "https://*.liv8.ai/*",
+    "https://*.liv8ai.com/*",
     "https://*.gohighlevel.com/*",
-    "https://*.vbout.com/*"
+    "https://*.vbout.com/*",
+    "https://*.vercel.app/*"
   ],
   "web_accessible_resources": [
     {

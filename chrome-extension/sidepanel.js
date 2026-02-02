@@ -279,10 +279,43 @@ function showLoading() {
 
 // Call AI API
 async function callAI(context) {
-  const API_URL = 'https://api.liv8.ai/v1/chat'; // Replace with actual API
+  // Use actual backend API
+  const API_BASE = 'https://api.liv8ai.com';
 
-  // For demo, return simulated responses
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  try {
+    // Get auth token from storage
+    const data = await chrome.storage.sync.get(['apiKey', 'locationId']);
+
+    if (data.apiKey) {
+      const response = await fetch(`${API_BASE}/api/staff/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${data.apiKey}`,
+          'x-location-id': data.locationId || 'default'
+        },
+        body: JSON.stringify({
+          message: context.message,
+          role: context.staff || 'assistant',
+          context: context.capture ? {
+            type: context.capture.type,
+            content: context.capture.content || context.capture.text,
+            source: context.capture.source || context.capture.url
+          } : undefined
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return result.response || result.message || 'I processed your request.';
+      }
+    }
+  } catch (error) {
+    console.log('API call failed, using fallback responses:', error);
+  }
+
+  // Fallback to simulated responses for demo/offline mode
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   const responses = {
     'create-post': 'I\'d be happy to help you create a social media post! What topic or product would you like me to write about? I can create content optimized for LinkedIn, Instagram, Twitter, or Facebook.',

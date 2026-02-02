@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { brandSync } from './services/BrandSync';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -49,6 +50,29 @@ function App() {
 
   const [isCommandOpen, setIsCommandOpen] = useState(false);
 
+  // Initialize brand sync when user is fully onboarded
+  useEffect(() => {
+    if (isAuthenticated && isCrmConnected && isOnboarded) {
+      // Sync brand data from server to localStorage on app init
+      brandSync.initialize()
+        .then((data) => {
+          if (data) {
+            console.log('[App] Brand data synced:', data.businessName);
+          }
+        })
+        .catch((err) => {
+          console.error('[App] Brand sync failed:', err);
+        });
+
+      // Start periodic sync to keep server and local in sync
+      brandSync.startPeriodicSync();
+
+      return () => {
+        brandSync.stopPeriodicSync();
+      };
+    }
+  }, [isAuthenticated, isCrmConnected, isOnboarded]);
+
   const handleLogin = () => {
     localStorage.setItem('os_auth', 'true');
     setIsAuthenticated(true);
@@ -76,9 +100,17 @@ function App() {
     setIsCrmConnected(true);
   };
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async () => {
     localStorage.setItem('os_onboarded', 'true');
     setIsOnboarded(true);
+
+    // Force sync brand data to server after onboarding
+    try {
+      await brandSync.forceSync();
+      console.log('[App] Onboarding data synced to server');
+    } catch (err) {
+      console.error('[App] Failed to sync onboarding data:', err);
+    }
   };
 
   const toggleCommand = () => setIsCommandOpen(!isCommandOpen);

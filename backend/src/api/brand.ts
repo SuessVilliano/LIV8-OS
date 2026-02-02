@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { businessTwin } from '../db/business-twin.js';
 
 const router = Router();
 
@@ -244,6 +245,184 @@ router.post('/colors', authenticate, async (req: Request, res: Response) => {
         res.json({ success: true, colors });
     } catch (error: any) {
         console.error('Save colors error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/brand/sync
+ * Sync brand data from Business Twin - returns complete brand profile for localStorage
+ * This ensures onboarding data is universally accessible across the platform
+ */
+router.get('/sync', authenticate, async (req: Request, res: Response) => {
+    try {
+        const locationId = req.query.locationId as string || req.headers['x-location-id'] as string;
+
+        if (!locationId) {
+            return res.status(400).json({ error: 'locationId is required' });
+        }
+
+        // Fetch Business Twin data
+        const twin = await businessTwin.getByLocationId(locationId);
+
+        if (!twin) {
+            return res.json({
+                success: true,
+                exists: false,
+                brandData: null,
+                message: 'No business twin found - onboarding may be required'
+            });
+        }
+
+        // Fetch knowledge base
+        const knowledge = await businessTwin.getKnowledge(locationId);
+
+        // Build comprehensive brand data for frontend storage
+        const brandData = {
+            // Core Identity
+            businessName: twin.identity.businessName || '',
+            domain: twin.identity.domain || '',
+            industry: twin.identity.industry || '',
+            tagline: twin.identity.tagline || '',
+
+            // Brand Voice
+            brandVoice: twin.brandVoice.tone || '',
+            personality: twin.brandVoice.personality || [],
+            writingStyle: twin.brandVoice.writingStyle || '',
+
+            // Visual Identity
+            colors: {
+                primary: (twin.identity as any).colors?.primary || '#8b5cf6',
+                secondary: (twin.identity as any).colors?.secondary || '#06b6d4',
+                accent: (twin.identity as any).colors?.accent || '#f59e0b'
+            },
+            logoUrl: (twin.identity as any).logoUrl || '',
+            faviconUrl: (twin.identity as any).faviconUrl || '',
+
+            // Social Links
+            socialLinks: (twin.identity as any).socialLinks || {},
+
+            // SEO/AEO Settings
+            seoSettings: twin.contentGuidelines?.seo ? {
+                metaTitle: '',
+                metaDescription: '',
+                keywords: twin.contentGuidelines.seo.primaryKeywords?.join(', ') || '',
+                targetAudience: twin.contentGuidelines.aeo?.targetQuestions?.[0] || '',
+                uniqueValue: ''
+            } : {},
+
+            // Goals & Context (from knowledge base)
+            goals: knowledge.find(k => k.category === 'company' && k.fact.startsWith('Business goals:'))?.fact.replace('Business goals: ', '') || '',
+            painPoints: knowledge.find(k => k.category === 'company' && k.fact.startsWith('Key challenges:'))?.fact.replace('Key challenges: ', '') || '',
+
+            // AI Staff Configuration
+            selectedStaff: Object.keys(twin.agentConfigs || {}),
+
+            // Metadata
+            onboardingComplete: twin.onboardingComplete,
+            lastUpdated: twin.lastUpdatedAt,
+            version: twin.version
+        };
+
+        res.json({
+            success: true,
+            exists: true,
+            brandData,
+            twinId: twin.id
+        });
+
+    } catch (error: any) {
+        console.error('[Brand Sync] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/brand/sync
+ * Save brand data to Business Twin - updates the canonical source of truth
+ */
+router.post('/sync', authenticate, async (req: Request, res: Response) => {
+    try {
+        const locationId = req.body.locationId || req.headers['x-location-id'] as string;
+        const brandData = req.body.brandData;
+
+        if (!locationId) {
+            return res.status(400).json({ error: 'locationId is required' });
+        }
+
+        if (!brandData) {
+            return res.status(400).json({ error: 'brandData is required' });
+        }
+
+        // Check if twin exists
+        let twin = await businessTwin.getByLocationId(locationId);
+
+        if (!twin) {
+            // Create new twin
+            twin = await businessTwin.create({
+                locationId,
+                crmType: req.body.crmType || 'liv8',
+                identity: {
+                    businessName: brandData.businessName || '',
+                    domain: brandData.domain || '',
+                    industry: brandData.industry || '',
+                    tagline: brandData.tagline || '',
+                    colors: brandData.colors,
+                    socialLinks: brandData.socialLinks,
+                    logoUrl: brandData.logoUrl,
+                    faviconUrl: brandData.faviconUrl
+                } as any
+            });
+        } else {
+            // Update existing twin
+            await businessTwin.updateIdentity(locationId, {
+                businessName: brandData.businessName,
+                domain: brandData.domain,
+                industry: brandData.industry,
+                tagline: brandData.tagline
+            });
+        }
+
+        // Update brand voice if provided
+        if (brandData.brandVoice) {
+            await businessTwin.updateBrandVoice(locationId, {
+                tone: brandData.brandVoice,
+                personality: brandData.personality || [],
+                writingStyle: brandData.writingStyle || ''
+            } as any);
+        }
+
+        // Update goals/painPoints as knowledge
+        if (brandData.goals) {
+            await businessTwin.addKnowledge({
+                locationId,
+                category: 'company',
+                fact: `Business goals: ${brandData.goals}`,
+                source: 'brand_sync',
+                sourceType: 'manual',
+                confidence: 100
+            });
+        }
+
+        if (brandData.painPoints) {
+            await businessTwin.addKnowledge({
+                locationId,
+                category: 'company',
+                fact: `Key challenges: ${brandData.painPoints}`,
+                source: 'brand_sync',
+                sourceType: 'manual',
+                confidence: 100
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Brand data synced to Business Twin',
+            twinId: twin.id
+        });
+
+    } catch (error: any) {
+        console.error('[Brand Sync] Save error:', error);
         res.status(500).json({ error: error.message });
     }
 });
