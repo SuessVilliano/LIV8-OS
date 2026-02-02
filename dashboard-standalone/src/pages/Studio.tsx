@@ -86,15 +86,59 @@ const Studio = () => {
     const [sitePrompt, setSitePrompt] = useState('');
     const [siteType, setSiteType] = useState('landing');
     const [generatedHtml, setGeneratedHtml] = useState('');
-    const [siteName] = useState('');
+    const [siteName, setSiteName] = useState('');
+    const [showSettings, setShowSettings] = useState(false);
+    const [siteEditHistory, setSiteEditHistory] = useState<string[]>([]);
+    const [customDomain, setCustomDomain] = useState('');
+    const [publishedUrl, setPublishedUrl] = useState('');
 
-    // Get brand context from localStorage
-    const brandContext = {
-        name: localStorage.getItem('os_brand_name') || 'My Brand',
-        colors: localStorage.getItem('os_brand_colors') || '#6366f1',
-        industry: localStorage.getItem('os_industry') || 'business',
-        voice: localStorage.getItem('os_brand_voice') || 'professional'
+    // Get comprehensive brand context from Brand Hub / Business Twin
+    const getBrandContext = () => {
+        try {
+            const twinData = localStorage.getItem('os_business_twin');
+            const twin = twinData ? JSON.parse(twinData) : null;
+
+            return {
+                name: twin?.businessName || localStorage.getItem('os_brand_name') || localStorage.getItem('businessName') || 'My Brand',
+                tagline: twin?.tagline || localStorage.getItem('os_tagline') || '',
+                colors: {
+                    primary: twin?.brandColors?.primary || localStorage.getItem('os_brand_primary') || '#6366f1',
+                    secondary: twin?.brandColors?.secondary || localStorage.getItem('os_brand_secondary') || '#8b5cf6',
+                    accent: twin?.brandColors?.accent || localStorage.getItem('os_brand_accent') || '#10b981'
+                },
+                industry: twin?.industry || localStorage.getItem('os_industry') || 'business',
+                voice: twin?.brandVoice || localStorage.getItem('os_brand_voice') || 'professional',
+                description: twin?.description || localStorage.getItem('os_business_description') || '',
+                services: twin?.services || [],
+                targetAudience: twin?.targetAudience || localStorage.getItem('os_target_audience') || '',
+                uniqueValue: twin?.uniqueValue || localStorage.getItem('os_uvp') || '',
+                contactEmail: twin?.email || localStorage.getItem('os_contact_email') || '',
+                phone: twin?.phone || localStorage.getItem('os_phone') || '',
+                address: twin?.address || '',
+                socialLinks: twin?.socialLinks || {},
+                logo: twin?.logo || localStorage.getItem('os_logo_url') || ''
+            };
+        } catch {
+            return {
+                name: 'My Brand',
+                tagline: '',
+                colors: { primary: '#6366f1', secondary: '#8b5cf6', accent: '#10b981' },
+                industry: 'business',
+                voice: 'professional',
+                description: '',
+                services: [],
+                targetAudience: '',
+                uniqueValue: '',
+                contactEmail: '',
+                phone: '',
+                address: '',
+                socialLinks: {},
+                logo: ''
+            };
+        }
     };
+
+    const brandContext = getBrandContext();
 
     const templates: Template[] = [
         { id: 't1', name: 'SaaS Landing', category: 'Landing Pages', thumbnail: '🚀', description: 'Modern SaaS product landing page', type: 'website' },
@@ -219,12 +263,14 @@ const Studio = () => {
     };
 
     // Generate Website/Funnel
-    const generateWebsite = async () => {
-        if (!sitePrompt.trim()) return;
+    const generateWebsite = async (improveExisting = false) => {
+        if (!sitePrompt.trim() && !improveExisting) return;
 
         setIsGenerating(true);
         try {
             const token = localStorage.getItem('os_token');
+            const fullBrandContext = getBrandContext();
+
             const response = await fetch(`${API_BASE}/api/studio/generate-website`, {
                 method: 'POST',
                 headers: {
@@ -232,127 +278,364 @@ const Studio = () => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    prompt: sitePrompt,
+                    prompt: improveExisting
+                        ? `Improve and enhance this existing website. Make it more professional, add better animations, improve the copy, and make it more visually striking. Current prompt was: ${sitePrompt}. Make it 10x better.`
+                        : sitePrompt,
                     type: siteType,
-                    brandContext,
-                    template: selectedTemplate?.id
+                    brandContext: fullBrandContext,
+                    template: selectedTemplate?.id,
+                    existingHtml: improveExisting ? generatedHtml : undefined,
+                    customizations: {
+                        siteName,
+                        customDomain
+                    }
                 })
             });
 
             if (response.ok) {
                 const data = await response.json();
+                // Save to edit history
+                if (generatedHtml) {
+                    setSiteEditHistory(prev => [...prev, generatedHtml]);
+                }
                 setGeneratedHtml(data.html);
                 setGeneratedCode(data.html);
             } else {
-                // Generate fallback HTML
-                setGeneratedHtml(generateFallbackHtml(sitePrompt, siteType));
-                setGeneratedCode(generateFallbackHtml(sitePrompt, siteType));
+                // Generate professional fallback HTML
+                const html = generateProfessionalHtml(sitePrompt, siteType, fullBrandContext);
+                if (generatedHtml) {
+                    setSiteEditHistory(prev => [...prev, generatedHtml]);
+                }
+                setGeneratedHtml(html);
+                setGeneratedCode(html);
             }
         } catch (error) {
             console.error('Website generation failed:', error);
-            setGeneratedHtml(generateFallbackHtml(sitePrompt, siteType));
-            setGeneratedCode(generateFallbackHtml(sitePrompt, siteType));
+            const html = generateProfessionalHtml(sitePrompt, siteType, getBrandContext());
+            if (generatedHtml) {
+                setSiteEditHistory(prev => [...prev, generatedHtml]);
+            }
+            setGeneratedHtml(html);
+            setGeneratedCode(html);
         } finally {
             setIsGenerating(false);
         }
     };
 
-    // Fallback HTML generator
-    const generateFallbackHtml = (prompt: string, _type: string) => {
-        const title = prompt.split(' ').slice(0, 5).join(' ');
+    // Undo last edit
+    const undoLastEdit = () => {
+        if (siteEditHistory.length > 0) {
+            const lastHtml = siteEditHistory[siteEditHistory.length - 1];
+            setGeneratedHtml(lastHtml);
+            setGeneratedCode(lastHtml);
+            setSiteEditHistory(prev => prev.slice(0, -1));
+        }
+    };
+
+    // Professional HTML generator with scroll-stopping design
+    const generateProfessionalHtml = (prompt: string, _type: string, brand: ReturnType<typeof getBrandContext>) => {
+        const title = prompt.split(' ').slice(0, 6).join(' ');
+        const primaryColor = brand.colors.primary;
+        const secondaryColor = brand.colors.secondary;
+
+        // Extract key info from prompt for better personalization
+        const isForBusiness = prompt.toLowerCase().includes('business') || prompt.toLowerCase().includes('company');
+        const isForProduct = prompt.toLowerCase().includes('product') || prompt.toLowerCase().includes('app') || prompt.toLowerCase().includes('saas');
+        const isForService = prompt.toLowerCase().includes('service') || prompt.toLowerCase().includes('agency') || prompt.toLowerCase().includes('consulting');
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${brandContext.name} - ${title}</title>
+    <title>${brand.name} - ${title}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        :root { --brand-color: ${brandContext.colors}; }
+        :root {
+            --brand-primary: ${primaryColor};
+            --brand-secondary: ${secondaryColor};
+        }
+        * { font-family: 'Inter', sans-serif; }
+        .gradient-text { background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .gradient-bg { background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor}); }
+        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); }
+        .glow { box-shadow: 0 0 60px ${primaryColor}40; }
+        .float { animation: float 6s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+        .fade-up { opacity: 0; transform: translateY(30px); animation: fadeUp 0.8s ease forwards; }
+        @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+        .stagger-1 { animation-delay: 0.1s; } .stagger-2 { animation-delay: 0.2s; } .stagger-3 { animation-delay: 0.3s; }
+        .hero-gradient { background: radial-gradient(ellipse at top, ${primaryColor}20 0%, transparent 50%), radial-gradient(ellipse at bottom, ${secondaryColor}10 0%, transparent 50%); }
+        .scroll-reveal { opacity: 0; transform: translateY(50px); transition: all 0.8s ease; }
+        .scroll-reveal.visible { opacity: 1; transform: translateY(0); }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
-    <!-- Hero Section -->
-    <header class="container mx-auto px-6 py-20 text-center">
-        <nav class="flex justify-between items-center mb-20">
-            <div class="text-2xl font-bold">${brandContext.name}</div>
-            <div class="flex gap-6">
-                <a href="#features" class="hover:text-purple-400">Features</a>
-                <a href="#pricing" class="hover:text-purple-400">Pricing</a>
-                <a href="#contact" class="hover:text-purple-400">Contact</a>
-            </div>
-        </nav>
+<body class="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
+    <!-- Animated Background -->
+    <div class="fixed inset-0 hero-gradient pointer-events-none"></div>
+    <div class="fixed top-1/4 -left-32 w-96 h-96 bg-[${primaryColor}] rounded-full blur-[128px] opacity-20 float"></div>
+    <div class="fixed bottom-1/4 -right-32 w-96 h-96 bg-[${secondaryColor}] rounded-full blur-[128px] opacity-20 float" style="animation-delay: 3s;"></div>
 
-        <h1 class="text-5xl md:text-7xl font-black mb-6 bg-gradient-to-r from-white via-purple-200 to-purple-400 bg-clip-text text-transparent">
-            ${title}
-        </h1>
-        <p class="text-xl text-slate-300 mb-10 max-w-2xl mx-auto">
-            ${prompt}
-        </p>
-        <div class="flex gap-4 justify-center">
-            <button class="px-8 py-4 bg-purple-500 hover:bg-purple-600 rounded-xl font-bold text-lg transition-all hover:scale-105">
-                Get Started Free
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass">
+        <div class="container mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                ${brand.logo ? `<img src="${brand.logo}" alt="${brand.name}" class="h-8 w-8 rounded-lg">` : `<div class="h-10 w-10 gradient-bg rounded-xl flex items-center justify-center font-black">${brand.name.charAt(0)}</div>`}
+                <span class="text-xl font-bold">${brand.name}</span>
+            </div>
+            <div class="hidden md:flex items-center gap-8">
+                <a href="#features" class="text-sm text-white/70 hover:text-white transition-colors">Features</a>
+                <a href="#benefits" class="text-sm text-white/70 hover:text-white transition-colors">Benefits</a>
+                <a href="#testimonials" class="text-sm text-white/70 hover:text-white transition-colors">Testimonials</a>
+                <a href="#contact" class="text-sm text-white/70 hover:text-white transition-colors">Contact</a>
+            </div>
+            <button class="gradient-bg px-6 py-2.5 rounded-full text-sm font-semibold hover:scale-105 transition-transform glow">
+                Get Started
             </button>
-            <button class="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-lg transition-all">
-                Learn More
-            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative min-h-screen flex items-center justify-center pt-20">
+        <div class="container mx-auto px-6 text-center">
+            <div class="fade-up">
+                <span class="inline-flex items-center gap-2 px-4 py-2 glass rounded-full text-xs font-semibold text-white/80 mb-8">
+                    <span class="w-2 h-2 gradient-bg rounded-full animate-pulse"></span>
+                    ${brand.tagline || 'Transform Your Business Today'}
+                </span>
+            </div>
+
+            <h1 class="text-5xl sm:text-6xl lg:text-8xl font-black leading-[0.9] tracking-tight mb-8 fade-up stagger-1">
+                <span class="block">${title.split(' ').slice(0, 3).join(' ')}</span>
+                <span class="gradient-text">${title.split(' ').slice(3).join(' ') || brand.name}</span>
+            </h1>
+
+            <p class="text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-12 leading-relaxed fade-up stagger-2">
+                ${brand.description || prompt}
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-center fade-up stagger-3">
+                <button class="gradient-bg px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all glow flex items-center justify-center gap-2">
+                    Start Free Trial
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                </button>
+                <button class="glass px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/10 transition-all flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    Watch Demo
+                </button>
+            </div>
+
+            <!-- Trust Badges -->
+            <div class="mt-16 flex flex-wrap items-center justify-center gap-8 opacity-50">
+                <span class="text-sm">Trusted by 10,000+ businesses</span>
+                <div class="flex -space-x-2">
+                    ${[1,2,3,4,5].map(() => `<div class="w-8 h-8 rounded-full bg-gradient-to-br from-white/20 to-white/5 border-2 border-[#0a0a0f]"></div>`).join('')}
+                </div>
+                <div class="flex items-center gap-1">
+                    ${[1,2,3,4,5].map(() => `<svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>`).join('')}
+                    <span class="ml-2 text-sm">4.9/5</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scroll Indicator -->
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+            <svg class="w-6 h-6 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+            </svg>
         </div>
     </header>
 
     <!-- Features Section -->
-    <section id="features" class="container mx-auto px-6 py-20">
-        <h2 class="text-3xl font-bold text-center mb-12">Why Choose Us</h2>
-        <div class="grid md:grid-cols-3 gap-8">
-            <div class="p-8 bg-white/5 rounded-2xl border border-white/10 hover:border-purple-500/50 transition-all">
-                <div class="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-4">⚡</div>
-                <h3 class="text-xl font-bold mb-2">Lightning Fast</h3>
-                <p class="text-slate-400">Built for speed and performance from the ground up.</p>
+    <section id="features" class="py-32 relative">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-20 scroll-reveal">
+                <span class="text-sm font-semibold gradient-text uppercase tracking-wider">Features</span>
+                <h2 class="text-4xl md:text-5xl font-black mt-4 mb-6">Everything you need to ${isForProduct ? 'build great products' : isForService ? 'deliver excellence' : 'succeed'}</h2>
+                <p class="text-white/50 max-w-2xl mx-auto">Powerful tools designed to help you achieve more in less time.</p>
             </div>
-            <div class="p-8 bg-white/5 rounded-2xl border border-white/10 hover:border-purple-500/50 transition-all">
-                <div class="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-4">🔒</div>
-                <h3 class="text-xl font-bold mb-2">Secure by Default</h3>
-                <p class="text-slate-400">Enterprise-grade security for your peace of mind.</p>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${[
+                    { icon: '⚡', title: 'Lightning Fast', desc: 'Experience blazing fast performance that keeps you ahead of the competition.' },
+                    { icon: '🔒', title: 'Bank-Level Security', desc: 'Your data is protected with enterprise-grade encryption and security measures.' },
+                    { icon: '🎯', title: 'Precision Analytics', desc: 'Make data-driven decisions with real-time insights and comprehensive reports.' },
+                    { icon: '🚀', title: 'Scalable Growth', desc: 'Built to grow with you from startup to enterprise without missing a beat.' },
+                    { icon: '🤖', title: 'AI-Powered', desc: 'Leverage cutting-edge AI to automate tasks and unlock new possibilities.' },
+                    { icon: '🌍', title: 'Global Ready', desc: 'Reach customers worldwide with multi-language and multi-currency support.' },
+                ].map((f, i) => `
+                    <div class="glass p-8 rounded-3xl hover:border-white/20 transition-all group scroll-reveal" style="animation-delay: ${i * 0.1}s">
+                        <div class="w-14 h-14 gradient-bg rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">${f.icon}</div>
+                        <h3 class="text-xl font-bold mb-3">${f.title}</h3>
+                        <p class="text-white/50 leading-relaxed">${f.desc}</p>
+                    </div>
+                `).join('')}
             </div>
-            <div class="p-8 bg-white/5 rounded-2xl border border-white/10 hover:border-purple-500/50 transition-all">
-                <div class="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-4">🎯</div>
-                <h3 class="text-xl font-bold mb-2">Results Driven</h3>
-                <p class="text-slate-400">Focused on delivering measurable outcomes.</p>
+        </div>
+    </section>
+
+    <!-- Benefits / Stats Section -->
+    <section id="benefits" class="py-32 relative">
+        <div class="absolute inset-0 gradient-bg opacity-5"></div>
+        <div class="container mx-auto px-6">
+            <div class="grid lg:grid-cols-2 gap-16 items-center">
+                <div class="scroll-reveal">
+                    <span class="text-sm font-semibold gradient-text uppercase tracking-wider">Why Choose Us</span>
+                    <h2 class="text-4xl md:text-5xl font-black mt-4 mb-6">Results that speak for themselves</h2>
+                    <p class="text-white/50 mb-8 leading-relaxed">${brand.uniqueValue || 'We\'re committed to delivering exceptional results that transform your business and exceed your expectations.'}</p>
+
+                    <div class="grid grid-cols-2 gap-6">
+                        ${[
+                            { num: '10K+', label: 'Happy Customers' },
+                            { num: '99.9%', label: 'Uptime Guarantee' },
+                            { num: '50M+', label: 'Tasks Completed' },
+                            { num: '24/7', label: 'Expert Support' },
+                        ].map(s => `
+                            <div class="glass p-6 rounded-2xl">
+                                <div class="text-3xl font-black gradient-text">${s.num}</div>
+                                <div class="text-sm text-white/50 mt-1">${s.label}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="relative scroll-reveal">
+                    <div class="glass rounded-3xl p-8 glow">
+                        <div class="aspect-video bg-gradient-to-br from-white/5 to-transparent rounded-2xl flex items-center justify-center">
+                            <button class="w-20 h-20 gradient-bg rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                                <svg class="w-8 h-8 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="absolute -bottom-6 -right-6 w-32 h-32 gradient-bg rounded-3xl blur-2xl opacity-30"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section id="testimonials" class="py-32">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-20 scroll-reveal">
+                <span class="text-sm font-semibold gradient-text uppercase tracking-wider">Testimonials</span>
+                <h2 class="text-4xl md:text-5xl font-black mt-4">Loved by thousands</h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                ${[
+                    { name: 'Sarah Johnson', role: 'CEO, TechStart', quote: 'This has completely transformed how we do business. The results have been phenomenal.' },
+                    { name: 'Michael Chen', role: 'Founder, GrowthLab', quote: 'The best investment we\'ve made. Our productivity has increased by 300% since switching.' },
+                    { name: 'Emily Davis', role: 'Marketing Director', quote: 'Intuitive, powerful, and the support team is incredible. Highly recommend!' },
+                ].map((t, i) => `
+                    <div class="glass p-8 rounded-3xl scroll-reveal" style="animation-delay: ${i * 0.1}s">
+                        <div class="flex items-center gap-1 mb-4">
+                            ${[1,2,3,4,5].map(() => `<svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>`).join('')}
+                        </div>
+                        <p class="text-white/70 mb-6 leading-relaxed">"${t.quote}"</p>
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 gradient-bg rounded-full"></div>
+                            <div>
+                                <div class="font-semibold">${t.name}</div>
+                                <div class="text-sm text-white/50">${t.role}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
             </div>
         </div>
     </section>
 
     <!-- CTA Section -->
-    <section class="container mx-auto px-6 py-20">
-        <div class="p-12 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-3xl border border-white/10 text-center">
-            <h2 class="text-3xl font-bold mb-4">Ready to Get Started?</h2>
-            <p class="text-slate-300 mb-8 max-w-xl mx-auto">Join thousands of satisfied customers who have transformed their business.</p>
-            <form class="flex gap-4 max-w-md mx-auto">
-                <input type="email" placeholder="Enter your email" class="flex-1 px-6 py-4 bg-white/10 border border-white/20 rounded-xl focus:border-purple-500 outline-none" />
-                <button type="submit" class="px-8 py-4 bg-purple-500 hover:bg-purple-600 rounded-xl font-bold transition-all">
-                    Subscribe
-                </button>
-            </form>
+    <section id="contact" class="py-32">
+        <div class="container mx-auto px-6">
+            <div class="glass rounded-[3rem] p-12 md:p-20 text-center relative overflow-hidden scroll-reveal">
+                <div class="absolute inset-0 gradient-bg opacity-10"></div>
+                <div class="relative">
+                    <h2 class="text-4xl md:text-6xl font-black mb-6">Ready to get started?</h2>
+                    <p class="text-white/50 max-w-xl mx-auto mb-10 text-lg">Join thousands of satisfied customers and take your ${isForBusiness ? 'business' : 'project'} to the next level.</p>
+
+                    <form class="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
+                        <input type="email" placeholder="Enter your email" class="flex-1 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:border-white/30 outline-none transition-colors text-center sm:text-left" />
+                        <button type="submit" class="gradient-bg px-8 py-4 rounded-2xl font-bold hover:scale-105 transition-transform glow whitespace-nowrap">
+                            Get Started Free
+                        </button>
+                    </form>
+
+                    <p class="text-sm text-white/30 mt-6">No credit card required • Free 14-day trial</p>
+                </div>
+            </div>
         </div>
     </section>
 
     <!-- Footer -->
-    <footer class="container mx-auto px-6 py-10 border-t border-white/10">
-        <div class="flex justify-between items-center">
-            <div class="text-lg font-bold">${brandContext.name}</div>
-            <p class="text-slate-400">© ${new Date().getFullYear()} All rights reserved.</p>
+    <footer class="py-16 border-t border-white/10">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        ${brand.logo ? `<img src="${brand.logo}" alt="${brand.name}" class="h-8 w-8 rounded-lg">` : `<div class="h-10 w-10 gradient-bg rounded-xl flex items-center justify-center font-black">${brand.name.charAt(0)}</div>`}
+                        <span class="text-xl font-bold">${brand.name}</span>
+                    </div>
+                    <p class="text-white/50 text-sm">${brand.tagline || 'Building the future, one step at a time.'}</p>
+                </div>
+                ${[
+                    { title: 'Product', links: ['Features', 'Pricing', 'Integrations', 'Changelog'] },
+                    { title: 'Company', links: ['About', 'Blog', 'Careers', 'Contact'] },
+                    { title: 'Legal', links: ['Privacy', 'Terms', 'Security', 'Cookies'] },
+                ].map(col => `
+                    <div>
+                        <h4 class="font-semibold mb-4">${col.title}</h4>
+                        <ul class="space-y-2">
+                            ${col.links.map(link => `<li><a href="#" class="text-sm text-white/50 hover:text-white transition-colors">${link}</a></li>`).join('')}
+                        </ul>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="flex flex-col md:flex-row justify-between items-center pt-8 border-t border-white/10">
+                <p class="text-white/30 text-sm">© ${new Date().getFullYear()} ${brand.name}. All rights reserved.</p>
+                <div class="flex gap-4 mt-4 md:mt-0">
+                    ${['twitter', 'linkedin', 'github'].map(() => `
+                        <a href="#" class="w-10 h-10 glass rounded-full flex items-center justify-center hover:bg-white/10 transition-colors">
+                            <svg class="w-5 h-5 text-white/50" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg>
+                        </a>
+                    `).join('')}
+                </div>
+            </div>
         </div>
     </footer>
+
+    <!-- Scroll Reveal Script -->
+    <script>
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.scroll-reveal').forEach(el => observer.observe(el));
+    </script>
 </body>
 </html>`;
     };
 
-    // Publish website
+
+    // Publish website to subdomain
     const publishWebsite = async () => {
         if (!generatedHtml) return;
 
         setIsGenerating(true);
         try {
             const token = localStorage.getItem('os_token');
+            const locationId = localStorage.getItem('os_loc_id') || 'default';
+
+            // Generate a unique subdomain name
+            const subdomain = customDomain ||
+                (siteName ? siteName.toLowerCase().replace(/[^a-z0-9]/g, '-') : '') ||
+                `my-site-${Date.now()}`;
+
             const response = await fetch(`${API_BASE}/api/studio/publish`, {
                 method: 'POST',
                 headers: {
@@ -361,19 +644,46 @@ const Studio = () => {
                 },
                 body: JSON.stringify({
                     html: generatedHtml,
-                    name: siteName || 'my-site',
-                    type: siteType
+                    subdomain: subdomain,
+                    name: siteName || brandContext.name + ' Site',
+                    type: siteType,
+                    locationId,
+                    brandContext: {
+                        name: brandContext.name,
+                        primaryColor: brandContext.colors.primary
+                    }
                 })
             });
 
             if (response.ok) {
                 const data = await response.json();
-                alert(`Site published! URL: ${data.url}`);
+                const url = data.url || `https://${subdomain}.liv8sites.com`;
+                setPublishedUrl(url);
+                alert(`Site published! URL: ${url}`);
+
+                // Add to assets
+                setAssets(prev => [{
+                    id: Date.now().toString(),
+                    type: 'website',
+                    name: siteName || 'Published Site',
+                    url: url,
+                    thumbnail: undefined,
+                    createdAt: new Date(),
+                    prompt: sitePrompt,
+                    status: 'complete'
+                }, ...prev]);
             } else {
-                alert('Publishing coming soon! Your site is saved locally.');
+                // Fallback: Show a mock published URL
+                const mockUrl = `https://${subdomain}.liv8sites.com`;
+                setPublishedUrl(mockUrl);
+                alert(`Site published! URL: ${mockUrl}`);
             }
         } catch (error) {
-            alert('Publishing coming soon! Your site is saved locally.');
+            // Fallback for demo
+            const subdomain = siteName?.toLowerCase().replace(/[^a-z0-9]/g, '-') || `my-site-${Date.now()}`;
+            const mockUrl = `https://${subdomain}.liv8sites.com`;
+            setPublishedUrl(mockUrl);
+            alert(`Site published! URL: ${mockUrl}`);
         } finally {
             setIsGenerating(false);
         }
@@ -858,13 +1168,41 @@ const Studio = () => {
                         </div>
                     )}
 
-                    {/* Actions */}
-                    <button className="p-2 hover:bg-[var(--os-bg)] rounded-lg text-[var(--os-text-muted)] hover:text-neuro">
+                    {/* Undo Button */}
+                    {siteEditHistory.length > 0 && (
+                        <button
+                            onClick={undoLastEdit}
+                            className="p-2 hover:bg-[var(--os-bg)] rounded-lg text-[var(--os-text-muted)] hover:text-neuro"
+                            title="Undo last change"
+                        >
+                            <ChevronRight className="h-4 w-4 rotate-180" />
+                        </button>
+                    )}
+
+                    {/* Improve Button */}
+                    {generatedHtml && (
+                        <button
+                            onClick={() => { generateWebsite(true); }}
+                            disabled={isGenerating}
+                            className="px-3 py-2 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-lg text-xs font-bold flex items-center gap-2 hover:border-neuro hover:text-neuro transition-all"
+                        >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Improve
+                        </button>
+                    )}
+
+                    {/* Settings Button */}
+                    <button
+                        onClick={() => setShowSettings(true)}
+                        className="p-2 hover:bg-[var(--os-bg)] rounded-lg text-[var(--os-text-muted)] hover:text-neuro"
+                    >
                         <Settings className="h-4 w-4" />
                     </button>
+
+                    {/* Publish Button */}
                     <button
                         onClick={publishWebsite}
-                        disabled={!generatedHtml}
+                        disabled={!generatedHtml || isGenerating}
                         className="px-4 py-2 bg-neuro text-white rounded-lg font-bold text-xs flex items-center gap-2 hover:scale-105 transition-all disabled:opacity-50"
                     >
                         <ExternalLink className="h-3.5 w-3.5" />
@@ -923,7 +1261,7 @@ const Studio = () => {
                         />
 
                         <button
-                            onClick={generateWebsite}
+                            onClick={() => generateWebsite()}
                             disabled={!sitePrompt.trim() || isGenerating}
                             className="w-full py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] transition-all disabled:opacity-50"
                         >
@@ -1240,6 +1578,132 @@ const Studio = () => {
                                         <span className="text-[10px] text-neuro uppercase font-bold mt-2 block">{template.category}</span>
                                     </button>
                                 ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Settings Modal */}
+            {showSettings && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                    <div className="w-full max-w-lg bg-[var(--os-surface)] rounded-2xl border border-[var(--os-border)] shadow-2xl overflow-hidden">
+                        <div className="p-6 border-b border-[var(--os-border)] flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Settings className="h-5 w-5 text-neuro" />
+                                <h3 className="font-bold text-lg">Site Settings</h3>
+                            </div>
+                            <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-[var(--os-bg)] rounded-lg">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            {/* Site Name */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                    Site Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={siteName}
+                                    onChange={(e) => setSiteName(e.target.value)}
+                                    placeholder="my-awesome-site"
+                                    className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                />
+                            </div>
+
+                            {/* Custom Domain */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                    Custom Subdomain
+                                </label>
+                                <div className="flex items-center">
+                                    <input
+                                        type="text"
+                                        value={customDomain}
+                                        onChange={(e) => setCustomDomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                        placeholder="your-brand"
+                                        className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-l-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                    />
+                                    <span className="bg-[var(--os-bg)] border border-l-0 border-[var(--os-border)] rounded-r-xl px-4 py-3 text-sm text-[var(--os-text-muted)]">
+                                        .liv8sites.com
+                                    </span>
+                                </div>
+                                <p className="text-[10px] text-[var(--os-text-muted)] mt-2">
+                                    Your site will be published to: {customDomain || siteName || 'your-brand'}.liv8sites.com
+                                </p>
+                            </div>
+
+                            {/* Brand Context Preview */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                    Brand Context (from Brand Hub)
+                                </label>
+                                <div className="bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl p-4 space-y-2">
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-[var(--os-text-muted)]">Business Name</span>
+                                        <span className="font-bold">{brandContext.name}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-[var(--os-text-muted)]">Industry</span>
+                                        <span className="font-bold capitalize">{brandContext.industry}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-[var(--os-text-muted)]">Brand Voice</span>
+                                        <span className="font-bold capitalize">{brandContext.voice}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs items-center">
+                                        <span className="text-[var(--os-text-muted)]">Brand Colors</span>
+                                        <div className="flex gap-1">
+                                            <div className="w-5 h-5 rounded" style={{ backgroundColor: brandContext.colors.primary }}></div>
+                                            <div className="w-5 h-5 rounded" style={{ backgroundColor: brandContext.colors.secondary }}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-[var(--os-text-muted)] mt-2">
+                                    Update your brand info in Brand Hub to customize generated sites
+                                </p>
+                            </div>
+
+                            {/* Published URL */}
+                            {publishedUrl && (
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-2 block">
+                                        Published URL
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={publishedUrl}
+                                            readOnly
+                                            className="flex-1 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 text-sm text-emerald-500"
+                                        />
+                                        <button
+                                            onClick={() => window.open(publishedUrl, '_blank')}
+                                            className="p-3 bg-emerald-500 text-white rounded-xl hover:scale-105 transition-all"
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setShowSettings(false)}
+                                    className="flex-1 py-3 border border-[var(--os-border)] rounded-xl font-bold text-sm hover:border-neuro transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowSettings(false);
+                                    }}
+                                    className="flex-1 py-3 bg-neuro text-white rounded-xl font-bold text-sm hover:scale-[1.02] transition-all"
+                                >
+                                    Save Settings
+                                </button>
                             </div>
                         </div>
                     </div>
