@@ -17,6 +17,7 @@ import Sidebar from './components/Sidebar';
 import CrmConnect from './components/CrmConnect';
 import GhlOnboarding from './components/GhlOnboarding';
 import UnifiedCommandPanel from './components/UnifiedCommandPanel';
+import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Sparkles } from 'lucide-react';
 
@@ -115,16 +116,16 @@ function App() {
                     isOnboarded ? <Navigate to="/dashboard" replace /> : <GhlOnboarding onComplete={handleOnboardingComplete} />
               } />
 
-              {/* 4. Dashboard & Core Pages */}
-              <Route path="/dashboard" element={isCoreActive ? <Dashboard /> : <Navigate to="/login" replace />} />
-              <Route path="/opportunities" element={isCoreActive ? <Opportunities /> : <Navigate to="/login" replace />} />
-              <Route path="/agencies" element={isCoreActive ? <Agencies /> : <Navigate to="/login" replace />} />
-              <Route path="/staff" element={isCoreActive ? <Staff /> : <Navigate to="/login" replace />} />
-              <Route path="/brand" element={isCoreActive ? <Brand /> : <Navigate to="/login" replace />} />
-              <Route path="/workflows" element={isCoreActive ? <Workflows /> : <Navigate to="/login" replace />} />
-              <Route path="/studio" element={isCoreActive ? <Studio /> : <Navigate to="/login" replace />} />
-              <Route path="/analytics" element={isCoreActive ? <Analytics /> : <Navigate to="/login" replace />} />
-              <Route path="/settings" element={isCoreActive ? <Settings /> : <Navigate to="/login" replace />} />
+              {/* 4. Dashboard & Core Pages - Wrapped in ErrorBoundary */}
+              <Route path="/dashboard" element={isCoreActive ? <ErrorBoundary><Dashboard /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/opportunities" element={isCoreActive ? <ErrorBoundary><Opportunities /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/agencies" element={isCoreActive ? <ErrorBoundary><Agencies /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/staff" element={isCoreActive ? <ErrorBoundary><Staff /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/brand" element={isCoreActive ? <ErrorBoundary><Brand /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/workflows" element={isCoreActive ? <ErrorBoundary><Workflows /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/studio" element={isCoreActive ? <ErrorBoundary><Studio /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/analytics" element={isCoreActive ? <ErrorBoundary><Analytics /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/settings" element={isCoreActive ? <ErrorBoundary><Settings /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/pricing" element={<Pricing />} />
 

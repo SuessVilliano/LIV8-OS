@@ -2,7 +2,6 @@ import { useState, useEffect, createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
 import ContentStudio from './ContentStudio';
 import IntegrationsDashboard from './IntegrationsDashboard';
-import AIStaffChat from './AIStaffChat';
 
 // Theme context for persistence across extension and dashboard
 interface ThemeConfig {
@@ -99,8 +98,6 @@ export default function DashboardLayout({ children: _children, initialView = 'da
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [extensionConnected, setExtensionConnected] = useState(false);
 
-  const locationId = localStorage.getItem('locationId') || 'demo_location';
-
   // Load theme from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('liv8_theme');
@@ -188,8 +185,11 @@ export default function DashboardLayout({ children: _children, initialView = 'da
         return <IntegrationsDashboard />;
       case 'staff':
         return (
-          <div className="h-full">
-            <AIStaffChat locationId={locationId} onClose={() => {}} />
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-gray-500">AI Staff chat is available in the main command panel.</p>
+              <p className="text-sm text-gray-400 mt-2">Click the Sparkles button in the bottom right.</p>
+            </div>
           </div>
         );
       case 'analytics':
