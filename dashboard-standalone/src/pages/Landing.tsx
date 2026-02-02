@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Sparkles, Check, ArrowRight, Zap, Brain, Users, BarChart3,
   MessageSquare, Calendar, Shield, Clock, TrendingUp, Bot,
-  Workflow, Target, Rocket, Star, Play, Phone, ChevronDown,
+  Workflow, Target, Rocket, Star, Phone, ChevronDown,
   DollarSign, UserCheck, Repeat
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
