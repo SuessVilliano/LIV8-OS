@@ -15,7 +15,8 @@ import {
     Moon,
     Target,
     BarChart,
-    Palette
+    Palette,
+    Wand2
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -35,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
         { icon: Users, label: 'Agencies', path: '/agencies' },
         { icon: MessageSquare, label: 'Staff Hub', path: '/staff' },
         { icon: Palette, label: 'Brand Hub', path: '/brand' },
+        { icon: Wand2, label: 'Studio', path: '/studio' },
         { icon: Workflow, label: 'Workflows', path: '/workflows' },
         { icon: BarChart, label: 'Analytics', path: '/analytics' },
         { icon: Settings, label: 'Settings', path: '/settings' },

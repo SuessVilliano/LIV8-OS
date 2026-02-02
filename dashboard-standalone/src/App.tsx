@@ -12,6 +12,7 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Pricing from './pages/Pricing';
+import Studio from './pages/Studio';
 import Sidebar from './components/Sidebar';
 import CrmConnect from './components/CrmConnect';
 import GhlOnboarding from './components/GhlOnboarding';
@@ -121,6 +122,7 @@ function App() {
               <Route path="/staff" element={isCoreActive ? <Staff /> : <Navigate to="/login" replace />} />
               <Route path="/brand" element={isCoreActive ? <Brand /> : <Navigate to="/login" replace />} />
               <Route path="/workflows" element={isCoreActive ? <Workflows /> : <Navigate to="/login" replace />} />
+              <Route path="/studio" element={isCoreActive ? <Studio /> : <Navigate to="/login" replace />} />
               <Route path="/analytics" element={isCoreActive ? <Analytics /> : <Navigate to="/login" replace />} />
               <Route path="/settings" element={isCoreActive ? <Settings /> : <Navigate to="/login" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
