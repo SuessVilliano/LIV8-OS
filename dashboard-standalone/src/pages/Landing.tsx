@@ -31,11 +31,11 @@ const FALLBACK_PLANS = {
     {
       id: 'starter',
       name: 'Starter',
-      description: 'Perfect for getting started with AI automation',
+      description: 'Perfect for solopreneurs getting started',
       priceMonthly: 47,
       priceYearly: 470,
       features: [
-        '1 GHL Sub-Account',
+        '1 Business Workspace',
         '500 AI Credits/month',
         'Basic AI Staff (2 agents)',
         'Content Scheduling',
@@ -49,7 +49,7 @@ const FALLBACK_PLANS = {
       priceMonthly: 97,
       priceYearly: 970,
       features: [
-        '5 GHL Sub-Accounts',
+        '5 Business Workspaces',
         '2,000 AI Credits/month',
         'Full AI Staff Suite (5 agents)',
         'Advanced Analytics',
@@ -61,11 +61,11 @@ const FALLBACK_PLANS = {
     {
       id: 'business',
       name: 'Business',
-      description: 'Complete solution for growing businesses',
+      description: 'Complete solution for growing teams',
       priceMonthly: 197,
       priceYearly: 1970,
       features: [
-        '15 GHL Sub-Accounts',
+        '15 Business Workspaces',
         '5,000 AI Credits/month',
         'Unlimited AI Staff',
         'White-label Options',
@@ -82,7 +82,7 @@ const FALLBACK_PLANS = {
       priceMonthly: 297,
       priceYearly: 2970,
       features: [
-        '25 GHL Sub-Accounts',
+        '25 Client Workspaces',
         '10,000 AI Credits/month',
         'Full AI Staff Suite',
         'Client Dashboard',
@@ -97,7 +97,7 @@ const FALLBACK_PLANS = {
       priceMonthly: 497,
       priceYearly: 4970,
       features: [
-        '50 GHL Sub-Accounts',
+        '50 Client Workspaces',
         '25,000 AI Credits/month',
         'Unlimited AI Staff',
         'Full White-label Suite',
@@ -113,7 +113,7 @@ const FALLBACK_PLANS = {
       priceMonthly: 997,
       priceYearly: 9970,
       features: [
-        'Unlimited Sub-Accounts',
+        'Unlimited Workspaces',
         'Unlimited AI Credits',
         'Custom AI Training',
         'SLA Guarantee',
@@ -211,8 +211,8 @@ const Landing = () => {
   const howItWorks = [
     {
       step: "1",
-      title: "Connect Your GHL Account",
-      description: "One-click integration with your GoHighLevel account. We sync your contacts, pipelines, and workflows instantly.",
+      title: "Connect Your Tools",
+      description: "Integrate with your CRM, email, social media, and other tools. One-click setup syncs your data instantly.",
       icon: Zap
     },
     {
@@ -241,28 +241,28 @@ const Landing = () => {
     { icon: MessageSquare, title: 'Smart Conversations', description: 'AI-driven customer engagement across all channels simultaneously' },
     { icon: Calendar, title: 'Content Scheduling', description: 'Plan and automate your entire social media presence effortlessly' },
     { icon: BarChart3, title: 'Deep Analytics', description: 'Real-time insights into your business performance and AI effectiveness' },
-    { icon: Zap, title: 'GHL Integration', description: 'Seamlessly connects with your GoHighLevel account in one click' },
+    { icon: Zap, title: 'CRM Integration', description: 'Connect with GoHighLevel, Vbout, HubSpot, and more in one click' },
     { icon: Shield, title: 'Enterprise Security', description: 'Bank-level encryption and SOC2 compliant data protection' },
     { icon: Target, title: 'Lead Scoring', description: 'AI automatically scores and prioritizes your hottest leads' },
   ];
 
   const testimonials = [
     {
-      quote: "LIV8 OS transformed how we run our agency. We've 3x'd our client capacity without adding staff.",
+      quote: "LIV8 OS transformed my real estate business. I close 3x more deals while spending less time on follow-ups.",
+      author: "Marcus J.",
+      role: "Real Estate Agent",
+      rating: 5
+    },
+    {
+      quote: "The AI staff handles all my client onboarding and content creation. It's like having a full team for a fraction of the cost.",
       author: "Sarah M.",
-      role: "Agency Owner",
+      role: "Business Coach",
       rating: 5
     },
     {
-      quote: "The AI staff feature alone saves us 20+ hours per week. It's like having a team that never sleeps.",
-      author: "Mike R.",
-      role: "Marketing Director",
-      rating: 5
-    },
-    {
-      quote: "Finally, an AI tool that actually integrates with GHL properly. Game changer for our workflows.",
-      author: "Jessica T.",
-      role: "Operations Manager",
+      quote: "As an insurance agent, follow-up is everything. LIV8's AI never misses a lead. My conversion rate doubled.",
+      author: "David K.",
+      role: "Insurance Agent",
       rating: 5
     }
   ];
@@ -295,17 +295,17 @@ const Landing = () => {
         <div className="max-w-5xl mx-auto">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 rounded-full text-blue-400 text-sm font-semibold mb-8 border border-blue-500/30">
             <Sparkles className="h-4 w-4" />
-            AI-Powered Business Operating System for GHL
+            AI-Powered Business Operating System
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-black mb-6 leading-tight">
-            Stop Working <span className="text-slate-500">IN</span> Your Business.{' '}
+            Your Business.{' '}
             <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Let AI Work FOR You.
+              Powered by AI Agents.
             </span>
           </h1>
           <p className="text-lg md:text-xl text-slate-400 mb-10 max-w-3xl mx-auto">
             Deploy AI staff that handles lead follow-up, content creation, and customer support 24/7.
-            Built specifically for GoHighLevel agencies who want to scale without the headcount.
+            Built for entrepreneurs, agents, coaches, and business owners ready to scale without the overhead.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
             <button
@@ -344,7 +344,7 @@ const Landing = () => {
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16 text-center">
             <div>
               <div className="text-3xl font-black text-white">500+</div>
-              <div className="text-sm text-slate-400">Agencies Powered</div>
+              <div className="text-sm text-slate-400">Businesses Powered</div>
             </div>
             <div>
               <div className="text-3xl font-black text-white">2M+</div>
@@ -367,7 +367,7 @@ const Landing = () => {
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Sound Familiar?</h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
-            Most GHL agencies hit the same walls. Here's how LIV8 OS breaks through them.
+            Every growing business hits these walls. Here's how LIV8 OS breaks through them.
           </p>
         </div>
         <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
@@ -418,7 +418,7 @@ const Landing = () => {
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need to Scale</h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
-            A complete AI operating system designed specifically for GoHighLevel power users.
+            A complete AI operating system built for modern businesses ready to automate and grow.
           </p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
@@ -437,8 +437,8 @@ const Landing = () => {
       {/* Testimonials */}
       <section className="container mx-auto px-6 py-20 border-t border-white/10">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by GHL Agencies</h2>
-          <p className="text-slate-400">See what our customers are saying</p>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by Business Owners</h2>
+          <p className="text-slate-400">See what entrepreneurs and professionals are saying</p>
         </div>
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {testimonials.map((testimonial, idx) => (
@@ -604,20 +604,20 @@ const Landing = () => {
           <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
           <div className="space-y-6">
             <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-              <h3 className="font-bold mb-2">Do I need a GoHighLevel account?</h3>
-              <p className="text-slate-400">Yes, LIV8 OS is built specifically for GoHighLevel. You'll need an active GHL account to connect and use all features.</p>
+              <h3 className="font-bold mb-2">What CRMs and tools does LIV8 OS integrate with?</h3>
+              <p className="text-slate-400">LIV8 OS integrates with popular CRMs like GoHighLevel, Vbout, HubSpot, and more. We also connect with social media platforms, email providers, and calendar tools.</p>
             </div>
             <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
               <h3 className="font-bold mb-2">How long does setup take?</h3>
-              <p className="text-slate-400">Most users are up and running within 5-10 minutes. Just connect your GHL account, configure your AI agents, and you're ready to go.</p>
+              <p className="text-slate-400">Most users are up and running within 5-10 minutes. Connect your tools, configure your AI agents, and you're ready to automate.</p>
             </div>
             <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
               <h3 className="font-bold mb-2">What are AI Credits?</h3>
               <p className="text-slate-400">AI Credits power your AI staff actions - things like generating content, responding to leads, and running automations. Each plan includes a monthly allocation that resets.</p>
             </div>
             <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-              <h3 className="font-bold mb-2">Can I white-label LIV8 OS for my clients?</h3>
-              <p className="text-slate-400">Yes! Our Agency Growth and Enterprise plans include full white-label capabilities so you can offer LIV8 OS under your own brand.</p>
+              <h3 className="font-bold mb-2">What types of businesses use LIV8 OS?</h3>
+              <p className="text-slate-400">LIV8 OS is used by real estate agents, insurance agents, coaches, consultants, marketing agencies, e-commerce brands, and any business looking to automate operations with AI.</p>
             </div>
           </div>
         </div>
@@ -628,7 +628,7 @@ const Landing = () => {
         <div className="max-w-4xl mx-auto text-center p-12 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-3xl border border-white/10">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Put Your Business on Autopilot?</h2>
           <p className="text-slate-400 mb-8 max-w-2xl mx-auto">
-            Join 500+ agencies already using LIV8 OS to scale their operations.
+            Join 500+ businesses already using LIV8 OS to scale their operations.
             Start your free trial today - no credit card required.
           </p>
           <button

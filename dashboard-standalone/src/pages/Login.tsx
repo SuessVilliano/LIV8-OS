@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Shield, Mail, Lock, Sparkles, ChevronRight, Fingerprint, AlertCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Shield, Mail, Lock, Sparkles, ChevronRight, Fingerprint, AlertCircle, ArrowLeft, Eye, EyeOff, Building2, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { getBackendUrl } from '../services/api';
@@ -7,13 +7,27 @@ import { getBackendUrl } from '../services/api';
 const API_BASE = getBackendUrl();
 
 const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
+    const [mode, setMode] = useState<'signin' | 'signup'>('signin');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [agencyName, setAgencyName] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
     const { config } = useTheme();
     const navigate = useNavigate();
+
+    // Check if coming from pricing page with selected plan
+    const selectedPlan = localStorage.getItem('selectedPlan');
+
+    useEffect(() => {
+        // If user has a selected plan, default to signup mode
+        if (selectedPlan) {
+            setMode('signup');
+        }
+    }, [selectedPlan]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,9 +55,74 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
             }
 
             onLogin();
-            navigate('/dashboard', { replace: true });
+
+            // If there's a selected plan, redirect to checkout
+            if (selectedPlan) {
+                navigate('/checkout', { replace: true });
+            } else {
+                navigate('/dashboard', { replace: true });
+            }
         } catch (err: any) {
             setError(err.message || 'Failed to connect. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSignup = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError(null);
+
+        // Validate passwords match
+        if (password !== confirmPassword) {
+            setError('Passwords do not match');
+            setIsLoading(false);
+            return;
+        }
+
+        // Validate password strength
+        if (password.length < 8) {
+            setError('Password must be at least 8 characters');
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE}/api/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    password,
+                    agencyName: agencyName || `${email.split('@')[0]}'s Business`
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Registration failed');
+            }
+
+            // Store auth token and user info
+            localStorage.setItem('os_token', data.token);
+            localStorage.setItem('os_user', JSON.stringify(data.user));
+
+            setSuccess('Account created successfully!');
+
+            // Brief delay then redirect
+            setTimeout(() => {
+                onLogin();
+                // If there's a selected plan, redirect to checkout
+                if (selectedPlan) {
+                    navigate('/checkout', { replace: true });
+                } else {
+                    navigate('/dashboard', { replace: true });
+                }
+            }, 1000);
+        } catch (err: any) {
+            setError(err.message || 'Failed to create account. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -74,23 +153,72 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                         <h1 className="text-4xl font-black text-white tracking-tighter leading-none">
                             {config?.platformName?.split(' ')[0] || 'LIV8'}<span className="text-blue-400">{config?.platformName?.split(' ')[1] || 'OS'}</span>
                         </h1>
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-[0.3em] mt-3">Command Center Access</p>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-[0.3em] mt-3">
+                            {selectedPlan ? 'Start Your Free Trial' : 'Command Center Access'}
+                        </p>
                     </div>
                 </div>
 
                 {/* Card */}
                 <div className="bg-slate-800/50 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-white/10">
-                    <div className="mb-8 flex items-center gap-3">
+                    {/* Mode Toggle */}
+                    <div className="flex mb-8 p-1 bg-slate-900/50 rounded-xl">
+                        <button
+                            type="button"
+                            onClick={() => { setMode('signin'); setError(null); setSuccess(null); }}
+                            className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                                mode === 'signin'
+                                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            Sign In
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setMode('signup'); setError(null); setSuccess(null); }}
+                            className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                                mode === 'signup'
+                                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            Sign Up
+                        </button>
+                    </div>
+
+                    <div className="mb-6 flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400">
                             <Fingerprint className="h-5 w-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-white">Sign In</h2>
-                            <p className="text-xs text-slate-400">Access your OS dashboard</p>
+                            <h2 className="text-lg font-bold text-white">
+                                {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
+                            </h2>
+                            <p className="text-xs text-slate-400">
+                                {mode === 'signin' ? 'Access your OS dashboard' : 'Start your 14-day free trial'}
+                            </p>
                         </div>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-5">
+                    <form onSubmit={mode === 'signin' ? handleLogin : handleSignup} className="space-y-5">
+                        {/* Agency Name (signup only) */}
+                        {mode === 'signup' && (
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold text-slate-400 ml-1">Business Name</label>
+                                <div className="relative group">
+                                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+                                    <input
+                                        type="text"
+                                        value={agencyName}
+                                        onChange={(e) => setAgencyName(e.target.value)}
+                                        className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-11 py-3.5 text-sm font-medium text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600"
+                                        placeholder="Your Business Name"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <label className="text-xs font-semibold text-slate-400 ml-1">Email Address</label>
                             <div className="relative group">
@@ -100,7 +228,7 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-11 py-3.5 text-sm font-medium text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600"
-                                    placeholder="admin@youragency.com"
+                                    placeholder="you@yourbusiness.com"
                                     required
                                 />
                             </div>
@@ -115,7 +243,7 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-11 py-3.5 pr-12 text-sm font-medium text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600"
-                                    placeholder="••••••••"
+                                    placeholder={mode === 'signup' ? 'Min 8 characters' : '••••••••'}
                                     required
                                 />
                                 <button
@@ -128,13 +256,41 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                                <input type="checkbox" className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900" />
-                                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors">Remember me</span>
-                            </label>
-                            <button type="button" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Forgot password?</button>
-                        </div>
+                        {/* Confirm Password (signup only) */}
+                        {mode === 'signup' && (
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold text-slate-400 ml-1">Confirm Password</label>
+                                <div className="relative group">
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-11 py-3.5 pr-12 text-sm font-medium text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600"
+                                        placeholder="Confirm your password"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {mode === 'signin' && (
+                            <div className="flex items-center justify-between">
+                                <label className="flex items-center gap-2 cursor-pointer group">
+                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900" />
+                                    <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors">Remember me</span>
+                                </label>
+                                <button type="button" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Forgot password?</button>
+                            </div>
+                        )}
+
+                        {/* Success Message */}
+                        {success && (
+                            <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 text-sm">
+                                <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                                <span>{success}</span>
+                            </div>
+                        )}
 
                         {/* Error Message */}
                         {error && (
@@ -152,22 +308,22 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                             {isLoading ? (
                                 <div className="flex items-center gap-2">
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                    Signing in...
+                                    {mode === 'signin' ? 'Signing in...' : 'Creating account...'}
                                 </div>
                             ) : (
-                                <>Sign In <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></>
+                                <>{mode === 'signin' ? 'Sign In' : 'Start Free Trial'} <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></>
                             )}
                         </button>
                     </form>
 
-                    <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
-                        <p className="text-sm text-slate-400">
-                            Don't have an account?{' '}
-                            <button onClick={() => navigate('/')} className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
-                                View Plans
-                            </button>
+                    {mode === 'signup' && (
+                        <p className="mt-4 text-xs text-center text-slate-500">
+                            By signing up, you agree to our{' '}
+                            <a href="/terms" className="text-blue-400 hover:text-blue-300">Terms of Service</a>
+                            {' '}and{' '}
+                            <a href="/privacy" className="text-blue-400 hover:text-blue-300">Privacy Policy</a>
                         </p>
-                    </div>
+                    )}
                 </div>
 
                 <div className="mt-8 text-center">
