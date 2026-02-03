@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
     Target,
     Search,
@@ -16,11 +16,18 @@ import {
     Eye,
     ExternalLink,
     LayoutGrid,
-    List
+    List,
+    RefreshCw,
+    Cloud,
+    CloudOff,
+    CheckCircle
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
 const API_BASE = getBackendUrl();
+
+// Auto-sync interval (5 minutes)
+const SYNC_INTERVAL = 5 * 60 * 1000;
 
 interface Opportunity {
     id: string;
@@ -47,17 +54,87 @@ const Opportunities = () => {
     const [showQuickSMS, setShowQuickSMS] = useState(false);
     const [smsMessage, setSmsMessage] = useState('');
     const [sendingMessage, setSendingMessage] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [crmConnected, setCrmConnected] = useState(false);
+    const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+    const [syncError, setSyncError] = useState<string | null>(null);
+    const [showAddModal, setShowAddModal] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Sample opportunities data
-    const [opportunities, setOpportunities] = useState<Opportunity[]>([
-        { id: '1', name: 'James Wilson', email: 'james@example.com', phone: '+1 555-0101', value: 2400, sentiment: 'Highly Interested', status: 'Hot', lastAction: 'AI Receptionist Handled Call', lastActionTime: '2h ago', source: 'Website Form', notes: 'Ready to close, needs pricing sheet', tags: ['priority', 'enterprise'] },
-        { id: '2', name: 'Sarah Chen', email: 'sarah@example.com', phone: '+1 555-0102', value: 4800, sentiment: 'Questioning Pricing', status: 'Warm', lastAction: 'Recovery Agent Sent SMS', lastActionTime: '4h ago', source: 'Referral', notes: 'Follow up with case study', tags: ['follow-up'] },
-        { id: '3', name: 'Mike Ross', email: 'mike@example.com', phone: '+1 555-0103', value: 1200, sentiment: 'Ready to Book', status: 'Hot', lastAction: 'Appointment Setter Mapping Calendar', lastActionTime: '1h ago', source: 'LinkedIn', notes: 'Prefers afternoon calls', tags: ['priority'] },
-        { id: '4', name: 'Elena Rodriguez', email: 'elena@example.com', phone: '+1 555-0104', value: 3500, sentiment: 'Busy / Follow-up', status: 'Cold', lastAction: 'System Monitoring Active', lastActionTime: '1d ago', source: 'Cold Outreach', notes: 'CEO, decision maker', tags: ['executive'] },
-        { id: '5', name: 'David Kim', email: 'david@example.com', phone: '+1 555-0105', value: 6200, sentiment: 'Negotiating', status: 'Warm', lastAction: 'Proposal Sent', lastActionTime: '3h ago', source: 'Trade Show', notes: 'Wants custom package', tags: ['enterprise', 'custom'] },
-        { id: '6', name: 'Lisa Park', email: 'lisa@example.com', phone: '+1 555-0106', value: 8500, sentiment: 'Contract Review', status: 'Hot', lastAction: 'Contract Uploaded', lastActionTime: '30m ago', source: 'Partner Referral', notes: 'Legal review in progress', tags: ['closing', 'enterprise'] },
-    ]);
+    // Opportunities data - initially empty, populated from CRM
+    const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+
+    // Sync opportunities from CRM
+    const syncFromCRM = useCallback(async (showLoading = true) => {
+        if (showLoading) setIsSyncing(true);
+        setSyncError(null);
+
+        try {
+            const token = localStorage.getItem('os_token');
+            const response = await fetch(`${API_BASE}/api/opportunities/sync`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to sync opportunities');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Map the API response to our Opportunity interface
+                const mappedOpps: Opportunity[] = data.opportunities.map((opp: any) => ({
+                    id: opp.id,
+                    name: opp.name,
+                    email: opp.email || '',
+                    phone: opp.phone || '',
+                    value: opp.value || 0,
+                    sentiment: opp.sentiment || 'Unknown',
+                    status: opp.status as Opportunity['status'],
+                    lastAction: opp.lastAction || 'Synced from CRM',
+                    lastActionTime: opp.lastActionTime || 'Just now',
+                    source: opp.source || 'CRM',
+                    notes: opp.notes || '',
+                    tags: opp.tags || []
+                }));
+
+                setOpportunities(mappedOpps);
+                setCrmConnected(data.crmConnected);
+                setLastSyncTime(new Date());
+            }
+
+        } catch (error: any) {
+            console.error('Failed to sync opportunities:', error);
+            setSyncError(error.message);
+
+            // Fall back to demo data on error
+            setOpportunities([
+                { id: '1', name: 'James Wilson', email: 'james@example.com', phone: '+1 555-0101', value: 2400, sentiment: 'Highly Interested', status: 'Hot', lastAction: 'AI Receptionist Handled Call', lastActionTime: '2h ago', source: 'Website Form', notes: 'Ready to close, needs pricing sheet', tags: ['priority', 'enterprise'] },
+                { id: '2', name: 'Sarah Chen', email: 'sarah@example.com', phone: '+1 555-0102', value: 4800, sentiment: 'Questioning Pricing', status: 'Warm', lastAction: 'Recovery Agent Sent SMS', lastActionTime: '4h ago', source: 'Referral', notes: 'Follow up with case study', tags: ['follow-up'] },
+                { id: '3', name: 'Mike Ross', email: 'mike@example.com', phone: '+1 555-0103', value: 1200, sentiment: 'Ready to Book', status: 'Hot', lastAction: 'Appointment Setter Mapping Calendar', lastActionTime: '1h ago', source: 'LinkedIn', notes: 'Prefers afternoon calls', tags: ['priority'] },
+                { id: '4', name: 'Elena Rodriguez', email: 'elena@example.com', phone: '+1 555-0104', value: 3500, sentiment: 'Busy / Follow-up', status: 'Cold', lastAction: 'System Monitoring Active', lastActionTime: '1d ago', source: 'Cold Outreach', notes: 'CEO, decision maker', tags: ['executive'] },
+                { id: '5', name: 'David Kim', email: 'david@example.com', phone: '+1 555-0105', value: 6200, sentiment: 'Negotiating', status: 'Warm', lastAction: 'Proposal Sent', lastActionTime: '3h ago', source: 'Trade Show', notes: 'Wants custom package', tags: ['enterprise', 'custom'] },
+                { id: '6', name: 'Lisa Park', email: 'lisa@example.com', phone: '+1 555-0106', value: 8500, sentiment: 'Contract Review', status: 'Hot', lastAction: 'Contract Uploaded', lastActionTime: '30m ago', source: 'Partner Referral', notes: 'Legal review in progress', tags: ['closing', 'enterprise'] },
+            ]);
+        } finally {
+            setIsSyncing(false);
+        }
+    }, []);
+
+    // Initial sync and auto-refresh
+    useEffect(() => {
+        syncFromCRM();
+
+        // Set up auto-sync interval
+        const syncInterval = setInterval(() => {
+            syncFromCRM(false); // Don't show loading on auto-sync
+        }, SYNC_INTERVAL);
+
+        return () => clearInterval(syncInterval);
+    }, [syncFromCRM]);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -235,15 +312,46 @@ const Opportunities = () => {
                     <div>
                         <p className="text-[10px] font-black text-neuro uppercase tracking-[0.3em] mb-3 flex items-center gap-2">
                             <Target className="h-3 w-3" /> Revenue Orchestration
+                            {crmConnected ? (
+                                <span className="flex items-center gap-1 text-emerald-500 ml-2">
+                                    <Cloud className="h-3 w-3" /> CRM Connected
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1 text-amber-500 ml-2">
+                                    <CloudOff className="h-3 w-3" /> Demo Mode
+                                </span>
+                            )}
                         </p>
                         <h1 className="text-5xl font-black text-[var(--os-text)] tracking-tighter leading-none uppercase italic">
                             Opportunities <span className="text-neuro">Pipeline</span>
                         </h1>
-                        <p className="text-[var(--os-text-muted)] text-xs font-bold mt-4">Leads categorized and nurtured via real-time neural sentiment detection.</p>
+                        <div className="flex items-center gap-4 mt-4">
+                            <p className="text-[var(--os-text-muted)] text-xs font-bold">Leads categorized and nurtured via real-time neural sentiment detection.</p>
+                            {lastSyncTime && (
+                                <span className="text-[10px] text-[var(--os-text-muted)]">
+                                    Last sync: {lastSyncTime.toLocaleTimeString()}
+                                </span>
+                            )}
+                        </div>
                     </div>
-                    <button className="h-12 px-6 bg-neuro text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-neuro/20 flex items-center gap-2 hover:scale-105 transition-transform">
-                        <Plus className="h-4 w-4" /> Add Lead
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => syncFromCRM()}
+                            disabled={isSyncing}
+                            className={`h-12 px-5 border border-[var(--os-border)] rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${
+                                isSyncing ? 'opacity-50' : 'hover:border-neuro hover:text-neuro'
+                            }`}
+                        >
+                            <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                            {isSyncing ? 'Syncing...' : 'Sync CRM'}
+                        </button>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="h-12 px-6 bg-neuro text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-neuro/20 flex items-center gap-2 hover:scale-105 transition-transform"
+                        >
+                            <Plus className="h-4 w-4" /> Add Lead
+                        </button>
+                    </div>
                 </header>
 
                 {/* Filters & View Toggle */}
@@ -564,6 +672,183 @@ const Opportunities = () => {
                     </div>
                 </div>
             )}
+
+            {/* Add Lead Modal */}
+            {showAddModal && (
+                <AddLeadModal
+                    onClose={() => setShowAddModal(false)}
+                    onAdd={async (newLead) => {
+                        try {
+                            const token = localStorage.getItem('os_token');
+                            const response = await fetch(`${API_BASE}/api/opportunities`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(newLead)
+                            });
+
+                            if (response.ok) {
+                                // Refresh opportunities after adding
+                                await syncFromCRM();
+                                setShowAddModal(false);
+                            }
+                        } catch (error) {
+                            console.error('Failed to add lead:', error);
+                        }
+                    }}
+                />
+            )}
+
+            {/* Sync Error Toast */}
+            {syncError && (
+                <div className="fixed bottom-6 right-6 bg-red-500/90 text-white px-6 py-4 rounded-2xl shadow-lg z-50 flex items-center gap-3">
+                    <span className="text-sm font-bold">{syncError}</span>
+                    <button onClick={() => setSyncError(null)} className="p-1 hover:bg-white/20 rounded">
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Add Lead Modal Component
+const AddLeadModal = ({ onClose, onAdd }: {
+    onClose: () => void;
+    onAdd: (lead: { name: string; email: string; phone: string; value: number; source: string; tags: string[] }) => Promise<void>;
+}) => {
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        value: '',
+        source: '',
+        tags: ''
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.name || !formData.email) return;
+
+        setIsSubmitting(true);
+        await onAdd({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            value: parseFloat(formData.value) || 0,
+            source: formData.source || 'Manual Entry',
+            tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean)
+        });
+        setIsSubmitting(false);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-lg bg-[var(--os-surface)] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="p-5 border-b border-[var(--os-border)] flex items-center justify-between bg-[var(--os-bg)]">
+                    <div className="flex items-center gap-3">
+                        <Plus className="h-5 w-5 text-neuro" />
+                        <h3 className="text-sm font-black uppercase">Add New Lead</h3>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--os-surface)] rounded-lg">
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2">Name *</label>
+                            <input
+                                type="text"
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                placeholder="John Doe"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2">Email *</label>
+                            <input
+                                type="email"
+                                value={formData.email}
+                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                placeholder="john@example.com"
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2">Phone</label>
+                            <input
+                                type="tel"
+                                value={formData.phone}
+                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                placeholder="+1 555-0100"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2">Deal Value ($)</label>
+                            <input
+                                type="number"
+                                value={formData.value}
+                                onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                placeholder="1000"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2">Source</label>
+                        <select
+                            value={formData.source}
+                            onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                            className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                        >
+                            <option value="">Select source...</option>
+                            <option value="Website Form">Website Form</option>
+                            <option value="Referral">Referral</option>
+                            <option value="LinkedIn">LinkedIn</option>
+                            <option value="Cold Outreach">Cold Outreach</option>
+                            <option value="Trade Show">Trade Show</option>
+                            <option value="Partner">Partner</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2">Tags (comma-separated)</label>
+                        <input
+                            type="text"
+                            value={formData.tags}
+                            onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                            className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                            placeholder="priority, enterprise, follow-up"
+                        />
+                    </div>
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--os-border)]">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="h-10 px-6 border border-[var(--os-border)] rounded-xl font-bold text-xs uppercase tracking-widest hover:border-neuro transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSubmitting || !formData.name || !formData.email}
+                            className="h-10 px-6 bg-neuro text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 disabled:opacity-50 hover:scale-105 transition-all"
+                        >
+                            {isSubmitting ? 'Adding...' : <><CheckCircle className="h-4 w-4" /> Add Lead</>}
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 };

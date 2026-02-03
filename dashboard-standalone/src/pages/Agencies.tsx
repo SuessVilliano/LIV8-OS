@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
     Users,
     Search,
@@ -19,21 +19,55 @@ import {
     Pause,
     Play,
     LayoutGrid,
-    List
+    List,
+    Shield,
+    CheckCircle,
+    AlertCircle,
+    Settings,
+    Brain
 } from 'lucide-react';
+import { getBackendUrl } from '../services/api';
+
+const API_BASE = getBackendUrl();
+
+interface AgencyPermissions {
+    canAccessAnalytics: boolean;
+    canManageStaff: boolean;
+    canEditBrandBrain: boolean;
+    canAccessStudio: boolean;
+    canManageOpportunities: boolean;
+    canAccessWorkflows: boolean;
+    maxLocations: number;
+    maxAiStaff: number;
+}
 
 interface Agency {
     id: string;
     name: string;
     locations: number;
-    status: 'Active' | 'Provisioning' | 'Paused';
+    status: 'Active' | 'Provisioning' | 'Paused' | 'Error';
     health: number;
     region: string;
     email: string;
     phone: string;
     aiStaffCount: number;
     createdAt: string;
+    ghlLocationId?: string;
+    vboutAccountId?: string;
+    permissions?: AgencyPermissions;
+    brandBrainId?: string;
 }
+
+const DEFAULT_PERMISSIONS: AgencyPermissions = {
+    canAccessAnalytics: true,
+    canManageStaff: true,
+    canEditBrandBrain: true,
+    canAccessStudio: true,
+    canManageOpportunities: true,
+    canAccessWorkflows: true,
+    maxLocations: 10,
+    maxAiStaff: 5
+};
 
 const Agencies = () => {
     const [statusFilter, setStatusFilter] = useState('All');
@@ -43,15 +77,156 @@ const Agencies = () => {
     const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [showOnboardModal, setShowOnboardModal] = useState(false);
+    const [showPermissionsModal, setShowPermissionsModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(true);
+    const [isProvisioning, setIsProvisioning] = useState(false);
+    const [provisioningStatus, setProvisioningStatus] = useState<{ task: string; success: boolean; message?: string }[]>([]);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    const [agencies, setAgencies] = useState<Agency[]>([
-        { id: '1', name: 'Solar Pro Systems', locations: 8, status: 'Active', health: 98, region: 'Global', email: 'admin@solarpro.com', phone: '+1 555-0201', aiStaffCount: 4, createdAt: '2025-11-15' },
-        { id: '2', name: 'LIV8 Real Estate', locations: 14, status: 'Active', health: 92, region: 'North America', email: 'ops@liv8re.com', phone: '+1 555-0202', aiStaffCount: 6, createdAt: '2025-10-20' },
-        { id: '3', name: 'Dental Growth Lab', locations: 5, status: 'Provisioning', health: 0, region: 'Europe', email: 'team@dentalgrowth.com', phone: '+44 20 1234 5678', aiStaffCount: 2, createdAt: '2026-01-28' },
-        { id: '4', name: 'Elite HVAC Ops', locations: 12, status: 'Active', health: 95, region: 'Global', email: 'support@elitehvac.com', phone: '+1 555-0204', aiStaffCount: 5, createdAt: '2025-09-05' },
-    ]);
+    const [agencies, setAgencies] = useState<Agency[]>([]);
+
+    // Fetch agencies from API
+    const fetchAgencies = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('os_token');
+            const response = await fetch(`${API_BASE}/api/agency/list`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    setAgencies(data.agencies);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch agencies:', error);
+            // Use demo data on error
+            setAgencies([
+                { id: '1', name: 'Solar Pro Systems', locations: 8, status: 'Active', health: 98, region: 'Global', email: 'admin@solarpro.com', phone: '+1 555-0201', aiStaffCount: 4, createdAt: '2025-11-15', permissions: DEFAULT_PERMISSIONS },
+                { id: '2', name: 'LIV8 Real Estate', locations: 14, status: 'Active', health: 92, region: 'North America', email: 'ops@liv8re.com', phone: '+1 555-0202', aiStaffCount: 6, createdAt: '2025-10-20', permissions: DEFAULT_PERMISSIONS },
+                { id: '3', name: 'Dental Growth Lab', locations: 5, status: 'Provisioning', health: 0, region: 'Europe', email: 'team@dentalgrowth.com', phone: '+44 20 1234 5678', aiStaffCount: 2, createdAt: '2026-01-28', permissions: DEFAULT_PERMISSIONS },
+                { id: '4', name: 'Elite HVAC Ops', locations: 12, status: 'Active', health: 95, region: 'Global', email: 'support@elitehvac.com', phone: '+1 555-0204', aiStaffCount: 5, createdAt: '2025-09-05', permissions: DEFAULT_PERMISSIONS },
+            ]);
+        } finally {
+            setIsFetching(false);
+        }
+    }, []);
+
+    // Initial fetch
+    useEffect(() => {
+        fetchAgencies();
+    }, [fetchAgencies]);
+
+    // Provision new agency
+    const provisionAgency = async (agencyData: {
+        name: string;
+        email: string;
+        phone: string;
+        region: string;
+        ghlLocationId?: string;
+        syncBrandBrain?: boolean;
+    }) => {
+        setIsProvisioning(true);
+        setProvisioningStatus([]);
+
+        try {
+            const token = localStorage.getItem('os_token');
+            const response = await fetch(`${API_BASE}/api/agency/provision`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ...agencyData,
+                    permissions: DEFAULT_PERMISSIONS
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setProvisioningStatus(data.provisioning?.tasks || []);
+
+                // Add to local list
+                const newAgency: Agency = {
+                    id: data.agency.id,
+                    name: data.agency.name,
+                    email: data.agency.email,
+                    phone: data.agency.phone || '',
+                    region: data.agency.region,
+                    locations: 0,
+                    status: data.agency.status,
+                    health: data.agency.health,
+                    aiStaffCount: 0,
+                    createdAt: new Date().toISOString().split('T')[0],
+                    permissions: data.agency.permissions || DEFAULT_PERMISSIONS
+                };
+
+                setAgencies(prev => [newAgency, ...prev]);
+
+                // Close modal after short delay to show success
+                setTimeout(() => {
+                    setShowOnboardModal(false);
+                    setProvisioningStatus([]);
+                }, 2000);
+            } else {
+                setProvisioningStatus([{ task: 'provisioning', success: false, message: data.error }]);
+            }
+        } catch (error: any) {
+            setProvisioningStatus([{ task: 'provisioning', success: false, message: error.message }]);
+        } finally {
+            setIsProvisioning(false);
+        }
+    };
+
+    // Update agency permissions
+    const updatePermissions = async (agencyId: string, permissions: AgencyPermissions) => {
+        try {
+            const token = localStorage.getItem('os_token');
+            await fetch(`${API_BASE}/api/agency/${agencyId}/permissions`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ permissions })
+            });
+
+            // Update local state
+            setAgencies(prev => prev.map(a =>
+                a.id === agencyId ? { ...a, permissions } : a
+            ));
+
+            setShowPermissionsModal(false);
+        } catch (error) {
+            console.error('Failed to update permissions:', error);
+        }
+    };
+
+    // Sync Brand Brain to agency
+    const syncBrandBrain = async (agencyId: string) => {
+        try {
+            const token = localStorage.getItem('os_token');
+            await fetch(`${API_BASE}/api/agency/${agencyId}/sync-brand-brain`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            // Show success feedback
+            alert('Brand Brain synced to agency successfully!');
+        } catch (error) {
+            console.error('Failed to sync Brand Brain:', error);
+        }
+    };
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -71,34 +246,74 @@ const Agencies = () => {
         return matchesFilter && matchesSearch;
     });
 
-    const handleAction = (action: string, agency: Agency) => {
+    const handleAction = async (action: string, agency: Agency) => {
         setActiveMenu(null);
         setSelectedAgency(agency);
+
+        const token = localStorage.getItem('os_token');
 
         switch (action) {
             case 'view':
                 setShowDetailModal(true);
                 break;
             case 'ghl':
-                window.open(`https://app.gohighlevel.com/location/${agency.id}`, '_blank');
+                window.open(`https://app.gohighlevel.com/location/${agency.ghlLocationId || agency.id}`, '_blank');
+                break;
+            case 'permissions':
+                setShowPermissionsModal(true);
+                break;
+            case 'sync-brain':
+                await syncBrandBrain(agency.id);
                 break;
             case 'pause':
+                const newStatus = agency.status === 'Paused' ? 'Active' : 'Paused';
+                try {
+                    await fetch(`${API_BASE}/api/agency/${agency.id}/status`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                } catch (e) {
+                    console.error('Failed to update status:', e);
+                }
                 setAgencies(prev => prev.map(a =>
-                    a.id === agency.id ? { ...a, status: a.status === 'Paused' ? 'Active' : 'Paused' } : a
+                    a.id === agency.id ? { ...a, status: newStatus as Agency['status'] } : a
                 ));
                 break;
             case 'refresh':
                 // Refresh agency health
                 setIsLoading(true);
-                setTimeout(() => {
+                try {
+                    const response = await fetch(`${API_BASE}/api/agency/${agency.id}/health`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        setAgencies(prev => prev.map(a =>
+                            a.id === agency.id ? { ...a, health: data.health.overallHealth } : a
+                        ));
+                    }
+                } catch (e) {
+                    // Fallback to simulated health increase
                     setAgencies(prev => prev.map(a =>
                         a.id === agency.id ? { ...a, health: Math.min(100, a.health + 5) } : a
                     ));
-                    setIsLoading(false);
-                }, 1000);
+                }
+                setIsLoading(false);
                 break;
             case 'delete':
                 if (confirm(`Are you sure you want to remove ${agency.name}?`)) {
+                    try {
+                        await fetch(`${API_BASE}/api/agency/${agency.id}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                    } catch (e) {
+                        console.error('Failed to delete agency:', e);
+                    }
                     setAgencies(prev => prev.filter(a => a.id !== agency.id));
                 }
                 break;
@@ -141,6 +356,18 @@ const Agencies = () => {
                             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-bold hover:bg-neuro/10 hover:text-neuro transition-all"
                         >
                             <ExternalLink className="h-4 w-4" /> Open in GHL
+                        </button>
+                        <button
+                            onClick={() => handleAction('permissions', agency)}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-bold hover:bg-violet-500/10 hover:text-violet-500 transition-all"
+                        >
+                            <Shield className="h-4 w-4" /> Manage Permissions
+                        </button>
+                        <button
+                            onClick={() => handleAction('sync-brain', agency)}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-bold hover:bg-cyan-500/10 hover:text-cyan-500 transition-all"
+                        >
+                            <Brain className="h-4 w-4" /> Sync Brand Brain
                         </button>
                         <button
                             onClick={() => handleAction('refresh', agency)}
@@ -422,7 +649,7 @@ const Agencies = () => {
                                 <Plus className="h-5 w-5 text-neuro" />
                                 <h3 className="text-lg font-black uppercase">Onboard New Agency</h3>
                             </div>
-                            <button onClick={() => setShowOnboardModal(false)} className="p-2 hover:bg-[var(--os-bg)] rounded-lg">
+                            <button onClick={() => { setShowOnboardModal(false); setProvisioningStatus([]); }} className="p-2 hover:bg-[var(--os-bg)] rounded-lg">
                                 <X className="h-5 w-5" />
                             </button>
                         </div>
@@ -430,40 +657,36 @@ const Agencies = () => {
                             onSubmit={(e) => {
                                 e.preventDefault();
                                 const formData = new FormData(e.target as HTMLFormElement);
-                                const newAgency: Agency = {
-                                    id: String(Date.now()),
+                                provisionAgency({
                                     name: formData.get('name') as string,
                                     email: formData.get('email') as string,
                                     phone: formData.get('phone') as string,
                                     region: formData.get('region') as string,
-                                    locations: 0,
-                                    status: 'Provisioning',
-                                    health: 0,
-                                    aiStaffCount: 0,
-                                    createdAt: new Date().toISOString().split('T')[0]
-                                };
-                                setAgencies(prev => [newAgency, ...prev]);
-                                setShowOnboardModal(false);
+                                    ghlLocationId: formData.get('ghlLocationId') as string || undefined,
+                                    syncBrandBrain: formData.get('syncBrandBrain') === 'on'
+                                });
                             }}
                             className="p-6 space-y-4"
                         >
                             <div>
-                                <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Agency Name</label>
+                                <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Agency Name *</label>
                                 <input
                                     name="name"
                                     required
-                                    className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                    disabled={isProvisioning}
+                                    className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none disabled:opacity-50"
                                     placeholder="e.g. Elite Marketing Co"
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Email</label>
+                                    <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Email *</label>
                                     <input
                                         name="email"
                                         type="email"
                                         required
-                                        className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                        disabled={isProvisioning}
+                                        className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none disabled:opacity-50"
                                         placeholder="admin@agency.com"
                                     />
                                 </div>
@@ -471,34 +694,206 @@ const Agencies = () => {
                                     <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Phone</label>
                                     <input
                                         name="phone"
-                                        required
-                                        className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                        disabled={isProvisioning}
+                                        className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none disabled:opacity-50"
                                         placeholder="+1 555-0000"
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Region</label>
-                                <select
-                                    name="region"
-                                    className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
-                                >
-                                    <option>North America</option>
-                                    <option>Europe</option>
-                                    <option>Asia Pacific</option>
-                                    <option>Global</option>
-                                </select>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Region</label>
+                                    <select
+                                        name="region"
+                                        disabled={isProvisioning}
+                                        className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none disabled:opacity-50"
+                                    >
+                                        <option>North America</option>
+                                        <option>Europe</option>
+                                        <option>Asia Pacific</option>
+                                        <option>Global</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">GHL Location ID</label>
+                                    <input
+                                        name="ghlLocationId"
+                                        disabled={isProvisioning}
+                                        className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none disabled:opacity-50"
+                                        placeholder="Optional"
+                                    />
+                                </div>
                             </div>
+
+                            <div className="flex items-center gap-3 p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)]">
+                                <input
+                                    type="checkbox"
+                                    name="syncBrandBrain"
+                                    id="syncBrandBrain"
+                                    defaultChecked
+                                    disabled={isProvisioning}
+                                    className="w-4 h-4 rounded border-[var(--os-border)] text-neuro focus:ring-neuro"
+                                />
+                                <label htmlFor="syncBrandBrain" className="flex-1">
+                                    <span className="text-sm font-bold">Sync Brand Brain</span>
+                                    <span className="text-[10px] text-[var(--os-text-muted)] block">Clone your brand context to this agency</span>
+                                </label>
+                                <Brain className="h-5 w-5 text-neuro" />
+                            </div>
+
+                            {/* Provisioning Status */}
+                            {provisioningStatus.length > 0 && (
+                                <div className="space-y-2 p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)]">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-3">Provisioning Status</div>
+                                    {provisioningStatus.map((status, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 text-sm">
+                                            {status.success ? (
+                                                <CheckCircle className="h-4 w-4 text-emerald-500" />
+                                            ) : (
+                                                <AlertCircle className="h-4 w-4 text-red-500" />
+                                            )}
+                                            <span className={status.success ? 'text-emerald-500' : 'text-red-500'}>
+                                                {status.task}: {status.success ? 'Success' : status.message || 'Failed'}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             <button
                                 type="submit"
-                                className="w-full h-12 bg-neuro text-white rounded-xl font-black text-xs uppercase tracking-widest mt-4 hover:scale-[1.02] transition-transform"
+                                disabled={isProvisioning}
+                                className="w-full h-12 bg-neuro text-white rounded-xl font-black text-xs uppercase tracking-widest mt-4 hover:scale-[1.02] transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
                             >
-                                Start Provisioning
+                                {isProvisioning ? (
+                                    <>
+                                        <RefreshCw className="h-4 w-4 animate-spin" /> Provisioning...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus className="h-4 w-4" /> Start Provisioning
+                                    </>
+                                )}
                             </button>
                         </form>
                     </div>
                 </div>
             )}
+
+            {/* Permissions Modal */}
+            {showPermissionsModal && selectedAgency && (
+                <PermissionsModal
+                    agency={selectedAgency}
+                    onClose={() => setShowPermissionsModal(false)}
+                    onSave={(permissions) => updatePermissions(selectedAgency.id, permissions)}
+                />
+            )}
+        </div>
+    );
+};
+
+// Permissions Modal Component
+const PermissionsModal = ({
+    agency,
+    onClose,
+    onSave
+}: {
+    agency: Agency;
+    onClose: () => void;
+    onSave: (permissions: AgencyPermissions) => void;
+}) => {
+    const [permissions, setPermissions] = useState<AgencyPermissions>(
+        agency.permissions || DEFAULT_PERMISSIONS
+    );
+
+    const togglePermission = (key: keyof AgencyPermissions) => {
+        if (typeof permissions[key] === 'boolean') {
+            setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-lg bg-[var(--os-surface)] rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-[var(--os-border)] flex items-center justify-between bg-[var(--os-bg)]">
+                    <div className="flex items-center gap-3">
+                        <Shield className="h-5 w-5 text-violet-500" />
+                        <div>
+                            <h3 className="text-lg font-black uppercase">Manage Permissions</h3>
+                            <p className="text-[10px] text-[var(--os-text-muted)]">{agency.name}</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--os-surface)] rounded-lg">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div className="space-y-3">
+                        {[
+                            { key: 'canAccessAnalytics', label: 'Access Analytics', desc: 'View performance metrics and reports' },
+                            { key: 'canManageStaff', label: 'Manage AI Staff', desc: 'Create and configure AI agents' },
+                            { key: 'canEditBrandBrain', label: 'Edit Brand Brain', desc: 'Modify brand context and knowledge' },
+                            { key: 'canAccessStudio', label: 'Access Studio', desc: 'Use content creation tools' },
+                            { key: 'canManageOpportunities', label: 'Manage Opportunities', desc: 'View and edit pipeline' },
+                            { key: 'canAccessWorkflows', label: 'Access Workflows', desc: 'Create and run automations' },
+                        ].map(({ key, label, desc }) => (
+                            <div
+                                key={key}
+                                onClick={() => togglePermission(key as keyof AgencyPermissions)}
+                                className="flex items-center gap-4 p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)] cursor-pointer hover:border-violet-500/30 transition-all"
+                            >
+                                <div className={`w-10 h-6 rounded-full transition-colors ${
+                                    permissions[key as keyof AgencyPermissions] ? 'bg-violet-500' : 'bg-[var(--os-border)]'
+                                }`}>
+                                    <div className={`w-5 h-5 rounded-full bg-white shadow mt-0.5 transition-transform ${
+                                        permissions[key as keyof AgencyPermissions] ? 'translate-x-[18px]' : 'translate-x-0.5'
+                                    }`} />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-sm font-bold">{label}</div>
+                                    <div className="text-[10px] text-[var(--os-text-muted)]">{desc}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[var(--os-border)]">
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Max Locations</label>
+                            <input
+                                type="number"
+                                value={permissions.maxLocations}
+                                onChange={(e) => setPermissions(prev => ({ ...prev, maxLocations: parseInt(e.target.value) || 0 }))}
+                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-violet-500 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest mb-2 block">Max AI Staff</label>
+                            <input
+                                type="number"
+                                value={permissions.maxAiStaff}
+                                onChange={(e) => setPermissions(prev => ({ ...prev, maxAiStaff: parseInt(e.target.value) || 0 }))}
+                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-violet-500 outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-4">
+                        <button
+                            onClick={onClose}
+                            className="h-10 px-6 border border-[var(--os-border)] rounded-xl font-bold text-xs uppercase tracking-widest hover:border-violet-500 transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={() => onSave(permissions)}
+                            className="h-10 px-6 bg-violet-500 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
+                        >
+                            <CheckCircle className="h-4 w-4" /> Save Permissions
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
