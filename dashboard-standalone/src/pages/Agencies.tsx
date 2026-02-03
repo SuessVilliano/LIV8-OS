@@ -23,7 +23,6 @@ import {
     Shield,
     CheckCircle,
     AlertCircle,
-    Settings,
     Brain
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
@@ -79,7 +78,7 @@ const Agencies = () => {
     const [showOnboardModal, setShowOnboardModal] = useState(false);
     const [showPermissionsModal, setShowPermissionsModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isFetching, setIsFetching] = useState(true);
+    const [_isFetching, setIsFetching] = useState(true);
     const [isProvisioning, setIsProvisioning] = useState(false);
     const [provisioningStatus, setProvisioningStatus] = useState<{ task: string; success: boolean; message?: string }[]>([]);
     const menuRef = useRef<HTMLDivElement>(null);

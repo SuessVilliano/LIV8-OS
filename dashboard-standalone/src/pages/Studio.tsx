@@ -768,17 +768,15 @@ const Studio = () => {
                     status: 'complete'
                 }, ...prev]);
             } else {
-                // Fallback: Show a mock published URL
-                const mockUrl = `https://${subdomain}.liv8sites.com`;
-                setPublishedUrl(mockUrl);
-                alert(`Site published! URL: ${mockUrl}`);
+                // API not available - offer download instead
+                alert('Hosting service not configured. Click "Export" to download your website HTML.');
+                setPublishedUrl('');
             }
         } catch (error) {
-            // Fallback for demo
-            const subdomain = siteName?.toLowerCase().replace(/[^a-z0-9]/g, '-') || `my-site-${Date.now()}`;
-            const mockUrl = `https://${subdomain}.liv8sites.com`;
-            setPublishedUrl(mockUrl);
-            alert(`Site published! URL: ${mockUrl}`);
+            console.error('Publish error:', error);
+            // API error - offer download instead
+            alert('Could not publish site. Click "Export" to download your website HTML and host it manually.');
+            setPublishedUrl('');
         } finally {
             setIsGenerating(false);
         }

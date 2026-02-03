@@ -160,7 +160,7 @@ const Staff = () => {
             const locationId = localStorage.getItem('os_loc_id');
 
             // Sync staff data
-            const response = await fetch(`${API_BASE}/api/staff/sync`, {
+            await fetch(`${API_BASE}/api/staff/sync`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

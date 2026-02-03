@@ -17,7 +17,6 @@ import {
     BarChart,
     Palette,
     Wand2,
-    HelpCircle,
     BookOpen
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';

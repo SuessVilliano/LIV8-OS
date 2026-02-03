@@ -37,7 +37,7 @@ export default function AnalyticsDashboard() {
   const [showDrillDown, setShowDrillDown] = useState<string | null>(null);
   const [customDateStart, setCustomDateStart] = useState('');
   const [customDateEnd, setCustomDateEnd] = useState('');
-  const [drillDownData, setDrillDownData] = useState<any>(null);
+  const [_drillDownData, _setDrillDownData] = useState<any>(null);
 
   useEffect(() => {
     fetchAnalytics();
@@ -444,7 +444,7 @@ export default function AnalyticsDashboard() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {['Email', 'Social', 'SMS', 'Website'].map((type, i) => (
+                    {['Email', 'Social', 'SMS', 'Website'].map((type) => (
                       <div key={type} className="p-4 bg-gray-800/30 rounded-xl border border-gray-700/30">
                         <div className="text-lg font-bold text-white">{Math.floor(Math.random() * 30) + 5}</div>
                         <div className="text-xs text-gray-500">{type} Posts</div>
@@ -570,8 +570,8 @@ function SimpleLineChart({ data, color }: { data: ChartDataPoint[]; color: strin
 
       {/* X-axis labels */}
       <div className="absolute left-14 right-0 bottom-0 h-6 flex justify-between text-xs text-gray-500">
-        {data.filter((_, i) => i % Math.ceil(data.length / 5) === 0).map((d, i) => (
-          <span key={i}>{d.date}</span>
+        {data.filter((_d, idx) => idx % Math.ceil(data.length / 5) === 0).map((d) => (
+          <span key={d.date}>{d.date}</span>
         ))}
       </div>
     </div>

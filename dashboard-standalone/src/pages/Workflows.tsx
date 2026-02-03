@@ -261,7 +261,12 @@ const Workflows = () => {
                 }
                 break;
             case 'test':
-                alert(`Testing workflow: ${flow.name}`);
+                if (flow.source === 'ghl' || flow.source === 'vbout') {
+                    const crmName = flow.source === 'ghl' ? 'GoHighLevel' : 'VBout';
+                    alert(`To test "${flow.name}", open it in ${crmName} and use the built-in test feature:\n\n1. Click "Open in CRM" to edit the workflow\n2. Use the test/preview function in your CRM\n3. Monitor results in the workflow logs`);
+                } else {
+                    alert(`Template workflows can be tested after deploying to your CRM.\n\nClick "Open in CRM" to customize and test this workflow.`);
+                }
                 break;
         }
     };
