@@ -16,7 +16,9 @@ import {
     Target,
     BarChart,
     Palette,
-    Wand2
+    Wand2,
+    HelpCircle,
+    BookOpen
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import LocationSwitcher from './LocationSwitcher';
@@ -112,8 +114,18 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
                 </button>
 
                 <button
+                    onClick={() => navigate('/support')}
+                    className={`flex w-full items-center gap-4 rounded-2xl px-4 py-3 text-sm font-bold text-[var(--os-text-muted)] hover:bg-neuro/5 hover:text-neuro transition-all ${isCollapsed ? 'justify-center px-0' : ''}`}
+                    title={isCollapsed ? 'Help & Docs' : ''}
+                >
+                    <BookOpen className="h-5 w-5" />
+                    {!isCollapsed && <span className="tracking-tight font-black uppercase text-[10px]">Help & Docs</span>}
+                </button>
+
+                <button
                     onClick={handleOpenSupport}
                     className={`flex w-full items-center gap-4 rounded-2xl px-4 py-3 text-sm font-bold text-[var(--os-text-muted)] hover:bg-neuro/5 hover:text-neuro transition-all ${isCollapsed ? 'justify-center px-0' : ''}`}
+                    title={isCollapsed ? 'Live Support' : ''}
                 >
                     <LifeBuoy className="h-5 w-5" />
                     {!isCollapsed && <span className="tracking-tight font-black uppercase text-[10px]">Live Support</span>}
