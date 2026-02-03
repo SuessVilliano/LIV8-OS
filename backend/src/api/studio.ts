@@ -9,6 +9,7 @@ import { authService } from '../services/auth.js';
 import OpenAI from 'openai';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { studioDb } from '../db/studio.js';
 
 const router = express.Router();
 
@@ -82,18 +83,53 @@ router.post('/generate-image', authenticate, async (req: Request, res: Response)
                     quality: 'hd'
                 });
 
+                const imageUrl = response.data[0].url || '';
+                const revisedPrompt = response.data[0].revised_prompt;
+
+                // Save to database
+                const user = (req as any).user;
+                const clientId = user.userId || user.email || 'default';
+                const savedAsset = await studioDb.saveAsset({
+                    clientId,
+                    type: 'image',
+                    name: prompt.slice(0, 50),
+                    content: imageUrl,
+                    thumbnail: imageUrl,
+                    prompt: revisedPrompt || enhancedPrompt,
+                    metadata: { style, size, model: 'dall-e-3' },
+                    status: 'complete'
+                });
+
                 return res.json({
                     success: true,
-                    imageUrl: response.data[0].url,
-                    revisedPrompt: response.data[0].revised_prompt
+                    imageUrl,
+                    revisedPrompt,
+                    assetId: savedAsset.id
                 });
             } catch (openaiError: any) {
                 console.error('DALL-E error:', openaiError);
                 // Return placeholder for demo
+                const placeholderUrl = `https://placehold.co/${size.replace('x', '/')}/6366f1/ffffff?text=${encodeURIComponent(prompt.slice(0, 20))}`;
+
+                // Still save to database as demo asset
+                const user = (req as any).user;
+                const clientId = user.userId || user.email || 'default';
+                const savedAsset = await studioDb.saveAsset({
+                    clientId,
+                    type: 'image',
+                    name: `Demo: ${prompt.slice(0, 40)}`,
+                    content: placeholderUrl,
+                    thumbnail: placeholderUrl,
+                    prompt: enhancedPrompt,
+                    metadata: { style, size, model: 'demo' },
+                    status: 'complete'
+                });
+
                 return res.json({
                     success: true,
-                    imageUrl: `https://placehold.co/${size.replace('x', '/')}/6366f1/ffffff?text=${encodeURIComponent(prompt.slice(0, 20))}`,
-                    message: 'Demo mode - configure OPENAI_API_KEY for real generation'
+                    imageUrl: placeholderUrl,
+                    message: 'Demo mode - configure OPENAI_API_KEY for real generation',
+                    assetId: savedAsset.id
                 });
             }
         }
@@ -334,20 +370,52 @@ User's Vision: ${prompt}`;
                 }
             }
 
+            const generatedHtmlClean = html.trim();
+
+            // Save to database
+            const user = (req as any).user;
+            const clientId = user.userId || user.email || 'default';
+            const savedAsset = await studioDb.saveAsset({
+                clientId,
+                type: 'website',
+                name: brand.name ? `${brand.name} - ${type}` : prompt.slice(0, 50),
+                content: generatedHtmlClean,
+                prompt,
+                metadata: { type, brand: brand.name, template: template?.id },
+                status: 'complete'
+            });
+
             return res.json({
                 success: true,
-                html: html.trim(),
+                html: generatedHtmlClean,
                 type,
-                brandUsed: brand.name
+                brandUsed: brand.name,
+                assetId: savedAsset.id
             });
         } catch (aiError: any) {
             console.error('AI generation error:', aiError);
             // Return fallback HTML with professional template
+            const fallbackHtml = generateProfessionalHtml(prompt, type, brand);
+
+            // Save fallback to database
+            const user = (req as any).user;
+            const clientId = user.userId || user.email || 'default';
+            const savedAsset = await studioDb.saveAsset({
+                clientId,
+                type: 'website',
+                name: brand.name ? `${brand.name} - ${type}` : prompt.slice(0, 50),
+                content: fallbackHtml,
+                prompt,
+                metadata: { type, brand: brand.name, fallback: true },
+                status: 'complete'
+            });
+
             return res.json({
                 success: true,
-                html: generateProfessionalHtml(prompt, type, brand),
+                html: fallbackHtml,
                 type,
-                message: 'Generated with professional fallback template'
+                message: 'Generated with professional fallback template',
+                assetId: savedAsset.id
             });
         }
 
@@ -409,19 +477,51 @@ User Request: ${prompt}`;
                 emailHtml = emailHtml.split('```')[1].split('```')[0];
             }
 
+            const emailHtmlClean = emailHtml.trim();
+
+            // Save to database
+            const user = (req as any).user;
+            const clientId = user.userId || user.email || 'default';
+            const savedAsset = await studioDb.saveAsset({
+                clientId,
+                type: 'email',
+                name: subject || `${brandContext?.name || 'Company'} - ${type}`,
+                content: emailHtmlClean,
+                prompt,
+                metadata: { type, subject, brand: brandContext?.name },
+                status: 'complete'
+            });
+
             return res.json({
                 success: true,
-                html: emailHtml.trim(),
+                html: emailHtmlClean,
                 subject: subject || `${brandContext?.name || 'Company'} Newsletter`,
-                type
+                type,
+                assetId: savedAsset.id
             });
         } catch (aiError: any) {
             console.error('AI email generation error:', aiError);
+            const fallbackEmail = generateFallbackEmail(prompt, type, brandContext);
+
+            // Save fallback to database
+            const user = (req as any).user;
+            const clientId = user.userId || user.email || 'default';
+            const savedAsset = await studioDb.saveAsset({
+                clientId,
+                type: 'email',
+                name: subject || `Email - ${type}`,
+                content: fallbackEmail,
+                prompt,
+                metadata: { type, subject, fallback: true },
+                status: 'complete'
+            });
+
             return res.json({
                 success: true,
-                html: generateFallbackEmail(prompt, type, brandContext),
+                html: fallbackEmail,
                 subject: subject || 'Newsletter',
-                message: 'Generated with fallback template'
+                message: 'Generated with fallback template',
+                assetId: savedAsset.id
             });
         }
 
@@ -880,11 +980,29 @@ router.post('/publish', authenticate, async (req: Request, res: Response) => {
             status: 'published'
         };
 
+        // Save or update in database
+        const clientId = user.userId || user.email || 'default';
+        const savedAsset = await studioDb.saveAsset({
+            clientId,
+            type: 'website',
+            name: name || brandContext?.name || 'Published Site',
+            content: html,
+            metadata: {
+                subdomain: cleanSubdomain,
+                type,
+                locationId,
+                brand: brandContext?.name
+            },
+            status: 'published',
+            publishedUrl
+        });
+
         res.json({
             success: true,
             url: publishedUrl,
             subdomain: cleanSubdomain,
-            siteId: siteRecord.id,
+            siteId: savedAsset.id,
+            assetId: savedAsset.id,
             message: 'Site published successfully!',
             note: 'Subdomain hosting coming soon. For now, your site is saved and the URL is reserved.'
         });
@@ -902,17 +1020,132 @@ router.post('/publish', authenticate, async (req: Request, res: Response) => {
 router.get('/assets', authenticate, async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
+        const clientId = user.userId || user.email || 'default';
         const type = req.query.type as string;
+        const search = req.query.search as string;
 
-        // In production, fetch from database
-        // For now, return empty array
+        let assets;
+        if (search) {
+            assets = await studioDb.searchAssets(clientId, search);
+        } else {
+            assets = await studioDb.getAssets(clientId, type);
+        }
+
+        // Get asset counts
+        const counts = await studioDb.getAssetCounts(clientId);
+
         res.json({
             success: true,
-            assets: []
+            assets,
+            counts,
+            total: assets.length
         });
 
     } catch (error: any) {
         console.error('Assets fetch error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/studio/assets/:id
+ * Get a single asset with full details
+ */
+router.get('/assets/:id', authenticate, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const asset = await studioDb.getAsset(id);
+
+        if (!asset) {
+            return res.status(404).json({ error: 'Asset not found' });
+        }
+
+        res.json({
+            success: true,
+            asset
+        });
+
+    } catch (error: any) {
+        console.error('Asset fetch error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * DELETE /api/studio/assets/:id
+ * Delete an asset
+ */
+router.delete('/assets/:id', authenticate, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const deleted = await studioDb.deleteAsset(id);
+
+        if (!deleted) {
+            return res.status(404).json({ error: 'Asset not found or could not be deleted' });
+        }
+
+        res.json({
+            success: true,
+            message: 'Asset deleted'
+        });
+
+    } catch (error: any) {
+        console.error('Asset delete error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/studio/export/:id
+ * Export an asset (download HTML, get image URL, etc.)
+ */
+router.get('/export/:id', authenticate, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const format = req.query.format as string || 'html';
+
+        const asset = await studioDb.getAsset(id);
+
+        if (!asset) {
+            return res.status(404).json({ error: 'Asset not found' });
+        }
+
+        // For websites and emails, return downloadable HTML
+        if (asset.type === 'website' || asset.type === 'email') {
+            if (format === 'download') {
+                res.setHeader('Content-Type', 'text/html');
+                res.setHeader('Content-Disposition', `attachment; filename="${asset.name.replace(/[^a-z0-9]/gi, '-')}.html"`);
+                return res.send(asset.content);
+            }
+
+            return res.json({
+                success: true,
+                type: asset.type,
+                name: asset.name,
+                html: asset.content,
+                exportFormats: ['html', 'download']
+            });
+        }
+
+        // For images and videos, return URL
+        if (asset.type === 'image' || asset.type === 'video') {
+            return res.json({
+                success: true,
+                type: asset.type,
+                name: asset.name,
+                url: asset.content,
+                thumbnail: asset.thumbnail,
+                exportFormats: ['url', 'embed']
+            });
+        }
+
+        res.json({
+            success: true,
+            asset
+        });
+
+    } catch (error: any) {
+        console.error('Export error:', error);
         res.status(500).json({ error: error.message });
     }
 });
