@@ -1,5 +1,19 @@
-import { sql } from '@vercel/postgres';
+import { sql, db as vercelDb } from '@vercel/postgres';
 import crypto from 'crypto';
+
+// Query function for raw SQL queries with parameters
+export async function query(text: string, params?: any[]) {
+  // Use tagged template for simple queries, or raw query for complex ones
+  if (params && params.length > 0) {
+    return vercelDb.query(text, params);
+  }
+  return vercelDb.query(text);
+}
+
+// Get a client from the connection pool for transactions
+export async function getClient() {
+  return vercelDb.connect();
+}
 
 // Re-export agent sessions for convenience
 export { agentSessions } from './agent-sessions.js';
