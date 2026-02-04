@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getBackendUrl } from '../services/api';
+import LateSettingsManager from '../components/LateSettingsManager';
 
 interface BrandAsset {
     id: string;
@@ -65,7 +66,7 @@ interface ScheduledPost {
 
 const Brand = () => {
     const { config, updateConfig } = useTheme();
-    const [activeTab, setActiveTab] = useState<'library' | 'planner' | 'voice' | 'knowledge'>('library');
+    const [activeTab, setActiveTab] = useState<'library' | 'planner' | 'voice' | 'knowledge' | 'social'>('library');
     const [previewChannel, setPreviewChannel] = useState<'ig' | 'li' | 'fb'>('ig');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const API_BASE = getBackendUrl();
@@ -427,13 +428,13 @@ const Brand = () => {
                         </h1>
                     </div>
                     <div className="flex bg-[var(--os-surface)] p-1.5 rounded-2xl border border-[var(--os-border)]">
-                        {['library', 'planner', 'knowledge', 'voice'].map((tab) => (
+                        {['library', 'planner', 'knowledge', 'voice', 'social'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab as any)}
                                 className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-neuro text-white shadow-lg shadow-neuro/20' : 'text-[var(--os-text-muted)] hover:text-neuro'}`}
                             >
-                                {tab === 'library' ? 'Assets' : tab === 'planner' ? 'Social Planner' : tab === 'knowledge' ? 'Knowledge' : 'Voice'}
+                                {tab === 'library' ? 'Assets' : tab === 'planner' ? 'Social Planner' : tab === 'knowledge' ? 'Knowledge' : tab === 'voice' ? 'Voice' : 'Late Social'}
                             </button>
                         ))}
                     </div>
@@ -900,6 +901,12 @@ const Brand = () => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'social' && (
+                    <div className="flex-1 animate-in fade-in zoom-in-95 duration-500">
+                        <LateSettingsManager />
                     </div>
                 )}
             </div>

@@ -14,6 +14,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import WebhookManager from '../components/WebhookManager';
 import APIKeyManager from '../components/APIKeyManager';
 import VoiceSettingsManager from '../components/VoiceSettingsManager';
+import LateSettingsManager from '../components/LateSettingsManager';
 
 const Settings = () => {
     const { config, updateConfig, isDark, toggleTheme } = useTheme();
@@ -131,6 +132,11 @@ const Settings = () => {
                 {/* Voice Credentials */}
                 <div className="border-t border-[var(--os-border)] pt-12">
                     <VoiceSettingsManager />
+                </div>
+
+                {/* Late Social Media Integration */}
+                <div className="border-t border-[var(--os-border)] pt-12">
+                    <LateSettingsManager />
                 </div>
 
                 {/* Mobile Webhook Integration */}

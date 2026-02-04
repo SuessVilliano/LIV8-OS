@@ -104,6 +104,14 @@ const Studio = () => {
     const [analysisResult, setAnalysisResult] = useState<any>(null);
     const [analysisError, setAnalysisError] = useState('');
 
+    // Late cross-post state
+    const [showCrossPost, setShowCrossPost] = useState(false);
+    const [crossPostImage, setCrossPostImage] = useState('');
+    const [crossPostContent, setCrossPostContent] = useState('');
+    const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+    const [isCrossPosting, setIsCrossPosting] = useState(false);
+    const [crossPostError, setCrossPostError] = useState('');
+
     // Get comprehensive brand context from Brand Hub / Business Twin
     const getBrandContext = () => {
         try {
@@ -230,6 +238,80 @@ const Studio = () => {
         } finally {
             setIsGenerating(false);
         }
+    };
+
+    // Open cross-post modal for an image
+    const openCrossPost = (imageUrl: string) => {
+        setCrossPostImage(imageUrl);
+        setCrossPostContent(`Check out our latest creation! ✨ #AI #GeneratedContent`);
+        setSelectedPlatforms([]);
+        setCrossPostError('');
+        setShowCrossPost(true);
+    };
+
+    // Cross-post to Late
+    const handleCrossPost = async () => {
+        if (!crossPostContent.trim() || selectedPlatforms.length === 0) {
+            setCrossPostError('Please add content and select at least one platform');
+            return;
+        }
+
+        setIsCrossPosting(true);
+        setCrossPostError('');
+
+        try {
+            const token = localStorage.getItem('os_token');
+            const locationId = localStorage.getItem('os_loc_id') || 'default';
+
+            const response = await fetch(`${API_BASE}/api/late/publish-now`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'x-location-id': locationId
+                },
+                body: JSON.stringify({
+                    content: crossPostContent,
+                    platforms: selectedPlatforms,
+                    mediaUrls: crossPostImage ? [crossPostImage] : undefined
+                })
+            });
+
+            if (response.ok) {
+                setShowCrossPost(false);
+                setCrossPostImage('');
+                setCrossPostContent('');
+                setSelectedPlatforms([]);
+                alert(`Successfully posted to ${selectedPlatforms.join(', ')}!`);
+            } else {
+                const data = await response.json();
+                setCrossPostError(data.error || 'Failed to post. Please check your Late API key in Settings.');
+            }
+        } catch (error: any) {
+            console.error('Cross-post failed:', error);
+            setCrossPostError('Failed to post. Please check your Late API key in Settings.');
+        } finally {
+            setIsCrossPosting(false);
+        }
+    };
+
+    const LATE_PLATFORMS = [
+        { id: 'twitter', name: 'Twitter/X', color: 'bg-sky-500' },
+        { id: 'instagram', name: 'Instagram', color: 'bg-pink-500' },
+        { id: 'facebook', name: 'Facebook', color: 'bg-blue-600' },
+        { id: 'linkedin', name: 'LinkedIn', color: 'bg-blue-700' },
+        { id: 'tiktok', name: 'TikTok', color: 'bg-gray-900' },
+        { id: 'threads', name: 'Threads', color: 'bg-gray-800' },
+        { id: 'bluesky', name: 'Bluesky', color: 'bg-sky-400' },
+        { id: 'pinterest', name: 'Pinterest', color: 'bg-red-600' },
+    ];
+
+    const togglePlatform = (platformId: string) => {
+        setSelectedPlatforms(prev =>
+            prev.includes(platformId)
+                ? prev.filter(p => p !== platformId)
+                : [...prev, platformId]
+        );
     };
 
     // Generate Video
@@ -1027,13 +1109,13 @@ const Studio = () => {
                             <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-[var(--os-border)]">
                                 <img src={img} alt={`Generated ${idx}`} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <button className="p-2 bg-white/20 rounded-lg hover:bg-white/30">
+                                    <a href={img} download className="p-2 bg-white/20 rounded-lg hover:bg-white/30">
                                         <Download className="h-4 w-4 text-white" />
-                                    </button>
-                                    <button className="p-2 bg-white/20 rounded-lg hover:bg-white/30">
+                                    </a>
+                                    <button onClick={() => openCrossPost(img)} className="p-2 bg-purple-500/80 rounded-lg hover:bg-purple-500" title="Post to Social Media">
                                         <Share2 className="h-4 w-4 text-white" />
                                     </button>
-                                    <button className="p-2 bg-white/20 rounded-lg hover:bg-white/30">
+                                    <button onClick={() => navigator.clipboard.writeText(img)} className="p-2 bg-white/20 rounded-lg hover:bg-white/30">
                                         <Copy className="h-4 w-4 text-white" />
                                     </button>
                                 </div>
@@ -1977,6 +2059,98 @@ const Studio = () => {
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Late Cross-Post Modal */}
+            {showCrossPost && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="os-card p-8 w-full max-w-lg space-y-6 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-black uppercase italic">
+                                Share to <span className="text-purple-500">Social</span>
+                            </h3>
+                            <button
+                                onClick={() => setShowCrossPost(false)}
+                                className="p-2 text-[var(--os-text-muted)] hover:text-neuro"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Image Preview */}
+                        {crossPostImage && (
+                            <div className="relative aspect-video rounded-xl overflow-hidden border border-[var(--os-border)]">
+                                <img src={crossPostImage} alt="Post preview" className="w-full h-full object-cover" />
+                            </div>
+                        )}
+
+                        {/* Content */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest">Post Content</label>
+                            <textarea
+                                value={crossPostContent}
+                                onChange={(e) => setCrossPostContent(e.target.value)}
+                                rows={3}
+                                className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-purple-500 resize-none"
+                                placeholder="What do you want to share?"
+                            />
+                        </div>
+
+                        {/* Platform Selection */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-[var(--os-text-muted)] tracking-widest">Select Platforms</label>
+                            <div className="grid grid-cols-4 gap-2">
+                                {LATE_PLATFORMS.map((platform) => (
+                                    <button
+                                        key={platform.id}
+                                        onClick={() => togglePlatform(platform.id)}
+                                        className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 ${
+                                            selectedPlatforms.includes(platform.id)
+                                                ? 'bg-purple-500/10 border-purple-500 text-purple-500'
+                                                : 'bg-[var(--os-bg)] border-[var(--os-border)] text-[var(--os-text-muted)]'
+                                        }`}
+                                    >
+                                        <div className={`h-3 w-3 rounded-full ${platform.color}`} />
+                                        <span className="text-[8px] font-black uppercase">{platform.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {crossPostError && (
+                            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-xs font-bold">
+                                {crossPostError}
+                            </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex gap-3 pt-4">
+                            <button
+                                onClick={() => setShowCrossPost(false)}
+                                className="flex-1 h-12 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl text-[10px] font-black uppercase tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCrossPost}
+                                disabled={isCrossPosting || selectedPlatforms.length === 0}
+                                className="flex-1 h-12 bg-purple-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-purple-500/20 disabled:opacity-50 hover:bg-purple-600 transition-all flex items-center justify-center gap-2"
+                            >
+                                {isCrossPosting ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Share2 className="h-4 w-4" />
+                                )}
+                                Post to {selectedPlatforms.length || 'Selected'}
+                            </button>
+                        </div>
+
+                        <p className="text-[9px] text-center text-[var(--os-text-muted)]">
+                            Powered by Late - Post to 13 social platforms with one click.
+                            Configure your Late API key in Settings.
+                        </p>
                     </div>
                 </div>
             )}
