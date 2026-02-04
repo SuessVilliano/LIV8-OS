@@ -4,6 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import nodemailer from 'nodemailer';
 import {
   conversations,
   contacts,
@@ -15,8 +16,21 @@ import {
 } from '../db/conversations.js';
 import { createTwilioSMS, createTelnyxSMS } from '../services/sms-providers.js';
 import { getTextLinkService } from '../services/textlink.js';
+import { GHLApiClient } from '../services/ghl-api-client.js';
+import { vapiService } from '../integrations/vapi.js';
 
 const router = Router();
+
+// Email transporter for sending emails
+const emailTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  }
+});
 
 // Initialize database tables on startup
 initConversationTables().catch(err => {
@@ -197,7 +211,8 @@ router.post('/send', async (req: Request, res: Response) => {
       contentType = 'text',
       mediaUrls = [],
       senderName,
-      senderId
+      senderId,
+      subject // For email messages
     } = req.body;
 
     if (!content) {
@@ -267,8 +282,150 @@ router.post('/send', async (req: Request, res: Response) => {
         }
         case 'sms_ghl': {
           // Route through GHL SMS API
-          // TODO: Implement GHL SMS sending
-          console.log('[Inbox] GHL SMS sending not yet implemented');
+          if (!contact.phone) throw new Error('Contact has no phone number');
+          const ghlToken = req.headers['x-ghl-token'] as string;
+          if (!ghlToken) throw new Error('GHL token required for GHL SMS');
+
+          const ghlClient = new GHLApiClient(ghlToken, locationId);
+          if (contact.external_id) {
+            const result = await ghlClient.sendMessage({
+              type: 'SMS',
+              contactId: contact.external_id,
+              message: content
+            });
+            externalId = result?.messageId;
+            console.log('[Inbox] SMS sent via GHL');
+          } else {
+            throw new Error('Contact not linked to GHL');
+          }
+          break;
+        }
+        case 'email': {
+          if (!contact.email) throw new Error('Contact has no email address');
+          const emailSubject = subject || 'Message from LIV8 OS';
+          const htmlContent = content.replace(/\n/g, '<br>');
+
+          // Try GHL first if available, fall back to SMTP
+          const ghlToken = req.headers['x-ghl-token'] as string;
+          if (ghlToken && contact.external_id) {
+            try {
+              const ghlClient = new GHLApiClient(ghlToken, locationId);
+              await ghlClient.sendEmail(contact.external_id, emailSubject, htmlContent);
+              console.log('[Inbox] Email sent via GHL');
+            } catch (ghlError) {
+              console.log('[Inbox] GHL email failed, using SMTP:', ghlError);
+              const info = await emailTransporter.sendMail({
+                from: `"LIV8 OS" <${process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@liv8.ai'}>`,
+                to: contact.email,
+                subject: emailSubject,
+                text: content,
+                html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;">${htmlContent}</div>`
+              });
+              externalId = info.messageId;
+            }
+          } else {
+            const info = await emailTransporter.sendMail({
+              from: `"LIV8 OS" <${process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@liv8.ai'}>`,
+              to: contact.email,
+              subject: emailSubject,
+              text: content,
+              html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;">${htmlContent}</div>`
+            });
+            externalId = info.messageId;
+          }
+          console.log('[Inbox] Email sent');
+          break;
+        }
+        case 'whatsapp': {
+          // WhatsApp via GHL
+          if (!contact.phone) throw new Error('Contact has no phone number');
+          const ghlToken = req.headers['x-ghl-token'] as string;
+          if (!ghlToken) throw new Error('GHL token required for WhatsApp');
+
+          const ghlClient = new GHLApiClient(ghlToken, locationId);
+          if (contact.external_id) {
+            const result = await ghlClient.sendMessage({
+              type: 'WhatsApp',
+              contactId: contact.external_id,
+              message: content
+            });
+            externalId = result?.messageId;
+          } else {
+            throw new Error('Contact not linked to GHL');
+          }
+          console.log('[Inbox] WhatsApp sent via GHL');
+          break;
+        }
+        case 'live_chat': {
+          // Live Chat via GHL
+          const ghlToken = req.headers['x-ghl-token'] as string;
+          if (!ghlToken) throw new Error('GHL token required for Live Chat');
+
+          const ghlClient = new GHLApiClient(ghlToken, locationId);
+          if (contact.external_id && conversation.channel_conversation_id) {
+            await ghlClient.sendMessage({
+              type: 'SMS', // GHL uses SMS type for live chat messages
+              contactId: contact.external_id,
+              message: content
+            });
+          } else {
+            throw new Error('Contact or conversation not linked to GHL');
+          }
+          console.log('[Inbox] Live chat message sent via GHL');
+          break;
+        }
+        case 'voice': {
+          // Voice - initiate outbound call via VAPI
+          if (!contact.phone) throw new Error('Contact has no phone number');
+
+          const assistantId = req.body.assistantId;
+          if (!assistantId) throw new Error('assistantId required for voice calls');
+
+          // For voice, we initiate a call rather than send a text message
+          if (vapiService) {
+            const call = await vapiService.makeCall({
+              assistantId,
+              phoneNumber: contact.phone,
+              metadata: { contactId: contact.id, script: content }
+            });
+            externalId = call?.id;
+            // Store call metadata
+            await messages.create({
+              conversationId: conversation.id,
+              locationId,
+              direction: 'outbound',
+              channel: 'voice',
+              senderId: senderId || 'system',
+              senderName: 'Voice Agent',
+              senderType: 'ai_staff',
+              content: `📞 Outbound call initiated to ${contact.phone}`,
+              contentType: 'text',
+              status: 'sent',
+              externalId: call?.id,
+              metadata: { callId: call?.id, script: content }
+            });
+            return res.json({ success: true, callId: call?.id, message: 'Call initiated' });
+          } else {
+            throw new Error('VAPI voice service not configured');
+          }
+        }
+        case 'facebook':
+        case 'instagram': {
+          // Social DMs via GHL
+          const ghlToken = req.headers['x-ghl-token'] as string;
+          if (!ghlToken) throw new Error('GHL token required for social messaging');
+
+          const ghlClient = new GHLApiClient(ghlToken, locationId);
+          if (contact.external_id) {
+            await ghlClient.sendMessage({
+              type: 'SMS', // GHL handles routing based on conversation type
+              contactId: contact.external_id,
+              message: content
+            });
+          } else {
+            throw new Error('Contact not linked to GHL');
+          }
+          console.log(`[Inbox] ${conversation.channel} message sent via GHL`);
           break;
         }
         // Add more channel implementations as needed

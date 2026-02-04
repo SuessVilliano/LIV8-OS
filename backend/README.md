@@ -101,6 +101,56 @@ Get current user and locations.
 Get audit log for agency.
 *Requires: `Authorization: Bearer <JWT>`*
 
+### Unified Inbox
+
+**GET /api/inbox/conversations**
+- List conversations with filtering by channel, status
+- Returns contacts with conversation data
+
+**POST /api/inbox/conversations/:id/send**
+- Send message in a conversation
+- Routes to appropriate channel (SMS, Email, WhatsApp, Voice, Live Chat)
+
+**GET /api/inbox/analytics**
+- Get inbox statistics (total, unread, by channel)
+
+### AnyChat Live Chat
+
+**POST /api/anychat/config**
+- Save AnyChat configuration with channel routing
+
+**POST /api/anychat/webhook/:locationId**
+- Webhook receiver for AnyChat events
+- Auto-logs messages to unified inbox
+- Routes to team channels (Slack/Telegram/Discord)
+- Triggers escalation detection
+
+**POST /api/anychat/test-channel**
+- Test connection to Slack/Telegram/Discord
+
+### OpenClaw AI Manager API
+
+**GET /api/openclaw/context**
+- Get business context for AI responses
+- *Requires: `x-openclaw-key`, `x-location-id` headers*
+
+**GET /api/openclaw/conversations**
+- Get recent conversations for AI context
+
+**GET /api/openclaw/inbox/summary**
+- Quick summary of inbox state
+
+**POST /api/openclaw/suggest**
+- Get response guidelines based on business context
+
+### SMS Gateway
+
+**POST /api/sms/send**
+- Send SMS via configured provider (Twilio/Telnyx/TextLink)
+
+**POST /api/textlink/send**
+- Send SMS via TextLink Android gateway
+
 ## Deploy to Vercel
 
 ```bash
@@ -135,18 +185,30 @@ npm test
 ```
 backend/
 ├── src/
-│   ├── api/          # API routes
-│   │   ├── auth.ts   # Authentication endpoints
-│   │   └── operator.ts # Operator execution
-│   ├── services/     # Business logic
-│   │   ├── auth.ts   # Auth service
-│   │   └── mcp-client.ts # HighLevel MCP client
-│   ├── db/           # Database
-│   │   ├── schema.sql # PostgreSQL schema
-│   │   └── index.ts  # DB queries & encryption
-│   ├── lib/          # Shared utilities
-│   │   └── schemas.ts # Zod validation schemas
-│   └── index.ts      # Express server
+│   ├── api/                    # API routes
+│   │   ├── auth.ts             # Authentication
+│   │   ├── operator.ts         # Operator execution
+│   │   ├── inbox.ts            # Unified multi-channel inbox
+│   │   ├── anychat.ts          # AnyChat live chat webhooks
+│   │   ├── openclaw.ts         # OpenClaw AI manager context API
+│   │   ├── sms.ts              # Unified SMS (Twilio/Telnyx)
+│   │   ├── textlink.ts         # TextLink SMS gateway
+│   │   ├── late.ts             # Late social media (13 platforms)
+│   │   └── ...
+│   ├── services/               # Business logic
+│   │   ├── auth.ts             # Auth service
+│   │   ├── mcp-client.ts       # HighLevel MCP client
+│   │   ├── anychat.ts          # AnyChat service layer
+│   │   ├── escalation-detector.ts # Smart escalation logic
+│   │   ├── textlink.ts         # TextLink API wrapper
+│   │   └── ...
+│   ├── db/                     # Database
+│   │   ├── schema.sql          # PostgreSQL schema
+│   │   ├── index.ts            # DB queries & encryption
+│   │   └── conversations.ts    # Unified inbox schema
+│   ├── lib/                    # Shared utilities
+│   │   └── schemas.ts          # Zod validation schemas
+│   └── index.ts                # Express server
 ├── package.json
 ├── tsconfig.json
 └── vercel.json
