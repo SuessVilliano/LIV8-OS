@@ -37,6 +37,8 @@ import lateRouter from './api/late.js'; // Late social media API (13 platforms)
 import smsRouter from './api/sms.js'; // Unified SMS API (Twilio, Telnyx, TextLink)
 import textlinkRouter from './api/textlink.js'; // TextLink SMS gateway
 import inboxRouter from './api/inbox.js'; // Unified multi-channel inbox
+import anychatRouter from './api/anychat.js'; // AnyChat.one live chat integration
+import openclawRouter from './api/openclaw.js'; // OpenClaw AI Manager integration (openclaw.ai)
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -170,6 +172,8 @@ app.use('/api/late', rateLimitPresets.api, lateRouter); // Late social media API
 app.use('/api/sms', rateLimitPresets.api, smsRouter); // Unified SMS API (Twilio, Telnyx, TextLink)
 app.use('/api/textlink', rateLimitPresets.api, textlinkRouter); // TextLink SMS gateway
 app.use('/api/inbox', rateLimitPresets.api, inboxRouter); // Unified multi-channel inbox
+app.use('/api/anychat', rateLimitPresets.api, anychatRouter); // AnyChat.one live chat integration
+app.use('/api/openclaw', rateLimitPresets.api, openclawRouter); // OpenClaw AI Manager integration
 
 
 // --- MCP Integration ---

@@ -16,6 +16,7 @@ import APIKeyManager from '../components/APIKeyManager';
 import VoiceSettingsManager from '../components/VoiceSettingsManager';
 import LateSettingsManager from '../components/LateSettingsManager';
 import SMSSettingsManager from '../components/SMSSettingsManager';
+import AnyChatSettingsManager from '../components/AnyChatSettingsManager';
 
 const Settings = () => {
     const { config, updateConfig, isDark, toggleTheme } = useTheme();
@@ -143,6 +144,11 @@ const Settings = () => {
                 {/* SMS Provider Configuration */}
                 <div className="border-t border-[var(--os-border)] pt-12">
                     <SMSSettingsManager />
+                </div>
+
+                {/* AnyChat Live Chat Configuration */}
+                <div className="border-t border-[var(--os-border)] pt-12">
+                    <AnyChatSettingsManager />
                 </div>
 
                 {/* Mobile Webhook Integration */}
