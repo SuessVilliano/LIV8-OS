@@ -96,6 +96,7 @@ const UnifiedInbox = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [messageInput, setMessageInput] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
@@ -188,7 +189,8 @@ const UnifiedInbox = () => {
         body: JSON.stringify({
           conversationId: selectedConversation.id,
           content: messageInput,
-          senderName: 'You'
+          senderName: 'You',
+          ...(selectedConversation.channel === 'email' && emailSubject ? { subject: emailSubject } : {})
         })
       });
 
@@ -196,6 +198,7 @@ const UnifiedInbox = () => {
         const data = await response.json();
         setMessages(prev => [...prev, data.message]);
         setMessageInput('');
+        setEmailSubject('');
         scrollToBottom();
       }
     } catch (error) {
@@ -525,6 +528,16 @@ const UnifiedInbox = () => {
 
           {/* Message Input */}
           <div className="p-4 border-t border-[var(--os-border)]">
+            {/* Email Subject Field */}
+            {selectedConversation.channel === 'email' && (
+              <input
+                type="text"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                placeholder="Email subject..."
+                className="w-full bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl px-4 py-2.5 mb-3 text-sm focus:border-neuro outline-none"
+              />
+            )}
             <div className="flex items-end gap-3">
               <button className="p-2.5 hover:bg-[var(--os-surface)] rounded-xl">
                 <Paperclip className="h-5 w-5 text-[var(--os-text-muted)]" />

@@ -4,6 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import nodemailer from 'nodemailer';
 import {
   conversations,
   contacts,
@@ -17,6 +18,17 @@ import { createTwilioSMS, createTelnyxSMS } from '../services/sms-providers.js';
 import { getTextLinkService } from '../services/textlink.js';
 
 const router = Router();
+
+// Email transporter for sending emails
+const emailTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  }
+});
 
 // Initialize database tables on startup
 initConversationTables().catch(err => {
@@ -197,7 +209,8 @@ router.post('/send', async (req: Request, res: Response) => {
       contentType = 'text',
       mediaUrls = [],
       senderName,
-      senderId
+      senderId,
+      subject // For email messages
     } = req.body;
 
     if (!content) {
@@ -269,6 +282,23 @@ router.post('/send', async (req: Request, res: Response) => {
           // Route through GHL SMS API
           // TODO: Implement GHL SMS sending
           console.log('[Inbox] GHL SMS sending not yet implemented');
+          break;
+        }
+        case 'email': {
+          if (!contact.email) throw new Error('Contact has no email address');
+          const emailSubject = subject || 'Message from LIV8 OS';
+          const htmlContent = content.replace(/\n/g, '<br>');
+
+          const info = await emailTransporter.sendMail({
+            from: `"LIV8 OS" <${process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@liv8.ai'}>`,
+            to: contact.email,
+            subject: emailSubject,
+            text: content,
+            html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;">${htmlContent}</div>`
+          });
+
+          externalId = info.messageId;
+          console.log('[Inbox] Email sent:', info.messageId);
           break;
         }
         // Add more channel implementations as needed
