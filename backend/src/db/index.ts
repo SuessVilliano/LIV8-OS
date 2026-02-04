@@ -1,5 +1,5 @@
 import { sql, db as vercelDb } from '@vercel/postgres';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 // Query function for raw SQL queries with parameters
 export async function query(text: string, params?: any[]) {

@@ -3,7 +3,7 @@
  * Handles webhook processing and message routing
  */
 
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 // AnyChat webhook event types
 export type AnyChatEventType =

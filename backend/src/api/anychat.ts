@@ -521,7 +521,7 @@ router.get('/stats/:locationId', async (req: Request, res: Response) => {
     let activeConversations = 0;
     let escalatedCount = 0;
 
-    for (const [key, context] of conversationContext.entries()) {
+    for (const [key, context] of Array.from(conversationContext.entries())) {
       if (key.startsWith(`${locationId}:`)) {
         activeConversations++;
         if (context.lastAnalysis?.shouldEscalate) {

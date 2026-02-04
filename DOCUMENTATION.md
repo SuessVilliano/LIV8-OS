@@ -31,30 +31,47 @@ LIV8 OS is an AI-powered business operating system that helps entrepreneurs, age
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         LIV8 OS                                  │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │  Dashboard  │  │   Chrome    │  │      Mobile PWA         │  │
-│  │  (React)    │  │  Extension  │  │   (Installable)         │  │
-│  └──────┬──────┘  └──────┬──────┘  └───────────┬─────────────┘  │
-│         │                │                      │                │
-│         └────────────────┼──────────────────────┘                │
-│                          │                                       │
-│                          ▼                                       │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                    Backend API (Express)                   │  │
-│  │  - Auth & JWT     - AI Agents      - Content Engine       │  │
-│  │  - Billing/Stripe - Workflows      - Social Connectors    │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                          │                                       │
-│         ┌────────────────┼────────────────┐                     │
-│         ▼                ▼                ▼                     │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  PostgreSQL │  │  Google AI  │  │    CRMs     │             │
-│  │  (Vercel)   │  │  (Gemini)   │  │ GHL/Vbout   │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              LIV8 OS                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌───────────────┐  │
+│  │  Dashboard  │  │   Chrome    │  │ Mobile PWA  │  │   OpenClaw    │  │
+│  │  (React)    │  │  Extension  │  │(Installable)│  │ (AI Manager)  │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └───────┬───────┘  │
+│         │                │                │                  │          │
+│         └────────────────┼────────────────┼──────────────────┘          │
+│                          │                │                             │
+│                          ▼                ▼                             │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │                      Backend API (Express)                         │ │
+│  │  - Auth & JWT        - AI Agents         - Content Engine         │ │
+│  │  - Billing/Stripe    - Workflows         - Social Connectors      │ │
+│  │  - Unified Inbox     - AnyChat Webhooks  - OpenClaw Context API   │ │
+│  │  - SMS Gateway       - Escalation Engine - Voice (VAPI)           │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│              │                │                │                        │
+│    ┌─────────┼────────────────┼────────────────┼────────────┐          │
+│    ▼         ▼                ▼                ▼            ▼          │
+│ ┌────────┐ ┌─────────┐ ┌─────────────┐ ┌──────────┐ ┌───────────────┐  │
+│ │ Vercel │ │ Google  │ │   CRMs      │ │ AnyChat  │ │ Team Channels │  │
+│ │Postgres│ │ AI/LLMs │ │ GHL/Vbout   │ │ (Live    │ │Slack/Telegram │  │
+│ │        │ │         │ │             │ │  Chat)   │ │   /Discord    │  │
+│ └────────┘ └─────────┘ └─────────────┘ └──────────┘ └───────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Live Chat Flow (AnyChat + OpenClaw)
+
+```
+Customer (Website) → AnyChat Widget → Webhook → LIV8 OS (Logged)
+                                                     ↓
+                            ┌────────────────────────┴────────────────────┐
+                            ↓                                             ↓
+                   Team Channel (Slack/TG/Discord)              Unified Inbox
+                            ↓                                   (Visibility)
+              OpenClaw AI or Human responds
+                            ↓
+              AnyChat sends response → Customer
 ```
 
 ---
@@ -346,6 +363,68 @@ Generate AI content
 #### GET /api/content/scheduled
 Get scheduled content
 
+### AnyChat Live Chat
+
+#### POST /api/anychat/config
+Save AnyChat configuration with team channel routing
+```json
+Request:
+{
+  "locationId": "location-uuid",
+  "config": {
+    "apiKey": "anychat-api-key",
+    "workspaceId": "workspace-guid",
+    "channels": {
+      "slack": { "webhookUrl": "https://hooks.slack.com/..." },
+      "telegram": { "botToken": "...", "chatId": "-100..." }
+    },
+    "escalationMentions": {
+      "slack": ["U123ABC"],
+      "telegram": ["manager_username"]
+    }
+  }
+}
+```
+
+#### POST /api/anychat/webhook/:locationId
+Webhook receiver for AnyChat events (chat.created, chat.message.created, etc.)
+
+#### POST /api/anychat/test-channel
+Test connection to a team channel
+
+### OpenClaw AI Manager API
+
+All endpoints require `x-openclaw-key` and `x-location-id` headers.
+
+#### GET /api/openclaw/context
+Get business context for AI responses
+```json
+Response:
+{
+  "success": true,
+  "context": {
+    "business": { "name": "...", "industry": "...", "brandVoice": {...} },
+    "inbox": { "totalConversations": 10, "unreadCount": 3 },
+    "timestamp": "2026-02-04T..."
+  }
+}
+```
+
+#### GET /api/openclaw/conversations
+Get recent conversations with contact info
+
+#### GET /api/openclaw/conversations/:id/messages
+Get message history for a conversation
+
+#### GET /api/openclaw/inbox/summary
+Quick summary for AI briefing (active, unread, needs attention)
+
+#### GET /api/openclaw/staff/status
+Get status of LIV8 AI staff members
+
+#### POST /api/openclaw/suggest
+Get response guidelines based on business context
+
 ---
 
 ## Integrations
@@ -378,6 +457,42 @@ Get scheduled content
 - Embedded scheduling form on landing page
 - Strategy call booking
 - Lead capture integration
+
+### AnyChat.one (Live Chat)
+- Multi-channel live chat widget for websites
+- Webhook integration for real-time message routing
+- Supports routing to Slack, Telegram, Discord
+- Built-in ticketing system for enterprises
+- Whitelabel available for agencies
+
+**Setup:**
+1. Get API key from AnyChat dashboard (Settings → API)
+2. Configure in LIV8 OS Settings → AnyChat
+3. Add webhook URL to AnyChat: `https://your-api/api/anychat/webhook/{locationId}`
+4. Select team channel (Slack/Telegram/Discord) and configure
+
+**Escalation Detection:**
+- Keywords: "manager", "supervisor", "refund", "complaint", "lawyer"
+- Sentiment: Auto-detects negative sentiment
+- Topics: Billing disputes, legal threats, security concerns
+- Frustration: Repeated negative messages
+
+### OpenClaw (AI Manager)
+- 24/7 AI assistant that lives in Telegram/Slack/Discord/WhatsApp
+- Open-source: [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw)
+- Documentation: [docs.openclaw.ai](https://docs.openclaw.ai)
+
+**LIV8 OS Integration:**
+- OpenClaw reads LIV8 OS context via `/api/openclaw/*` endpoints
+- Gets business info, conversation history, inbox summary
+- Uses context to provide informed, brand-consistent responses
+- Can coordinate with LIV8 AI staff
+
+**Setup:**
+1. Install OpenClaw: `npm install -g openclaw@latest`
+2. Run onboarding: `openclaw onboard --install-daemon`
+3. Configure channel (Telegram/Slack/Discord)
+4. Add LIV8 OS API integration with location ID and key
 
 ---
 
