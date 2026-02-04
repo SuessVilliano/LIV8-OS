@@ -15,6 +15,7 @@ import WebhookManager from '../components/WebhookManager';
 import APIKeyManager from '../components/APIKeyManager';
 import VoiceSettingsManager from '../components/VoiceSettingsManager';
 import LateSettingsManager from '../components/LateSettingsManager';
+import SMSSettingsManager from '../components/SMSSettingsManager';
 
 const Settings = () => {
     const { config, updateConfig, isDark, toggleTheme } = useTheme();
@@ -137,6 +138,11 @@ const Settings = () => {
                 {/* Late Social Media Integration */}
                 <div className="border-t border-[var(--os-border)] pt-12">
                     <LateSettingsManager />
+                </div>
+
+                {/* SMS Provider Configuration */}
+                <div className="border-t border-[var(--os-border)] pt-12">
+                    <SMSSettingsManager />
                 </div>
 
                 {/* Mobile Webhook Integration */}

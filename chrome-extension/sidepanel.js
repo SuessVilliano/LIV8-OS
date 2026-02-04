@@ -10,6 +10,160 @@ let selectedStaff = null;
 let isListening = false;
 let messages = [];
 let capturedContent = null;
+let selectedPlatforms = ['twitter', 'linkedin']; // Default platforms for social posting
+
+// Late Social Media API Integration
+const LATE_PLATFORMS = {
+  twitter: { name: 'Twitter/X', icon: '𝕏', limit: 25000 },
+  instagram: { name: 'Instagram', icon: '📷', limit: 2200 },
+  facebook: { name: 'Facebook', icon: 'f', limit: 63206 },
+  linkedin: { name: 'LinkedIn', icon: 'in', limit: 3000 },
+  tiktok: { name: 'TikTok', icon: '♪', limit: 2200 },
+  youtube: { name: 'YouTube', icon: '▶', limit: 5000 },
+  pinterest: { name: 'Pinterest', icon: '📌', limit: 500 },
+  reddit: { name: 'Reddit', icon: '🔶', limit: 40000 },
+  bluesky: { name: 'Bluesky', icon: '🦋', limit: 300 },
+  threads: { name: 'Threads', icon: '@', limit: 500 },
+  google_business: { name: 'Google Business', icon: 'G', limit: 1500 },
+  telegram: { name: 'Telegram', icon: '✈', limit: 4096 },
+  snapchat: { name: 'Snapchat', icon: '👻', limit: 250 }
+};
+
+// Publish to Late Social Media API
+async function publishToLate(content, platforms = selectedPlatforms, mediaUrls = []) {
+  const API_BASE = 'https://api.liv8ai.com';
+
+  try {
+    const data = await chrome.storage.sync.get(['apiKey', 'locationId']);
+
+    if (!data.apiKey) {
+      return { success: false, error: 'No API key configured. Please set up in dashboard settings.' };
+    }
+
+    const response = await fetch(`${API_BASE}/api/late/post`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${data.apiKey}`,
+        'x-location-id': data.locationId || 'default'
+      },
+      body: JSON.stringify({
+        content,
+        platforms,
+        mediaUrls,
+        isDraft: false
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return { success: true, data: result };
+    } else {
+      const error = await response.json().catch(() => ({ message: 'Failed to publish' }));
+      return { success: false, error: error.message || 'Failed to publish to social media' };
+    }
+  } catch (error) {
+    console.error('Late API error:', error);
+    return { success: false, error: 'Network error - please check your connection' };
+  }
+}
+
+// Get connected Late accounts
+async function getLateAccounts() {
+  const API_BASE = 'https://api.liv8ai.com';
+
+  try {
+    const data = await chrome.storage.sync.get(['apiKey', 'locationId']);
+
+    if (!data.apiKey) return [];
+
+    const response = await fetch(`${API_BASE}/api/late/accounts`, {
+      headers: {
+        'Authorization': `Bearer ${data.apiKey}`,
+        'x-location-id': data.locationId || 'default'
+      }
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return result.accounts || [];
+    }
+  } catch (error) {
+    console.error('Failed to fetch Late accounts:', error);
+  }
+  return [];
+}
+
+// Show platform selector for social posting
+function showPlatformSelector(postContent) {
+  const modal = document.createElement('div');
+  modal.className = 'platform-modal';
+  modal.innerHTML = `
+    <div class="platform-modal-content">
+      <h3>Select Platforms to Post</h3>
+      <p class="post-preview">${postContent.substring(0, 100)}${postContent.length > 100 ? '...' : ''}</p>
+      <div class="platform-grid">
+        ${Object.entries(LATE_PLATFORMS).map(([key, platform]) => `
+          <label class="platform-option ${selectedPlatforms.includes(key) ? 'selected' : ''}">
+            <input type="checkbox" value="${key}" ${selectedPlatforms.includes(key) ? 'checked' : ''}>
+            <span class="platform-icon">${platform.icon}</span>
+            <span class="platform-name">${platform.name}</span>
+          </label>
+        `).join('')}
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel">Cancel</button>
+        <button class="btn-publish">Publish Now</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Handle checkbox changes
+  modal.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      const label = e.target.closest('.platform-option');
+      label.classList.toggle('selected', e.target.checked);
+      if (e.target.checked) {
+        selectedPlatforms.push(e.target.value);
+      } else {
+        selectedPlatforms = selectedPlatforms.filter(p => p !== e.target.value);
+      }
+    });
+  });
+
+  // Handle cancel
+  modal.querySelector('.btn-cancel').addEventListener('click', () => {
+    modal.remove();
+  });
+
+  // Handle publish
+  modal.querySelector('.btn-publish').addEventListener('click', async () => {
+    if (selectedPlatforms.length === 0) {
+      alert('Please select at least one platform');
+      return;
+    }
+
+    modal.querySelector('.btn-publish').textContent = 'Publishing...';
+    modal.querySelector('.btn-publish').disabled = true;
+
+    const result = await publishToLate(postContent, selectedPlatforms);
+
+    modal.remove();
+
+    if (result.success) {
+      addMessage('assistant', `✅ Successfully published to ${selectedPlatforms.length} platform(s): ${selectedPlatforms.map(p => LATE_PLATFORMS[p]?.name || p).join(', ')}`);
+    } else {
+      addMessage('assistant', `❌ Failed to publish: ${result.error}`);
+    }
+  });
+
+  // Close on background click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
 
 // Elements
 const elements = {
@@ -318,7 +472,7 @@ async function callAI(context) {
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const responses = {
-    'create-post': 'I\'d be happy to help you create a social media post! What topic or product would you like me to write about? I can create content optimized for LinkedIn, Instagram, Twitter, or Facebook.',
+    'create-post': 'I\'d be happy to help you create a social media post! I can publish directly to 13 platforms via Late: Twitter/X, Instagram, Facebook, LinkedIn, TikTok, YouTube, Pinterest, Reddit, Bluesky, Threads, Google Business, Telegram, and Snapchat. What would you like to post?',
     'write-email': 'I can help you draft a professional email. Please tell me the purpose of the email, who it\'s for, and the key points you want to include.',
     'analyze-page': 'I\'ve captured this page. I can help you extract key insights, summarize the content, identify potential leads, or create content based on it. What would you like to do?',
     'add-lead': 'I can add this as a lead to your CRM. Would you like me to extract contact information and add any notes? I can also set up a follow-up task.'
@@ -350,6 +504,20 @@ async function callAI(context) {
 
 // Handle quick action
 function handleQuickAction(action) {
+  // Special handling for direct social publishing
+  if (action === 'publish-social') {
+    const currentInput = elements.messageInput.value.trim();
+    if (currentInput) {
+      showPlatformSelector(currentInput);
+    } else {
+      elements.messageInput.value = '';
+      elements.messageInput.placeholder = 'Enter your post content, then click Publish Now again...';
+      elements.messageInput.focus();
+      addMessage('assistant', '📱 Ready to publish! Enter your post content in the text box below, then click "Publish Now" again to select platforms and post to up to 13 social media platforms via Late.');
+    }
+    return;
+  }
+
   const prompts = {
     'create-post': 'Create a social media post about ',
     'write-email': 'Write a professional email ',

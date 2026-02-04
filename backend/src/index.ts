@@ -34,6 +34,8 @@ import voiceCredentialsRouter from './api/voice-credentials.js'; // Voice Creden
 import opportunitiesRouter from './api/opportunities.js'; // Opportunities pipeline API
 import agencyRouter from './api/agency.js'; // Agency provisioning API
 import lateRouter from './api/late.js'; // Late social media API (13 platforms)
+import smsRouter from './api/sms.js'; // Unified SMS API (Twilio, Telnyx, TextLink)
+import textlinkRouter from './api/textlink.js'; // TextLink SMS gateway
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -164,6 +166,8 @@ app.use('/api/voice-credentials', rateLimitPresets.api, voiceCredentialsRouter);
 app.use('/api/opportunities', rateLimitPresets.api, opportunitiesRouter); // Opportunities pipeline API
 app.use('/api/agency', rateLimitPresets.api, agencyRouter); // Agency provisioning API
 app.use('/api/late', rateLimitPresets.api, lateRouter); // Late social media API (13 platforms)
+app.use('/api/sms', rateLimitPresets.api, smsRouter); // Unified SMS API (Twilio, Telnyx, TextLink)
+app.use('/api/textlink', rateLimitPresets.api, textlinkRouter); // TextLink SMS gateway
 
 
 // --- MCP Integration ---
@@ -249,7 +253,7 @@ const ghlToolDefinitions = {
                 }
             }
         }
-    }
+    },
     // TODO: Add more tool definitions as needed
 
     // --- Late Social Media Tools ---
