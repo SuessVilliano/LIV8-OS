@@ -40,6 +40,22 @@ Browser companion for quick actions:
 - AI-powered content generation
 - Voice commands
 
+### [Unified Multi-Channel Inbox] ✨ NEW
+One inbox for ALL customer communications:
+- **SMS** - Twilio, Telnyx, TextLink, GoHighLevel
+- **Email** - SMTP with subject lines and HTML formatting
+- **Social DMs** - Facebook, Instagram, Twitter, LinkedIn, WhatsApp, Telegram
+- **Voice** - Call logs and voicemail
+- **Live Chat** - Website chat integration
+
+**Features:**
+- Contact management with auto-create
+- Conversation threading by channel
+- Read/unread status tracking
+- Message status (sent, delivered, read, failed)
+- Channel filtering and search
+- Assign to users or AI staff
+
 ### [Strategic Workflows]
 Goal-based campaign templates including:
 - **7-Day Reactivation** (Revenue Goal)
