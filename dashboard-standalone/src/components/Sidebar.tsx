@@ -17,7 +17,8 @@ import {
     BarChart,
     Palette,
     Wand2,
-    BookOpen
+    BookOpen,
+    Inbox
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import LocationSwitcher from './LocationSwitcher';
@@ -34,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Overview', path: '/dashboard' },
+        { icon: Inbox, label: 'Inbox', path: '/inbox' },
         { icon: Target, label: 'Opportunities', path: '/opportunities' },
         { icon: Users, label: 'Agencies', path: '/agencies' },
         { icon: MessageSquare, label: 'Staff Hub', path: '/staff' },
