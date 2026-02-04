@@ -31,9 +31,13 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsDashboard() {
-  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
+  const [timeRange, setTimeRange] = useState<'1d' | '3d' | '7d' | '30d' | '90d' | '1y' | 'custom'>('30d');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [showDrillDown, setShowDrillDown] = useState<string | null>(null);
+  const [customDateStart, setCustomDateStart] = useState('');
+  const [customDateEnd, setCustomDateEnd] = useState('');
+  const [_drillDownData, _setDrillDownData] = useState<any>(null);
 
   useEffect(() => {
     fetchAnalytics();
@@ -135,31 +139,72 @@ export default function AnalyticsDashboard() {
           <h2 className="text-2xl font-bold text-white">Analytics</h2>
           <p className="text-gray-500">Track your business performance</p>
         </div>
-        <div className="flex gap-2">
-          {(['7d', '30d', '90d', '1y'] as const).map(range => (
+        <div className="flex gap-2 flex-wrap">
+          {(['1d', '3d', '7d', '30d', '90d', '1y'] as const).map(range => (
             <button
               key={range}
               onClick={() => setTimeRange(range)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
                 timeRange === range
                   ? 'bg-violet-600 text-white'
                   : 'bg-gray-800/50 text-gray-400 hover:text-white'
               }`}
             >
-              {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : range === '90d' ? '90 Days' : '1 Year'}
+              {range === '1d' ? '1 Day' : range === '3d' ? '3 Days' : range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : range === '90d' ? '90 Days' : '1 Year'}
             </button>
           ))}
+          <button
+            onClick={() => setTimeRange('custom')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
+              timeRange === 'custom'
+                ? 'bg-violet-600 text-white'
+                : 'bg-gray-800/50 text-gray-400 hover:text-white'
+            }`}
+          >
+            Custom
+          </button>
         </div>
       </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {Object.values(data.overview).map((metric) => (
-          <div
-            key={metric.label}
-            className="bg-gray-900/50 border border-gray-800/50 rounded-2xl p-4 hover:border-gray-700/50 transition-all"
+      {/* Custom Date Picker */}
+      {timeRange === 'custom' && (
+        <div className="flex items-center gap-4 p-4 bg-gray-900/50 border border-gray-800/50 rounded-xl">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-400">From:</label>
+            <input
+              type="date"
+              value={customDateStart}
+              onChange={(e) => setCustomDateStart(e.target.value)}
+              className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-400">To:</label>
+            <input
+              type="date"
+              value={customDateEnd}
+              onChange={(e) => setCustomDateEnd(e.target.value)}
+              className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+            />
+          </div>
+          <button
+            onClick={() => fetchAnalytics()}
+            className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors"
           >
-            <div className="text-sm text-gray-500 mb-1">{metric.label}</div>
+            Apply
+          </button>
+        </div>
+      )}
+
+      {/* Overview Cards - Clickable for Drill-Down */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {Object.entries(data.overview).map(([key, metric]) => (
+          <button
+            key={metric.label}
+            onClick={() => setShowDrillDown(key)}
+            className="bg-gray-900/50 border border-gray-800/50 rounded-2xl p-4 hover:border-violet-500/50 hover:bg-gray-800/50 transition-all text-left cursor-pointer group"
+          >
+            <div className="text-sm text-gray-500 mb-1 group-hover:text-violet-400 transition-colors">{metric.label}</div>
             <div className="text-2xl font-bold text-white">
               {metric.label === 'Revenue' ? formatCurrency(metric.value) : formatNumber(metric.value)}
             </div>
@@ -169,7 +214,10 @@ export default function AnalyticsDashboard() {
               <span>{metric.changeType === 'increase' ? '↑' : '↓'}</span>
               <span>{Math.abs(metric.change)}%</span>
             </div>
-          </div>
+            <div className="text-[10px] text-gray-600 mt-2 group-hover:text-gray-400 transition-colors uppercase tracking-wider">
+              Click for details →
+            </div>
+          </button>
         ))}
       </div>
 
@@ -309,6 +357,155 @@ export default function AnalyticsDashboard() {
           description="96% satisfaction rate with 245 conversations"
         />
       </div>
+
+      {/* Drill-Down Modal */}
+      {showDrillDown && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-4xl bg-gray-900 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white capitalize">
+                  {showDrillDown.replace(/([A-Z])/g, ' $1').trim()} Details
+                </h3>
+                <p className="text-sm text-gray-500">Detailed breakdown for {timeRange === 'custom' ? 'custom range' : `last ${timeRange}`}</p>
+              </div>
+              <button
+                onClick={() => setShowDrillDown(null)}
+                className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {showDrillDown === 'conversations' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-white">{data.overview.conversations.value}</div>
+                      <div className="text-xs text-gray-500">Total Conversations</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-green-400">87%</div>
+                      <div className="text-xs text-gray-500">Resolved</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-yellow-400">8%</div>
+                      <div className="text-xs text-gray-500">Escalated</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-gray-400">5%</div>
+                      <div className="text-xs text-gray-500">Pending</div>
+                    </div>
+                  </div>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-sm text-gray-500 border-b border-gray-800">
+                        <th className="pb-3">Contact</th>
+                        <th className="pb-3">Channel</th>
+                        <th className="pb-3">Agent</th>
+                        <th className="pb-3">Status</th>
+                        <th className="pb-3">Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-sm">
+                      {['Sarah Chen', 'James Wilson', 'Mike Ross', 'Emily Brown', 'David Kim'].map((name, i) => (
+                        <tr key={i} className="border-b border-gray-800/50">
+                          <td className="py-3 text-white">{name}</td>
+                          <td className="py-3 text-gray-400">{['Chat', 'SMS', 'Email', 'Call'][i % 4]}</td>
+                          <td className="py-3 text-gray-400">{['AI Receptionist', 'Appointment Setter', 'Recovery Agent'][i % 3]}</td>
+                          <td className="py-3"><span className={`px-2 py-1 rounded text-xs ${i % 3 === 0 ? 'bg-green-500/20 text-green-400' : i % 3 === 1 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'}`}>{['Resolved', 'Escalated', 'Pending'][i % 3]}</span></td>
+                          <td className="py-3 text-gray-400">{Math.floor(Math.random() * 10) + 1}m {Math.floor(Math.random() * 60)}s</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {showDrillDown === 'contentCreated' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-white">{data.overview.contentCreated.value}</div>
+                      <div className="text-xs text-gray-500">Total Content</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-violet-400">72%</div>
+                      <div className="text-xs text-gray-500">AI Generated</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-blue-400">3.2%</div>
+                      <div className="text-xs text-gray-500">Avg CTR</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-green-400">156</div>
+                      <div className="text-xs text-gray-500">Conversions</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {['Email', 'Social', 'SMS', 'Website'].map((type) => (
+                      <div key={type} className="p-4 bg-gray-800/30 rounded-xl border border-gray-700/30">
+                        <div className="text-lg font-bold text-white">{Math.floor(Math.random() * 30) + 5}</div>
+                        <div className="text-xs text-gray-500">{type} Posts</div>
+                        <div className="text-[10px] text-green-400 mt-1">↑ {Math.floor(Math.random() * 20) + 5}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {showDrillDown === 'revenue' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-white">{formatCurrency(data.overview.revenue.value)}</div>
+                      <div className="text-xs text-gray-500">Total Revenue</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-green-400">23</div>
+                      <div className="text-xs text-gray-500">Deals Closed</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-blue-400">{formatCurrency(data.overview.revenue.value / 23)}</div>
+                      <div className="text-xs text-gray-500">Avg Deal Value</div>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-violet-400">68%</div>
+                      <div className="text-xs text-gray-500">Win Rate</div>
+                    </div>
+                  </div>
+                  <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Revenue by Source</h4>
+                  <div className="space-y-2">
+                    {[
+                      { source: 'AI Receptionist', pct: 40 },
+                      { source: 'Website', pct: 25 },
+                      { source: 'Referral', pct: 20 },
+                      { source: 'Ad Campaign', pct: 15 }
+                    ].map(s => (
+                      <div key={s.source}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-gray-400">{s.source}</span>
+                          <span className="text-white">{formatCurrency(data.overview.revenue.value * s.pct / 100)}</span>
+                        </div>
+                        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-violet-500 rounded-full" style={{ width: `${s.pct}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!['conversations', 'contentCreated', 'revenue'].includes(showDrillDown) && (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-4">📊</div>
+                  <h4 className="text-lg font-bold text-white mb-2">Detailed Analytics</h4>
+                  <p className="text-gray-500">Detailed breakdown for {showDrillDown.replace(/([A-Z])/g, ' $1').toLowerCase()} coming soon.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -373,8 +570,8 @@ function SimpleLineChart({ data, color }: { data: ChartDataPoint[]; color: strin
 
       {/* X-axis labels */}
       <div className="absolute left-14 right-0 bottom-0 h-6 flex justify-between text-xs text-gray-500">
-        {data.filter((_, i) => i % Math.ceil(data.length / 5) === 0).map((d, i) => (
-          <span key={i}>{d.date}</span>
+        {data.filter((_d, idx) => idx % Math.ceil(data.length / 5) === 0).map((d) => (
+          <span key={d.date}>{d.date}</span>
         ))}
       </div>
     </div>

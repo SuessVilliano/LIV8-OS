@@ -12,7 +12,8 @@
     "https://app.gohighlevel.com/*",
     "https://*.gohighlevel.com/*",
     "https://os.liv8ai.com/*",
-    "https://backend-ten-chi-43.vercel.app/*"
+    "https://api.liv8ai.com/*",
+    "https://*.vercel.app/*"
   ],
   "action": {
     "default_title": "Open LIV8 Operator",

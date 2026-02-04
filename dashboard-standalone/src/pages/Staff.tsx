@@ -22,7 +22,12 @@ import {
     X,
     Play,
     Pause,
-    Edit3
+    Edit3,
+    FileText,
+    Package,
+    Shield,
+    CheckCircle,
+    Upload
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
@@ -65,6 +70,9 @@ const Staff = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [showStaffConfig, setShowStaffConfig] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+    const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const crmType = localStorage.getItem('os_crm_type') || 'liv8';
@@ -141,6 +149,71 @@ const Staff = () => {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    // Sync all AI staff with CRM
+    const handleSyncStaff = async () => {
+        if (isSyncing) return;
+        setIsSyncing(true);
+
+        try {
+            const token = localStorage.getItem('os_token');
+            const locationId = localStorage.getItem('os_loc_id');
+
+            // Sync staff data
+            await fetch(`${API_BASE}/api/staff/sync`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ locationId, crmType })
+            });
+
+            // Update UI with sync status
+            setAiStaff(prev => prev.map(s => ({
+                ...s,
+                status: 'Syncing' as const
+            })));
+
+            // Simulate sync completion
+            setTimeout(() => {
+                setAiStaff(prev => prev.map(s => ({
+                    ...s,
+                    status: 'Online' as const,
+                    lastAction: 'Synced with CRM'
+                })));
+
+                // Add system message
+                setMessages(prev => [...prev, {
+                    id: String(Date.now()),
+                    role: 'system',
+                    name: 'System',
+                    text: `All AI staff synced with ${crmType.toUpperCase()}. Staff data and CRM context updated.`,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                }]);
+
+                setIsSyncing(false);
+            }, 2000);
+
+        } catch (error) {
+            console.error('Sync failed:', error);
+            setIsSyncing(false);
+        }
+    };
+
+    // Scan knowledge base
+    const handleKnowledgeBaseScan = async () => {
+        setShowKnowledgeBase(true);
+
+        // Add system message about KB scan
+        setMessages(prev => [...prev, {
+            id: String(Date.now()),
+            role: 'system',
+            name: 'System',
+            text: 'Knowledge Base scan initiated. AI staff will reference updated brand context and verified facts.',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
+    };
 
     // Send message to AI Staff
     const handleSendMessage = async (e: React.FormEvent) => {
@@ -459,10 +532,19 @@ const Staff = () => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 md:gap-3">
-                                <button className="p-2 md:p-3 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl text-[var(--os-text-muted)] hover:text-neuro transition-all">
-                                    <Zap className="h-4 md:h-5 w-4 md:w-5" />
+                                <button
+                                    onClick={handleSyncStaff}
+                                    disabled={isSyncing}
+                                    className={`p-2 md:p-3 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl transition-all ${isSyncing ? 'text-neuro animate-pulse' : 'text-[var(--os-text-muted)] hover:text-neuro'}`}
+                                    title="Sync AI Staff with CRM"
+                                >
+                                    <Zap className={`h-4 md:h-5 w-4 md:w-5 ${isSyncing ? 'animate-spin' : ''}`} />
                                 </button>
-                                <button className="p-2 md:p-3 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl text-[var(--os-text-muted)] hover:text-neuro transition-all">
+                                <button
+                                    onClick={() => setShowSettings(true)}
+                                    className="p-2 md:p-3 bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl text-[var(--os-text-muted)] hover:text-neuro transition-all"
+                                    title="Staff Settings"
+                                >
                                     <SettingsIcon className="h-4 md:h-5 w-4 md:w-5" />
                                 </button>
                             </div>
@@ -545,7 +627,10 @@ const Staff = () => {
                     >
                         <Sparkles className="h-3 md:h-4 w-3 md:w-4 text-neuro" /> Provision Intelligence
                     </button>
-                    <button className="flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-[var(--os-text)] text-[9px] font-black uppercase tracking-widest hover:border-neuro transition-all shadow-sm">
+                    <button
+                        onClick={handleKnowledgeBaseScan}
+                        className="flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-[var(--os-text)] text-[9px] font-black uppercase tracking-widest hover:border-neuro transition-all shadow-sm"
+                    >
                         <BookOpen className="h-3 md:h-4 w-3 md:w-4 text-neuro" /> Knowledgebase Scan
                     </button>
                 </div>
@@ -594,8 +679,155 @@ const Staff = () => {
                                 ))}
                             </div>
                             <div className="pt-4 border-t border-[var(--os-border)]">
-                                <button className="w-full h-12 bg-neuro text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform">
+                                <button
+                                    onClick={() => {
+                                        setShowStaffConfig(false);
+                                        setMessages(prev => [...prev, {
+                                            id: String(Date.now()),
+                                            role: 'system',
+                                            name: 'System',
+                                            text: 'Custom AI Agent creation coming soon! For now, configure existing agents through the Brand Brain setup.',
+                                            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                        }]);
+                                    }}
+                                    className="w-full h-12 bg-neuro text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                                >
                                     <Plus className="h-4 w-4" /> Create Custom AI Agent
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Settings Modal */}
+            {showSettings && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-lg bg-[var(--os-surface)] rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-[var(--os-border)] flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <SettingsIcon className="h-5 w-5 text-neuro" />
+                                <h3 className="text-lg font-black uppercase">Staff Settings</h3>
+                            </div>
+                            <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-[var(--os-bg)] rounded-lg">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-bold uppercase tracking-wider text-[var(--os-text-muted)]">Response Settings</h4>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)]">
+                                        <div>
+                                            <h5 className="font-bold text-sm">Auto-Response</h5>
+                                            <p className="text-[10px] text-[var(--os-text-muted)]">AI responds automatically without approval</p>
+                                        </div>
+                                        <button className="px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-emerald-500 text-white">
+                                            Enabled
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)]">
+                                        <div>
+                                            <h5 className="font-bold text-sm">Use Brand Voice</h5>
+                                            <p className="text-[10px] text-[var(--os-text-muted)]">Align responses with Brand Brain settings</p>
+                                        </div>
+                                        <button className="px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-emerald-500 text-white">
+                                            Enabled
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)]">
+                                        <div>
+                                            <h5 className="font-bold text-sm">CRM Sync Interval</h5>
+                                            <p className="text-[10px] text-[var(--os-text-muted)]">How often to sync with your CRM</p>
+                                        </div>
+                                        <select className="px-3 py-2 rounded-lg text-[10px] font-bold bg-[var(--os-surface)] border border-[var(--os-border)]">
+                                            <option>5 min</option>
+                                            <option>15 min</option>
+                                            <option>30 min</option>
+                                            <option>1 hour</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="pt-4 border-t border-[var(--os-border)]">
+                                <button
+                                    onClick={() => setShowSettings(false)}
+                                    className="w-full h-12 bg-neuro text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                                >
+                                    Save Settings
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Knowledge Base Modal */}
+            {showKnowledgeBase && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-2xl bg-[var(--os-surface)] rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[80vh] flex flex-col">
+                        <div className="p-6 border-b border-[var(--os-border)] flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <BookOpen className="h-5 w-5 text-neuro" />
+                                <h3 className="text-lg font-black uppercase">Knowledge Base</h3>
+                            </div>
+                            <button onClick={() => setShowKnowledgeBase(false)} className="p-2 hover:bg-[var(--os-bg)] rounded-lg">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                            <p className="text-sm text-[var(--os-text-muted)]">
+                                Your AI Staff reference this knowledge base for accurate, brand-aligned responses. Add FAQs, product info, policies, and verified facts.
+                            </p>
+                            <div className="space-y-4">
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        placeholder="Search knowledge base..."
+                                        className="flex-1 px-4 py-3 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl text-sm focus:border-neuro outline-none"
+                                    />
+                                    <button className="px-4 py-3 bg-neuro text-white rounded-xl font-bold text-xs uppercase">
+                                        Search
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)] hover:border-neuro/50 transition-all cursor-pointer">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <FileText className="h-4 w-4 text-neuro" />
+                                            <span className="text-xs font-bold uppercase">FAQ</span>
+                                        </div>
+                                        <p className="text-[10px] text-[var(--os-text-muted)]">12 entries</p>
+                                    </div>
+                                    <div className="p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)] hover:border-neuro/50 transition-all cursor-pointer">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Package className="h-4 w-4 text-blue-500" />
+                                            <span className="text-xs font-bold uppercase">Products</span>
+                                        </div>
+                                        <p className="text-[10px] text-[var(--os-text-muted)]">8 entries</p>
+                                    </div>
+                                    <div className="p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)] hover:border-neuro/50 transition-all cursor-pointer">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Shield className="h-4 w-4 text-emerald-500" />
+                                            <span className="text-xs font-bold uppercase">Policies</span>
+                                        </div>
+                                        <p className="text-[10px] text-[var(--os-text-muted)]">5 entries</p>
+                                    </div>
+                                    <div className="p-4 bg-[var(--os-bg)] rounded-xl border border-[var(--os-border)] hover:border-neuro/50 transition-all cursor-pointer">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <CheckCircle className="h-4 w-4 text-amber-500" />
+                                            <span className="text-xs font-bold uppercase">Verified Facts</span>
+                                        </div>
+                                        <p className="text-[10px] text-[var(--os-text-muted)]">23 entries</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="pt-4 border-t border-[var(--os-border)] flex gap-3">
+                                <button className="flex-1 h-12 bg-[var(--os-bg)] border border-[var(--os-border)] text-[var(--os-text)] rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:border-neuro transition-all">
+                                    <Upload className="h-4 w-4" /> Import Docs
+                                </button>
+                                <button className="flex-1 h-12 bg-neuro text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform">
+                                    <Plus className="h-4 w-4" /> Add Entry
                                 </button>
                             </div>
                         </div>

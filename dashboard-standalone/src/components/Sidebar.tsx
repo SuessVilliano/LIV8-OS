@@ -15,9 +15,12 @@ import {
     Moon,
     Target,
     BarChart,
-    Palette
+    Palette,
+    Wand2,
+    BookOpen
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import LocationSwitcher from './LocationSwitcher';
 
 interface SidebarProps {
     onLogout: () => void;
@@ -35,13 +38,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
         { icon: Users, label: 'Agencies', path: '/agencies' },
         { icon: MessageSquare, label: 'Staff Hub', path: '/staff' },
         { icon: Palette, label: 'Brand Hub', path: '/brand' },
+        { icon: Wand2, label: 'Studio', path: '/studio' },
         { icon: Workflow, label: 'Workflows', path: '/workflows' },
         { icon: BarChart, label: 'Analytics', path: '/analytics' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
 
     const handleOpenSupport = () => {
-        window.open('https://os.liv8ai.com/support', 'LIV8_Support', 'width=450,height=700');
+        window.open('https://api.anychat.one/embed/4a4d5890-b444-3906-8f87-1cedb3342c68', 'LIV8_Support', 'width=450,height=700');
     };
 
     const handleLogoutClick = () => {
@@ -69,6 +73,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
                     </span>
                 )}
             </div>
+
+            {/* Location Switcher for Agency Accounts */}
+            {!isCollapsed && (
+                <div className="border-b border-[var(--os-border)] pb-4">
+                    <LocationSwitcher compact={false} />
+                </div>
+            )}
+            {isCollapsed && <LocationSwitcher compact={true} />}
 
             <nav className="flex-1 space-y-2 mt-4">
                 {menuItems.map((item) => {
@@ -101,8 +113,18 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
                 </button>
 
                 <button
+                    onClick={() => navigate('/support')}
+                    className={`flex w-full items-center gap-4 rounded-2xl px-4 py-3 text-sm font-bold text-[var(--os-text-muted)] hover:bg-neuro/5 hover:text-neuro transition-all ${isCollapsed ? 'justify-center px-0' : ''}`}
+                    title={isCollapsed ? 'Help & Docs' : ''}
+                >
+                    <BookOpen className="h-5 w-5" />
+                    {!isCollapsed && <span className="tracking-tight font-black uppercase text-[10px]">Help & Docs</span>}
+                </button>
+
+                <button
                     onClick={handleOpenSupport}
                     className={`flex w-full items-center gap-4 rounded-2xl px-4 py-3 text-sm font-bold text-[var(--os-text-muted)] hover:bg-neuro/5 hover:text-neuro transition-all ${isCollapsed ? 'justify-center px-0' : ''}`}
+                    title={isCollapsed ? 'Live Support' : ''}
                 >
                     <LifeBuoy className="h-5 w-5" />
                     {!isCollapsed && <span className="tracking-tight font-black uppercase text-[10px]">Live Support</span>}

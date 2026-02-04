@@ -28,6 +28,14 @@ import crmRouter from './api/crm.js'; // CRM validation & account creation
 import dashboardRouter from './api/dashboard.js'; // Dashboard data API
 import webhooksRouter from './api/webhooks.js'; // Webhook management
 import brandRouter from './api/brand.js'; // Brand assets & knowledge base
+import studioRouter from './api/studio.js'; // Creative Studio API
+import actionsRouter from './api/actions.js'; // Action Execution API
+import voiceCredentialsRouter from './api/voice-credentials.js'; // Voice Credentials Vault
+import opportunitiesRouter from './api/opportunities.js'; // Opportunities pipeline API
+import agencyRouter from './api/agency.js'; // Agency provisioning API
+import lateRouter from './api/late.js'; // Late social media API (13 platforms)
+import smsRouter from './api/sms.js'; // Unified SMS API (Twilio, Telnyx, TextLink)
+import textlinkRouter from './api/textlink.js'; // TextLink SMS gateway
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -152,6 +160,14 @@ app.use('/api/crm', rateLimitPresets.api, crmRouter); // CRM validation & accoun
 app.use('/api/dashboard', rateLimitPresets.api, dashboardRouter); // Dashboard data API
 app.use('/api/webhooks', rateLimitPresets.webhook, webhooksRouter); // Webhook management (lenient for incoming webhooks)
 app.use('/api/brand', rateLimitPresets.api, brandRouter); // Brand assets & knowledge base
+app.use('/api/studio', rateLimitPresets.ai, studioRouter); // Creative Studio API (AI rate limiting)
+app.use('/api/actions', rateLimitPresets.ai, actionsRouter); // Action Execution API (AI rate limiting)
+app.use('/api/voice-credentials', rateLimitPresets.api, voiceCredentialsRouter); // Voice Credentials Vault
+app.use('/api/opportunities', rateLimitPresets.api, opportunitiesRouter); // Opportunities pipeline API
+app.use('/api/agency', rateLimitPresets.api, agencyRouter); // Agency provisioning API
+app.use('/api/late', rateLimitPresets.api, lateRouter); // Late social media API (13 platforms)
+app.use('/api/sms', rateLimitPresets.api, smsRouter); // Unified SMS API (Twilio, Telnyx, TextLink)
+app.use('/api/textlink', rateLimitPresets.api, textlinkRouter); // TextLink SMS gateway
 
 
 // --- MCP Integration ---
@@ -237,8 +253,146 @@ const ghlToolDefinitions = {
                 }
             }
         }
-    }
+    },
     // TODO: Add more tool definitions as needed
+
+    // --- Late Social Media Tools ---
+    'late-list-accounts': {
+        description: 'List connected Late social media accounts across 13 platforms.',
+        parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+        },
+        returns: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string' },
+                    platform: { type: 'string' },
+                    username: { type: 'string' }
+                }
+            }
+        }
+    },
+    'late-create-post': {
+        description: 'Create a social media post via Late. Supports Twitter, Instagram, Facebook, LinkedIn, TikTok, YouTube, Pinterest, Reddit, Bluesky, Threads, Google Business, Telegram, Snapchat.',
+        parameters: {
+            type: 'object',
+            properties: {
+                content: { type: 'string', description: 'Post content' },
+                platforms: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Platforms to post to (twitter, instagram, linkedin, facebook, tiktok, youtube, pinterest, reddit, bluesky, threads, googlebusiness, telegram, snapchat)'
+                },
+                scheduledFor: { type: 'string', description: 'ISO 8601 date for scheduled post (optional)' },
+                mediaUrls: { type: 'array', items: { type: 'string' }, description: 'Media URLs to attach (optional)' },
+                isDraft: { type: 'boolean', description: 'Save as draft instead of publishing' }
+            },
+            required: ['content', 'platforms']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                id: { type: 'string' },
+                status: { type: 'string' }
+            }
+        }
+    },
+    'late-publish-now': {
+        description: 'Publish content immediately to social platforms via Late.',
+        parameters: {
+            type: 'object',
+            properties: {
+                content: { type: 'string', description: 'Post content' },
+                platforms: { type: 'array', items: { type: 'string' }, description: 'Platforms to post to' },
+                mediaUrls: { type: 'array', items: { type: 'string' }, description: 'Media URLs to attach (optional)' }
+            },
+            required: ['content', 'platforms']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean' },
+                postId: { type: 'string' }
+            }
+        }
+    },
+    'late-cross-post': {
+        description: 'Cross-post content to multiple social platforms at once via Late.',
+        parameters: {
+            type: 'object',
+            properties: {
+                content: { type: 'string', description: 'Post content' },
+                platforms: { type: 'array', items: { type: 'string' }, description: 'Platforms to post to' },
+                isDraft: { type: 'boolean', description: 'Save as draft instead of publishing' }
+            },
+            required: ['content', 'platforms']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean' },
+                results: { type: 'array' }
+            }
+        }
+    },
+    'late-list-posts': {
+        description: 'List scheduled/published posts from Late.',
+        parameters: {
+            type: 'object',
+            properties: {
+                status: { type: 'string', enum: ['draft', 'scheduled', 'published', 'failed'], description: 'Filter by status' },
+                limit: { type: 'number', description: 'Maximum results (default 20)' }
+            }
+        },
+        returns: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string' },
+                    content: { type: 'string' },
+                    status: { type: 'string' }
+                }
+            }
+        }
+    },
+    'late-retry-failed': {
+        description: 'Retry all failed Late posts.',
+        parameters: {
+            type: 'object',
+            properties: {}
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                total: { type: 'number' },
+                succeeded: { type: 'number' },
+                failed: { type: 'number' }
+            }
+        }
+    },
+    'late-get-platforms': {
+        description: 'Get list of supported social media platforms with character limits.',
+        parameters: {
+            type: 'object',
+            properties: {}
+        },
+        returns: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' },
+                    charLimit: { type: 'number' }
+                }
+            }
+        }
+    }
 };
 
 // GET /mcp for listing tools (schema discovery)

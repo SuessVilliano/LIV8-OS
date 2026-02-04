@@ -29,7 +29,6 @@ import {
     RefreshCw
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
-import AIStaffChat from '../components/AIStaffChat';
 import { useNavigate } from 'react-router-dom';
 import { getBackendUrl } from '../services/api';
 
@@ -42,7 +41,6 @@ const iconMap: Record<string, any> = {
 
 const Dashboard = () => {
     const { config } = useTheme();
-    const [showChat, setShowChat] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'kanban'>('overview');
     const [isLoading, setIsLoading] = useState(true);
@@ -168,7 +166,7 @@ const Dashboard = () => {
                 navigate('/staff'); // Navigate to staff/contacts
                 break;
             case 'AI Conversations':
-                setShowChat(true); // Open AI chat
+                navigate('/staff'); // Navigate to staff page (AI chat available via unified panel)
                 break;
             case 'Workflows Active':
                 setActiveTab('overview'); // Show workflows in overview
@@ -444,7 +442,10 @@ const Dashboard = () => {
                                     <h3 className="text-xl font-black text-[var(--os-text)] uppercase italic">Active Campaigns</h3>
                                     <p className="text-[9px] font-bold text-[var(--os-text-muted)] mt-1 uppercase tracking-widest">High-Performance Neural Workflows</p>
                                 </div>
-                                <button className="text-[10px] font-black text-neuro flex items-center gap-2 hover:translate-x-1 transition-all uppercase tracking-widest">
+                                <button
+                                    onClick={() => navigate('/workflows')}
+                                    className="text-[10px] font-black text-neuro flex items-center gap-2 hover:translate-x-1 transition-all uppercase tracking-widest"
+                                >
                                     View All <ArrowUpRight className="h-4 w-4" />
                                 </button>
                             </div>
@@ -711,26 +712,6 @@ const Dashboard = () => {
                 )}
             </div>
 
-            {/* Floating AI Staff Chat Button */}
-            <button
-                onClick={() => setShowChat(true)}
-                className="fixed bottom-6 right-6 h-14 w-14 bg-neuro text-white rounded-2xl flex items-center justify-center shadow-lg shadow-neuro/30 hover:scale-110 transition-all z-50 group"
-            >
-                <Bot className="h-6 w-6 group-hover:scale-110 transition-transform" />
-                <span className="absolute -top-1 -right-1 h-4 w-4 bg-emerald-500 rounded-full animate-pulse" />
-            </button>
-
-            {/* AI Staff Chat Modal */}
-            {showChat && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="w-full max-w-2xl h-[80vh] animate-in fade-in zoom-in-95 duration-200">
-                        <AIStaffChat
-                            locationId={locationId}
-                            onClose={() => setShowChat(false)}
-                        />
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

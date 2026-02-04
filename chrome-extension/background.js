@@ -239,7 +239,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'SEND_TO_DASHBOARD':
       // Open dashboard in new tab with data
       chrome.tabs.create({
-        url: `https://app.liv8.ai/dashboard?action=${encodeURIComponent(JSON.stringify(message.data))}`
+        url: `https://os.liv8ai.com/dashboard?action=${encodeURIComponent(JSON.stringify(message.data))}`
       });
       sendResponse({ success: true });
       return true;

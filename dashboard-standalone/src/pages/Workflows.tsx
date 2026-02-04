@@ -143,21 +143,42 @@ const Workflows = () => {
     // Fetch real workflows from backend
     useEffect(() => {
         const fetchWorkflows = async () => {
-            const token = localStorage.getItem('os_token');
-            const locationId = localStorage.getItem('os_loc_id');
-
-            if (!token || !locationId) return;
-
-            setIsLoading(true);
             try {
+                const token = localStorage.getItem('os_token');
+                const locationId = localStorage.getItem('os_loc_id');
+
+                if (!token || !locationId) {
+                    setIsLoading(false);
+                    return;
+                }
+
+                setIsLoading(true);
                 const response = await fetch(`${API_BASE}/api/dashboard/workflows?crm=${crmType}&locationId=${locationId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.workflows && data.workflows.length > 0) {
-                        setFlows(data.workflows);
+                    if (data?.workflows && Array.isArray(data.workflows) && data.workflows.length > 0) {
+                        // Ensure all workflow items have required properties with defaults
+                        const validWorkflows = data.workflows
+                            .filter((w: any) => w && w.id && w.name)
+                            .map((w: any): WorkflowItem => ({
+                                id: w.id || String(Date.now()),
+                                name: w.name || 'Unnamed Workflow',
+                                trigger: w.trigger || 'Manual',
+                                status: w.status || 'draft',
+                                executions: w.executions || 0,
+                                latency: w.latency || '0s',
+                                efficiency: w.efficiency || 0,
+                                type: w.type || 'Custom',
+                                source: w.source || 'custom',
+                                lastRun: w.lastRun || 'Never',
+                                description: w.description || ''
+                            }));
+                        if (validWorkflows.length > 0) {
+                            setFlows(validWorkflows);
+                        }
                     }
                 }
             } catch (error) {
@@ -170,9 +191,12 @@ const Workflows = () => {
         fetchWorkflows();
     }, [crmType]);
 
-    const filteredFlows = flows.filter(flow => {
-        const matchesSearch = flow.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            flow.trigger.toLowerCase().includes(searchQuery.toLowerCase());
+    const filteredFlows = (flows || []).filter(flow => {
+        if (!flow) return false;
+        const flowName = (flow.name || '').toLowerCase();
+        const flowTrigger = (flow.trigger || '').toLowerCase();
+        const searchLower = searchQuery.toLowerCase();
+        const matchesSearch = flowName.includes(searchLower) || flowTrigger.includes(searchLower);
         const matchesStatus = statusFilter === 'All' ||
             (statusFilter === 'Active' && flow.status === 'active') ||
             (statusFilter === 'Paused' && flow.status === 'paused');
@@ -225,7 +249,7 @@ const Workflows = () => {
                 setFlows(prev => [duplicate, ...prev]);
                 break;
             case 'delete':
-                if (confirm(`Delete "${flow.name}"?`)) {
+                if (window.confirm(`Delete "${flow.name}"?`)) {
                     setFlows(prev => prev.filter(f => f.id !== flow.id));
                 }
                 break;
@@ -237,7 +261,12 @@ const Workflows = () => {
                 }
                 break;
             case 'test':
-                alert(`Testing workflow: ${flow.name}`);
+                if (flow.source === 'ghl' || flow.source === 'vbout') {
+                    const crmName = flow.source === 'ghl' ? 'GoHighLevel' : 'VBout';
+                    alert(`To test "${flow.name}", open it in ${crmName} and use the built-in test feature:\n\n1. Click "Open in CRM" to edit the workflow\n2. Use the test/preview function in your CRM\n3. Monitor results in the workflow logs`);
+                } else {
+                    alert(`Template workflows can be tested after deploying to your CRM.\n\nClick "Open in CRM" to customize and test this workflow.`);
+                }
                 break;
         }
     };
@@ -407,15 +436,15 @@ const Workflows = () => {
                                 <div className="grid grid-cols-3 gap-3 mb-6">
                                     <div className="bg-[var(--os-bg)] p-3 rounded-xl border border-[var(--os-border)]">
                                         <div className="text-[8px] font-black text-[var(--os-text-muted)] uppercase">Executions</div>
-                                        <div className="text-lg font-black">{flow.executions.toLocaleString()}</div>
+                                        <div className="text-lg font-black">{(flow.executions ?? 0).toLocaleString()}</div>
                                     </div>
                                     <div className="bg-[var(--os-bg)] p-3 rounded-xl border border-[var(--os-border)]">
                                         <div className="text-[8px] font-black text-[var(--os-text-muted)] uppercase">Latency</div>
-                                        <div className="text-lg font-black">{flow.latency}</div>
+                                        <div className="text-lg font-black">{flow.latency || '0s'}</div>
                                     </div>
                                     <div className="bg-[var(--os-bg)] p-3 rounded-xl border border-[var(--os-border)]">
                                         <div className="text-[8px] font-black text-[var(--os-text-muted)] uppercase">Efficiency</div>
-                                        <div className="text-lg font-black text-emerald-500">{flow.efficiency}%</div>
+                                        <div className="text-lg font-black text-emerald-500">{flow.efficiency ?? 0}%</div>
                                     </div>
                                 </div>
 
@@ -459,11 +488,11 @@ const Workflows = () => {
                                 </div>
                                 <div className="flex items-center gap-6">
                                     <div className="text-right hidden md:block">
-                                        <div className="text-sm font-black">{flow.executions.toLocaleString()}</div>
+                                        <div className="text-sm font-black">{(flow.executions ?? 0).toLocaleString()}</div>
                                         <div className="text-[9px] text-[var(--os-text-muted)]">Executions</div>
                                     </div>
                                     <div className="text-right hidden md:block">
-                                        <div className="text-sm font-black text-emerald-500">{flow.efficiency}%</div>
+                                        <div className="text-sm font-black text-emerald-500">{flow.efficiency ?? 0}%</div>
                                         <div className="text-[9px] text-[var(--os-text-muted)]">Efficiency</div>
                                     </div>
                                     <span className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase ${getStatusBadge(flow.status)}`}>
@@ -511,8 +540,8 @@ const Workflows = () => {
                                                 {getSourceBadge(flow.source).label}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-center font-bold">{flow.executions.toLocaleString()}</td>
-                                        <td className="p-4 text-center font-bold text-emerald-500">{flow.efficiency}%</td>
+                                        <td className="p-4 text-center font-bold">{(flow.executions ?? 0).toLocaleString()}</td>
+                                        <td className="p-4 text-center font-bold text-emerald-500">{flow.efficiency ?? 0}%</td>
                                         <td className="p-4 text-center">
                                             <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase ${getStatusBadge(flow.status)}`}>
                                                 {flow.status}

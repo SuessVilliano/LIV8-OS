@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { brandSync } from './services/BrandSync';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -11,12 +12,16 @@ import Workflows from './pages/Workflows';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import Pricing from './pages/Pricing';
+import Studio from './pages/Studio';
+import Support from './pages/Support';
 import Sidebar from './components/Sidebar';
 import CrmConnect from './components/CrmConnect';
 import GhlOnboarding from './components/GhlOnboarding';
-import CommandSidebar from './components/CommandSidebar';
+import UnifiedCommandPanel from './components/UnifiedCommandPanel';
+import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Terminal } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
@@ -46,6 +51,29 @@ function App() {
 
   const [isCommandOpen, setIsCommandOpen] = useState(false);
 
+  // Initialize brand sync when user is fully onboarded
+  useEffect(() => {
+    if (isAuthenticated && isCrmConnected && isOnboarded) {
+      // Sync brand data from server to localStorage on app init
+      brandSync.initialize()
+        .then((data) => {
+          if (data) {
+            console.log('[App] Brand data synced:', data.businessName);
+          }
+        })
+        .catch((err) => {
+          console.error('[App] Brand sync failed:', err);
+        });
+
+      // Start periodic sync to keep server and local in sync
+      brandSync.startPeriodicSync();
+
+      return () => {
+        brandSync.stopPeriodicSync();
+      };
+    }
+  }, [isAuthenticated, isCrmConnected, isOnboarded]);
+
   const handleLogin = () => {
     localStorage.setItem('os_auth', 'true');
     setIsAuthenticated(true);
@@ -73,9 +101,17 @@ function App() {
     setIsCrmConnected(true);
   };
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async () => {
     localStorage.setItem('os_onboarded', 'true');
     setIsOnboarded(true);
+
+    // Force sync brand data to server after onboarding
+    try {
+      await brandSync.forceSync();
+      console.log('[App] Onboarding data synced to server');
+    } catch (err) {
+      console.error('[App] Failed to sync onboarding data:', err);
+    }
   };
 
   const toggleCommand = () => setIsCommandOpen(!isCommandOpen);
@@ -113,16 +149,19 @@ function App() {
                     isOnboarded ? <Navigate to="/dashboard" replace /> : <GhlOnboarding onComplete={handleOnboardingComplete} />
               } />
 
-              {/* 4. Dashboard & Core Pages */}
-              <Route path="/dashboard" element={isCoreActive ? <Dashboard /> : <Navigate to="/login" replace />} />
-              <Route path="/opportunities" element={isCoreActive ? <Opportunities /> : <Navigate to="/login" replace />} />
-              <Route path="/agencies" element={isCoreActive ? <Agencies /> : <Navigate to="/login" replace />} />
-              <Route path="/staff" element={isCoreActive ? <Staff /> : <Navigate to="/login" replace />} />
-              <Route path="/brand" element={isCoreActive ? <Brand /> : <Navigate to="/login" replace />} />
-              <Route path="/workflows" element={isCoreActive ? <Workflows /> : <Navigate to="/login" replace />} />
-              <Route path="/analytics" element={isCoreActive ? <Analytics /> : <Navigate to="/login" replace />} />
-              <Route path="/settings" element={isCoreActive ? <Settings /> : <Navigate to="/login" replace />} />
+              {/* 4. Dashboard & Core Pages - Wrapped in ErrorBoundary */}
+              <Route path="/dashboard" element={isCoreActive ? <ErrorBoundary><Dashboard /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/opportunities" element={isCoreActive ? <ErrorBoundary><Opportunities /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/agencies" element={isCoreActive ? <ErrorBoundary><Agencies /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/staff" element={isCoreActive ? <ErrorBoundary><Staff /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/brand" element={isCoreActive ? <ErrorBoundary><Brand /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/workflows" element={isCoreActive ? <ErrorBoundary><Workflows /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/studio" element={isCoreActive ? <ErrorBoundary><Studio /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/analytics" element={isCoreActive ? <ErrorBoundary><Analytics /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/settings" element={isCoreActive ? <ErrorBoundary><Settings /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/support" element={isCoreActive ? <ErrorBoundary><Support /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/pricing" element={<Pricing />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -133,13 +172,13 @@ function App() {
                 onClick={toggleCommand}
                 className={`fixed bottom-10 right-10 h-16 w-16 rounded-[1.8rem] bg-neuro text-white flex items-center justify-center shadow-2xl shadow-neuro/40 hover:scale-110 active:scale-95 transition-all z-[90] ${isCommandOpen ? 'opacity-0 scale-0' : 'opacity-100 scale-100'}`}
               >
-                <Terminal className="h-7 w-7" />
+                <Sparkles className="h-7 w-7" />
               </button>
             )}
 
-            {/* Neural Command Sidebar */}
+            {/* Unified Neural Command Panel */}
             {isCoreActive && (
-              <CommandSidebar isOpen={isCommandOpen} onClose={toggleCommand} />
+              <UnifiedCommandPanel isOpen={isCommandOpen} onClose={toggleCommand} />
             )}
           </main>
         </div>

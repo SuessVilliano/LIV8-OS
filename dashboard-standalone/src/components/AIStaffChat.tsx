@@ -63,7 +63,7 @@ const AIStaffChat: React.FC<AIStaffChatProps> = ({ locationId, onClose, initialR
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const API_URL = import.meta.env.VITE_API_URL || 'https://liv8-backend.onrender.com';
+    const API_URL = import.meta.env.VITE_API_URL || 'https://api.liv8ai.com';
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

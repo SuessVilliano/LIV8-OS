@@ -579,6 +579,126 @@
       0%, 80%, 100% { transform: scale(0); }
       40% { transform: scale(1); }
     }
+
+    /* Platform Selector Modal - Late Social Media Integration */
+    .platform-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .platform-modal-content {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+      border: 1px solid var(--border);
+    }
+
+    .platform-modal-content h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text-primary);
+    }
+
+    .post-preview {
+      font-size: 13px;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      border-left: 3px solid var(--accent);
+    }
+
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .platform-option {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 8px;
+      background: var(--bg-card);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+
+    .platform-option:hover {
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    .platform-option.selected {
+      border-color: var(--accent);
+      background: rgba(139, 92, 246, 0.15);
+    }
+
+    .platform-option input {
+      display: none;
+    }
+
+    .platform-icon {
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+
+    .platform-name {
+      font-size: 10px;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-cancel {
+      flex: 1;
+      padding: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn-publish {
+      flex: 2;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn-publish:hover {
+      opacity: 0.9;
+    }
+
+    .btn-publish:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -636,6 +756,11 @@
             <div class="quick-action-icon">✨</div>
             <div class="quick-action-title">Create Post</div>
             <div class="quick-action-desc">Generate social content</div>
+          </div>
+          <div class="quick-action" data-action="publish-social" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2));">
+            <div class="quick-action-icon">📱</div>
+            <div class="quick-action-title">Publish Now</div>
+            <div class="quick-action-desc">Post to 13 platforms</div>
           </div>
           <div class="quick-action" data-action="write-email">
             <div class="quick-action-icon">📧</div>

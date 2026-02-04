@@ -13,6 +13,9 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import WebhookManager from '../components/WebhookManager';
 import APIKeyManager from '../components/APIKeyManager';
+import VoiceSettingsManager from '../components/VoiceSettingsManager';
+import LateSettingsManager from '../components/LateSettingsManager';
+import SMSSettingsManager from '../components/SMSSettingsManager';
 
 const Settings = () => {
     const { config, updateConfig, isDark, toggleTheme } = useTheme();
@@ -125,6 +128,21 @@ const Settings = () => {
                 {/* AI & Webhook Configuration */}
                 <div className="border-t border-[var(--os-border)] pt-12">
                     <APIKeyManager />
+                </div>
+
+                {/* Voice Credentials */}
+                <div className="border-t border-[var(--os-border)] pt-12">
+                    <VoiceSettingsManager />
+                </div>
+
+                {/* Late Social Media Integration */}
+                <div className="border-t border-[var(--os-border)] pt-12">
+                    <LateSettingsManager />
+                </div>
+
+                {/* SMS Provider Configuration */}
+                <div className="border-t border-[var(--os-border)] pt-12">
+                    <SMSSettingsManager />
                 </div>
 
                 {/* Mobile Webhook Integration */}

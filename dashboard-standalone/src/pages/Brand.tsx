@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getBackendUrl } from '../services/api';
+import LateSettingsManager from '../components/LateSettingsManager';
 
 interface BrandAsset {
     id: string;
@@ -65,7 +66,7 @@ interface ScheduledPost {
 
 const Brand = () => {
     const { config, updateConfig } = useTheme();
-    const [activeTab, setActiveTab] = useState<'library' | 'planner' | 'voice' | 'knowledge'>('library');
+    const [activeTab, setActiveTab] = useState<'library' | 'planner' | 'voice' | 'knowledge' | 'social'>('library');
     const [previewChannel, setPreviewChannel] = useState<'ig' | 'li' | 'fb'>('ig');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const API_BASE = getBackendUrl();
@@ -313,9 +314,12 @@ const Brand = () => {
         }
     };
 
-    // Sync to GHL
+    // Sync to GHL Social Planner
+    const [isSyncing, setIsSyncing] = useState<'ghl' | 'vbout' | null>(null);
+
     const syncToGHL = async () => {
         try {
+            setIsSyncing('ghl');
             const token = localStorage.getItem('os_token');
             const locationId = localStorage.getItem('locationId') || localStorage.getItem('os_loc_id');
 
@@ -325,14 +329,49 @@ const Brand = () => {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ locationId, assets, brandColors })
+                body: JSON.stringify({ locationId, assets, brandColors, posts: scheduledPosts })
             });
 
-            alert('Brand assets synced to GHL Social Planner!');
+            // Show success notification
+            setSyncMessage('Successfully synced to GHL Social Planner!');
+            setTimeout(() => setSyncMessage(null), 3000);
         } catch (error) {
-            console.error('Sync failed:', error);
+            console.error('GHL Sync failed:', error);
+            setSyncMessage('Sync failed. Please try again.');
+            setTimeout(() => setSyncMessage(null), 3000);
+        } finally {
+            setIsSyncing(null);
         }
     };
+
+    // Sync to VBout
+    const syncToVBout = async () => {
+        try {
+            setIsSyncing('vbout');
+            const token = localStorage.getItem('os_token');
+            const locationId = localStorage.getItem('locationId') || localStorage.getItem('os_loc_id');
+
+            await fetch(`${API_BASE}/api/vbout/social/sync`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ locationId, assets, brandColors, posts: scheduledPosts })
+            });
+
+            setSyncMessage('Successfully synced to VBout!');
+            setTimeout(() => setSyncMessage(null), 3000);
+        } catch (error) {
+            console.error('VBout Sync failed:', error);
+            setSyncMessage('Sync failed. Please try again.');
+            setTimeout(() => setSyncMessage(null), 3000);
+        } finally {
+            setIsSyncing(null);
+        }
+    };
+
+    const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
     // Save voice settings
     const saveVoiceSettings = async () => {
@@ -389,13 +428,13 @@ const Brand = () => {
                         </h1>
                     </div>
                     <div className="flex bg-[var(--os-surface)] p-1.5 rounded-2xl border border-[var(--os-border)]">
-                        {['library', 'planner', 'knowledge', 'voice'].map((tab) => (
+                        {['library', 'planner', 'knowledge', 'voice', 'social'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab as any)}
                                 className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-neuro text-white shadow-lg shadow-neuro/20' : 'text-[var(--os-text-muted)] hover:text-neuro'}`}
                             >
-                                {tab === 'library' ? 'Assets' : tab === 'planner' ? 'Social Planner' : tab === 'knowledge' ? 'Knowledge' : 'Voice'}
+                                {tab === 'library' ? 'Assets' : tab === 'planner' ? 'Social Planner' : tab === 'knowledge' ? 'Knowledge' : tab === 'voice' ? 'Voice' : 'Late Social'}
                             </button>
                         ))}
                     </div>
@@ -559,6 +598,29 @@ const Brand = () => {
                                     >
                                         <Plus className="h-4 w-4" /> Create Social Task
                                     </button>
+                                    <div className="flex gap-3 pt-4">
+                                        <button
+                                            onClick={syncToGHL}
+                                            disabled={isSyncing === 'ghl'}
+                                            className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                        >
+                                            {isSyncing === 'ghl' ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Share2 className="h-3 w-3" />}
+                                            Sync to GHL
+                                        </button>
+                                        <button
+                                            onClick={syncToVBout}
+                                            disabled={isSyncing === 'vbout'}
+                                            className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                        >
+                                            {isSyncing === 'vbout' ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Share2 className="h-3 w-3" />}
+                                            Sync to VBout
+                                        </button>
+                                    </div>
+                                    {syncMessage && (
+                                        <div className={`text-xs font-bold text-center py-2 ${syncMessage.includes('failed') ? 'text-red-400' : 'text-emerald-400'}`}>
+                                            {syncMessage}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -839,6 +901,12 @@ const Brand = () => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'social' && (
+                    <div className="flex-1 animate-in fade-in zoom-in-95 duration-500">
+                        <LateSettingsManager />
                     </div>
                 )}
             </div>
