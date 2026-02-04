@@ -188,10 +188,18 @@ export const businessTwin = {
                 confidence INTEGER DEFAULT 100,
                 verified_at TIMESTAMP DEFAULT NOW(),
                 expires_at TIMESTAMP,
-                embedding VECTOR(1536), -- For semantic search later
                 created_at TIMESTAMP DEFAULT NOW()
             )
         `;
+
+        // Try to add vector column for semantic search (requires pgvector extension)
+        // This is optional - core functionality works without it
+        try {
+            await sql`ALTER TABLE twin_knowledge ADD COLUMN IF NOT EXISTS embedding VECTOR(1536)`;
+        } catch {
+            // pgvector extension not available - semantic search disabled but core features work
+            console.log('[BusinessTwin] pgvector not available - semantic search disabled');
+        }
 
         await sql`
             CREATE INDEX IF NOT EXISTS idx_twin_knowledge_twin ON twin_knowledge(twin_id)
