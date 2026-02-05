@@ -87,6 +87,35 @@ const APIKeyManager = () => {
         try {
             setLoading(true);
             setError(null);
+
+            // Check if location ID is set
+            let locationId = localStorage.getItem('os_loc_id');
+            if (!locationId) {
+                // Try to get from user data
+                const userStr = localStorage.getItem('user');
+                if (userStr) {
+                    try {
+                        const user = JSON.parse(userStr);
+                        if (user.locationId) {
+                            localStorage.setItem('os_loc_id', user.locationId);
+                            locationId = user.locationId;
+                        } else if (user.locations && user.locations.length > 0) {
+                            localStorage.setItem('os_loc_id', user.locations[0].id);
+                            locationId = user.locations[0].id;
+                        }
+                    } catch (e) {
+                        console.warn('[Settings] Failed to parse user data');
+                    }
+                }
+            }
+
+            // Verify we have a location ID now
+            if (!locationId) {
+                setError('No location configured. Please connect a location from the sidebar or complete onboarding.');
+                setLoading(false);
+                return;
+            }
+
             const [settingsData, webhookData] = await Promise.all([
                 settingsService.getSettings(),
                 settingsService.getWebhookInfo()
@@ -94,7 +123,15 @@ const APIKeyManager = () => {
             setSettings(settingsData);
             setWebhookInfo(webhookData);
         } catch (err: any) {
-            setError(err.message || 'Failed to load settings');
+            const errorMsg = err.message || 'Failed to load settings';
+            // Provide more helpful error messages
+            if (errorMsg.includes('No token provided') || errorMsg.includes('401') || errorMsg.includes('Invalid token')) {
+                setError('Session expired or not authenticated. Please log out and log back in.');
+            } else if (errorMsg.includes('No location')) {
+                setError('No location configured. Please connect a GHL location first.');
+            } else {
+                setError(errorMsg);
+            }
         } finally {
             setLoading(false);
         }

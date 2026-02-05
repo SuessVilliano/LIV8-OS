@@ -39,6 +39,7 @@ import textlinkRouter from './api/textlink.js'; // TextLink SMS gateway
 import inboxRouter from './api/inbox.js'; // Unified multi-channel inbox
 import anychatRouter from './api/anychat.js'; // AnyChat.one live chat integration
 import openclawRouter from './api/openclaw.js'; // OpenClaw AI Manager integration (openclaw.ai)
+import scrapersRouter from './api/scrapers.js'; // Unified scrapers API (Apify, RapidAPI, Firecrawl, Kimi)
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -174,6 +175,7 @@ app.use('/api/textlink', rateLimitPresets.api, textlinkRouter); // TextLink SMS 
 app.use('/api/inbox', rateLimitPresets.api, inboxRouter); // Unified multi-channel inbox
 app.use('/api/anychat', rateLimitPresets.api, anychatRouter); // AnyChat.one live chat integration
 app.use('/api/openclaw', rateLimitPresets.api, openclawRouter); // OpenClaw AI Manager integration
+app.use('/api/scrapers', rateLimitPresets.ai, scrapersRouter); // Unified scrapers API (Apify, RapidAPI, Firecrawl, Kimi)
 
 
 // --- MCP Integration ---
