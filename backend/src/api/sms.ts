@@ -8,14 +8,20 @@ import { createTwilioSMS, createTelnyxSMS, TwilioSMSService, TelnyxSMSService } 
 import { createTextLinkService, TextLinkService } from '../services/textlink.js';
 import { authService } from '../services/auth.js';
 import crypto from 'crypto';
+import { sql } from '@vercel/postgres';
 
 const router = Router();
 
-// Encryption
-const ENCRYPTION_KEY = process.env.CREDENTIALS_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
+// Encryption - MUST be set in environment for persistence
+const ENCRYPTION_KEY = process.env.CREDENTIALS_ENCRYPTION_KEY;
 const ALGORITHM = 'aes-256-cbc';
 
-// In-memory store for SMS provider credentials (use database in production)
+// Warn if encryption key is not configured
+if (!ENCRYPTION_KEY) {
+    console.error('[SMS] CRITICAL: CREDENTIALS_ENCRYPTION_KEY not set! SMS credentials will not work properly.');
+}
+
+// In-memory cache with database persistence
 const smsCredentialsStore = new Map<string, SMSProviderCredentials>();
 
 interface SMSProviderCredentials {
@@ -218,6 +224,7 @@ router.post('/config/twilio', authenticate, async (req: Request, res: Response) 
         }
 
         smsCredentialsStore.set(storeKey, existing);
+        await saveSmsCredentialsToDb(storeKey, existing); // Persist to database
 
         // Get available phone numbers
         const phoneNumbers = await testService.getPhoneNumbers();
@@ -278,6 +285,7 @@ router.post('/config/telnyx', authenticate, async (req: Request, res: Response) 
         }
 
         smsCredentialsStore.set(storeKey, existing);
+        await saveSmsCredentialsToDb(storeKey, existing); // Persist to database
 
         // Get available phone numbers and profiles
         const phoneNumbers = await testService.getPhoneNumbers();
@@ -318,6 +326,7 @@ router.post('/config/default', authenticate, async (req: Request, res: Response)
         existing.defaultProvider = provider;
         existing.updatedAt = new Date();
         smsCredentialsStore.set(storeKey, existing);
+        await saveSmsCredentialsToDb(storeKey, existing); // Persist to database
 
         res.json({
             success: true,
@@ -369,6 +378,7 @@ router.delete('/config/:provider', authenticate, async (req: Request, res: Respo
 
         existing.updatedAt = new Date();
         smsCredentialsStore.set(storeKey, existing);
+        await saveSmsCredentialsToDb(storeKey, existing); // Persist to database
 
         res.json({ success: true, message: `${provider} configuration removed` });
     } catch (error: any) {
@@ -617,5 +627,57 @@ router.get('/info', (_req: Request, res: Response) => {
         ]
     });
 });
+
+// Initialize database table for SMS credential persistence
+async function initSmsCredentialsTable() {
+    try {
+        await sql`
+            CREATE TABLE IF NOT EXISTS sms_credentials (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id TEXT NOT NULL,
+                location_id TEXT NOT NULL,
+                default_provider TEXT NOT NULL,
+                credentials_data JSONB NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, location_id)
+            )
+        `;
+        console.log('[SMS] Table initialized');
+
+        // Load existing credentials into memory cache
+        const result = await sql`SELECT * FROM sms_credentials`;
+        for (const row of result.rows) {
+            const key = `${row.user_id}:${row.location_id}`;
+            const data = row.credentials_data as SMSProviderCredentials;
+            data.updatedAt = row.updated_at;
+            smsCredentialsStore.set(key, data);
+        }
+        console.log(`[SMS] Loaded ${result.rows.length} credentials from database`);
+    } catch (error) {
+        console.error('[SMS] Table init error:', error);
+    }
+}
+
+// Save SMS credentials to database
+async function saveSmsCredentialsToDb(key: string, creds: SMSProviderCredentials) {
+    try {
+        const [userId, locationId] = key.split(':');
+        await sql`
+            INSERT INTO sms_credentials (user_id, location_id, default_provider, credentials_data)
+            VALUES (${userId}, ${locationId}, ${creds.defaultProvider}, ${JSON.stringify(creds)})
+            ON CONFLICT (user_id, location_id)
+            DO UPDATE SET
+                default_provider = ${creds.defaultProvider},
+                credentials_data = ${JSON.stringify(creds)},
+                updated_at = NOW()
+        `;
+    } catch (error) {
+        console.error('[SMS] Database save error:', error);
+    }
+}
+
+// Initialize table on module load
+initSmsCredentialsTable();
 
 export default router;

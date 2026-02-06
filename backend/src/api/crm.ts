@@ -81,19 +81,11 @@ router.post('/create-vbout-account', async (req, res) => {
         const masterAccountId = process.env.VBOUT_ACCOUNT_ID;
 
         if (!masterApiKey) {
-            console.warn('[CRM] VBOUT_API_KEY not configured, using demo mode');
-            // In demo mode, return success with mock data
-            return res.json({
-                success: true,
-                message: 'LIV8 CRM account created successfully',
-                account: {
-                    id: `vbout_${Date.now()}`,
-                    email: email,
-                    businessName: businessName || `${email.split('@')[0]}'s Business`,
-                    crmUrl: 'https://crm.liv8.co',
-                    status: 'active'
-                },
-                demo: true
+            console.error('[CRM] VBOUT_API_KEY not configured - cannot create CRM accounts');
+            return res.status(503).json({
+                success: false,
+                error: 'CRM service is not configured. Please contact support.',
+                code: 'CRM_NOT_CONFIGURED'
             });
         }
 
@@ -168,17 +160,11 @@ router.post('/validate-vbout', async (req, res) => {
         const masterApiKey = process.env.VBOUT_API_KEY;
 
         if (!masterApiKey) {
-            // Demo mode - accept any credentials
-            console.log('[CRM] Demo mode - accepting LIV8 CRM credentials');
-            return res.json({
-                success: true,
-                message: 'LIV8 CRM credentials validated',
-                account: {
-                    email,
-                    crmUrl: 'https://crm.liv8.co',
-                    status: 'active'
-                },
-                demo: true
+            console.error('[CRM] VBOUT_API_KEY not configured - cannot validate CRM credentials');
+            return res.status(503).json({
+                success: false,
+                error: 'CRM service is not configured. Please contact support.',
+                code: 'CRM_NOT_CONFIGURED'
             });
         }
 
