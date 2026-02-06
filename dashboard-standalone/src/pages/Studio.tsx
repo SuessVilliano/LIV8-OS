@@ -96,6 +96,17 @@ const Studio = () => {
     const [siteEditHistory, setSiteEditHistory] = useState<string[]>([]);
     const [customDomain, setCustomDomain] = useState('');
     const [publishedUrl, setPublishedUrl] = useState('');
+    const [websiteModel, setWebsiteModel] = useState('gpt-4o');
+
+    // Conversation/re-prompting state
+    const [websiteSessionId, setWebsiteSessionId] = useState<string | null>(null);
+    const [conversationHistory, setConversationHistory] = useState<Array<{
+        role: 'user' | 'assistant';
+        content: string;
+        timestamp: string;
+    }>>([]);
+    const [refinementInput, setRefinementInput] = useState('');
+    const [isRefining, setIsRefining] = useState(false);
 
     // Website analyzer state
     const [showAnalyzer, setShowAnalyzer] = useState(false);
@@ -379,6 +390,7 @@ const Studio = () => {
                     brandContext: fullBrandContext,
                     template: selectedTemplate?.id,
                     existingHtml: improveExisting ? generatedHtml : undefined,
+                    model: websiteModel,
                     customizations: {
                         siteName,
                         customDomain
@@ -413,6 +425,64 @@ const Studio = () => {
             setGeneratedCode(html);
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    // Refine website iteratively with conversation
+    const refineWebsite = async () => {
+        if (!refinementInput.trim() || !generatedHtml) return;
+
+        setIsRefining(true);
+        try {
+            const token = localStorage.getItem('os_token');
+            const fullBrandContext = getBrandContext();
+
+            const response = await fetch(`${API_BASE}/api/studio/refine-website`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    sessionId: websiteSessionId,
+                    refinementPrompt: refinementInput,
+                    currentHtml: generatedHtml,
+                    model: websiteModel,
+                    brandContext: fullBrandContext,
+                    siteType
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+
+                // Save to edit history for undo
+                setSiteEditHistory(prev => [...prev, generatedHtml]);
+
+                // Update state
+                setGeneratedHtml(data.html);
+                setGeneratedCode(data.html);
+                setWebsiteSessionId(data.sessionId);
+                setConversationHistory(data.conversationHistory || []);
+                setRefinementInput(''); // Clear input
+            } else {
+                console.error('Refinement failed');
+                // Add error message to conversation
+                setConversationHistory(prev => [...prev, {
+                    role: 'assistant',
+                    content: 'Sorry, I could not apply those changes. Please try again.',
+                    timestamp: new Date().toISOString()
+                }]);
+            }
+        } catch (error) {
+            console.error('Website refinement failed:', error);
+            setConversationHistory(prev => [...prev, {
+                role: 'assistant',
+                content: 'Connection error. Please try again.',
+                timestamp: new Date().toISOString()
+            }]);
+        } finally {
+            setIsRefining(false);
         }
     };
 
@@ -1432,35 +1502,119 @@ const Studio = () => {
                         </div>
                     </div>
 
-                    {/* Prompt */}
-                    <div className="flex-1 flex flex-col">
+                    {/* AI Model Selection */}
+                    <div className="mb-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
-                            Describe your vision
+                            AI Model
                         </label>
-                        <textarea
-                            value={sitePrompt}
-                            onChange={(e) => setSitePrompt(e.target.value)}
-                            placeholder="Create a modern landing page for a fitness coaching business. Include a hero section with a compelling headline, features section highlighting my programs, testimonials from clients, and a contact form..."
-                            className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl p-4 text-sm resize-none focus:border-neuro outline-none mb-4"
-                        />
-
-                        <button
-                            onClick={() => generateWebsite()}
-                            disabled={!sitePrompt.trim() || isGenerating}
-                            className="w-full py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] transition-all disabled:opacity-50"
+                        <select
+                            value={websiteModel}
+                            onChange={(e) => setWebsiteModel(e.target.value)}
+                            className="w-full bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
                         >
-                            {isGenerating ? (
-                                <>
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                    Building...
-                                </>
-                            ) : (
-                                <>
-                                    <Sparkles className="h-5 w-5" />
-                                    Generate Site
-                                </>
-                            )}
-                        </button>
+                            <option value="gpt-4o">GPT-4o (OpenAI)</option>
+                            <option value="kimi">Kimi 2.5 (NVIDIA NIM)</option>
+                        </select>
+                        <p className="text-[9px] text-[var(--os-text-muted)] mt-1">
+                            {websiteModel === 'kimi' ? 'Best for complex, multi-section websites' : 'Fast, reliable generation'}
+                        </p>
+                    </div>
+
+                    {/* Prompt or Conversation */}
+                    <div className="flex-1 flex flex-col">
+                        {!generatedHtml ? (
+                            <>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                    Describe your vision
+                                </label>
+                                <textarea
+                                    value={sitePrompt}
+                                    onChange={(e) => setSitePrompt(e.target.value)}
+                                    placeholder="Create a modern landing page for a fitness coaching business. Include a hero section with a compelling headline, features section highlighting my programs, testimonials from clients, and a contact form..."
+                                    className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl p-4 text-sm resize-none focus:border-neuro outline-none mb-4"
+                                />
+
+                                <button
+                                    onClick={() => generateWebsite()}
+                                    disabled={!sitePrompt.trim() || isGenerating}
+                                    className="w-full py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] transition-all disabled:opacity-50"
+                                >
+                                    {isGenerating ? (
+                                        <>
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                            Building...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="h-5 w-5" />
+                                            Generate Site
+                                        </>
+                                    )}
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--os-text-muted)] mb-2 block">
+                                    Refine Your Site
+                                </label>
+
+                                {/* Chat history */}
+                                <div className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl p-3 mb-4 overflow-y-auto max-h-32">
+                                    {conversationHistory.length === 0 ? (
+                                        <p className="text-xs text-[var(--os-text-muted)] text-center py-2">
+                                            Your site is ready! Ask for changes below.
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {conversationHistory.map((msg, idx) => (
+                                                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                    <div className={`max-w-[85%] px-3 py-2 rounded-xl text-xs ${
+                                                        msg.role === 'user'
+                                                            ? 'bg-neuro text-white'
+                                                            : 'bg-[var(--os-surface)] border border-[var(--os-border)]'
+                                                    }`}>
+                                                        {msg.content}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Refinement input */}
+                                <div className="flex gap-2 mb-3">
+                                    <input
+                                        type="text"
+                                        value={refinementInput}
+                                        onChange={(e) => setRefinementInput(e.target.value)}
+                                        placeholder="Make the hero section taller, change colors to blue..."
+                                        className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-xl px-4 py-3 text-sm focus:border-neuro outline-none"
+                                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && refineWebsite()}
+                                    />
+                                    <button
+                                        onClick={refineWebsite}
+                                        disabled={!refinementInput.trim() || isRefining}
+                                        className="px-4 py-3 bg-neuro text-white rounded-xl font-bold text-sm hover:scale-105 transition-all disabled:opacity-50"
+                                    >
+                                        {isRefining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                    </button>
+                                </div>
+
+                                {/* Start over button */}
+                                <button
+                                    onClick={() => {
+                                        setGeneratedHtml('');
+                                        setGeneratedCode('');
+                                        setConversationHistory([]);
+                                        setWebsiteSessionId(null);
+                                        setSitePrompt('');
+                                    }}
+                                    className="w-full py-2 border border-[var(--os-border)] rounded-xl text-xs font-bold hover:border-neuro hover:text-neuro transition-all"
+                                >
+                                    Start New Site
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     {/* Templates */}

@@ -10,6 +10,7 @@ import OpenAI from 'openai';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { studioDb } from '../db/studio.js';
+import { kimiStudio } from '../services/kimi-studio.js';
 
 const router = express.Router();
 
@@ -22,6 +23,49 @@ const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || ''
 });
+
+// Helper function to combine Kimi output into single HTML file
+function combineKimiOutput(kimiResult: any, brand: any): string {
+    const { html, css, javascript, seoMetadata } = kimiResult;
+
+    // If html already contains full document, just inject CSS/JS
+    if (html && (html.includes('<!DOCTYPE') || html.includes('<html'))) {
+        let combined = html;
+        if (css) {
+            combined = combined.replace('</head>', `<style>${css}</style></head>`);
+        }
+        if (javascript) {
+            combined = combined.replace('</body>', `<script>${javascript}</script></body>`);
+        }
+        return combined;
+    }
+
+    // Build full document from parts
+    const title = seoMetadata?.title || `${brand.name} - Website`;
+    const description = seoMetadata?.description || brand.description || '';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <meta name="description" content="${description}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        ${css || ''}
+    </style>
+</head>
+<body class="min-h-screen bg-[#0a0a0f] text-white">
+${html || ''}
+<script>
+${javascript || ''}
+</script>
+</body>
+</html>`;
+}
 
 // Auth middleware
 const authenticate = async (req: Request, res: Response, next: Function) => {
@@ -254,7 +298,7 @@ router.post('/generate-video', authenticate, async (req: Request, res: Response)
  */
 router.post('/generate-website', authenticate, async (req: Request, res: Response) => {
     try {
-        const { prompt, type, brandContext, template, existingHtml, customizations } = req.body;
+        const { prompt, type, brandContext, template, existingHtml, customizations, model } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: 'Prompt is required' });
@@ -338,6 +382,52 @@ ${existingHtml ? `\n## Existing Code to Improve:\n${existingHtml.substring(0, 20
 
 User's Vision: ${prompt}`;
 
+        // Check if Kimi model is requested and configured
+        if (model === 'kimi' && kimiStudio.isConfigured()) {
+            try {
+                console.log('[Studio] Using Kimi 2.5 for website generation');
+                const kimiResult = await kimiStudio.generateWebsite({
+                    businessName: brand.name,
+                    industry: brand.industry,
+                    description: prompt,
+                    style: type === 'landing' ? 'modern' : type === 'funnel' ? 'bold' : 'professional',
+                    colorScheme: [brand.primaryColor, brand.secondaryColor, brand.accentColor],
+                    sections: ['hero', 'features', 'about', 'testimonials', 'cta', 'contact', 'footer'],
+                    existingContent: existingHtml,
+                    targetAudience: brand.targetAudience
+                });
+
+                // Combine Kimi output into single HTML file
+                const kimiHtml = combineKimiOutput(kimiResult, brand);
+
+                // Save to database
+                const user = (req as any).user;
+                const clientId = user.userId || user.email || 'default';
+                const savedAsset = await studioDb.saveAsset({
+                    clientId,
+                    type: 'website',
+                    name: brand.name ? `${brand.name} - ${type}` : prompt.slice(0, 50),
+                    content: kimiHtml,
+                    prompt,
+                    metadata: { type, brand: brand.name, template: template?.id, model: 'kimi' },
+                    status: 'complete'
+                });
+
+                return res.json({
+                    success: true,
+                    html: kimiHtml,
+                    type,
+                    brandUsed: brand.name,
+                    model: 'kimi',
+                    assetId: savedAsset.id
+                });
+            } catch (kimiError: any) {
+                console.error('[Studio] Kimi generation failed, falling back to GPT-4o:', kimiError.message);
+                // Fall through to GPT-4o
+            }
+        }
+
+        // Use GPT-4o (default or fallback)
         try {
             const completion = await openai.chat.completions.create({
                 model: 'gpt-4o',
@@ -424,6 +514,158 @@ User's Vision: ${prompt}`;
         res.status(500).json({ error: error.message });
     }
 });
+
+/**
+ * POST /api/studio/refine-website
+ * Iteratively refine a website based on user feedback
+ */
+router.post('/refine-website', authenticate, async (req: Request, res: Response) => {
+    try {
+        const {
+            sessionId,
+            refinementPrompt,
+            currentHtml,
+            model,
+            brandContext,
+            siteType
+        } = req.body;
+
+        if (!refinementPrompt) {
+            return res.status(400).json({ error: 'Refinement prompt is required' });
+        }
+
+        if (!currentHtml) {
+            return res.status(400).json({ error: 'Current HTML is required' });
+        }
+
+        const user = (req as any).user;
+        const clientId = user.userId || user.email || 'default';
+
+        // Get or create session
+        let session: any;
+        if (sessionId && !sessionId.startsWith('local_')) {
+            session = await studioDb.getSession(sessionId);
+        }
+
+        if (!session) {
+            session = await studioDb.createSession({
+                clientId,
+                currentHtml,
+                model: model || 'gpt-4o',
+                siteType: siteType || 'landing',
+                brandContext: brandContext || {},
+                conversationHistory: []
+            });
+        }
+
+        // Add user message to history
+        const userMessage = {
+            role: 'user' as const,
+            content: refinementPrompt,
+            timestamp: new Date().toISOString()
+        };
+        session.conversationHistory = session.conversationHistory || [];
+        session.conversationHistory.push(userMessage);
+
+        // Build conversation context
+        const conversationContext = session.conversationHistory
+            .slice(-10)
+            .map((m: any) => `${m.role.toUpperCase()}: ${m.content}`)
+            .join('\n');
+
+        let improvedHtml: string;
+        let changes: string[] = [];
+
+        // Use Kimi for refinement if selected and configured
+        if (model === 'kimi' && kimiStudio.isConfigured()) {
+            try {
+                console.log('[Studio] Using Kimi for website refinement');
+                const result = await kimiStudio.improveWebsite({
+                    html: currentHtml,
+                    improvements: [refinementPrompt]
+                });
+                improvedHtml = combineKimiOutput({ html: result.html, css: result.css, javascript: '' }, brandContext || {});
+                changes = result.changes || ['Applied requested changes'];
+            } catch (kimiError: any) {
+                console.error('[Studio] Kimi refinement failed:', kimiError.message);
+                // Fall through to GPT-4o
+                improvedHtml = await refineWithGPT(currentHtml, refinementPrompt, conversationContext, brandContext);
+                changes = ['Applied requested changes'];
+            }
+        } else {
+            // Use GPT-4o for refinement
+            improvedHtml = await refineWithGPT(currentHtml, refinementPrompt, conversationContext, brandContext);
+            changes = ['Applied requested changes'];
+        }
+
+        // Add assistant response to history
+        const assistantMessage = {
+            role: 'assistant' as const,
+            content: `Applied changes: ${changes.join(', ')}`,
+            timestamp: new Date().toISOString(),
+            htmlSnapshot: improvedHtml
+        };
+        session.conversationHistory.push(assistantMessage);
+
+        // Update session
+        await studioDb.updateSession(session.id, {
+            currentHtml: improvedHtml,
+            conversationHistory: session.conversationHistory
+        });
+
+        return res.json({
+            success: true,
+            sessionId: session.id,
+            html: improvedHtml,
+            changes,
+            conversationHistory: session.conversationHistory
+        });
+
+    } catch (error: any) {
+        console.error('Website refinement error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Helper function to refine website with GPT-4o
+async function refineWithGPT(currentHtml: string, prompt: string, context: string, brand: any): Promise<string> {
+    const systemPrompt = `You are an expert web developer helping to refine a website.
+
+Brand Context:
+- Name: ${brand?.name || 'My Brand'}
+- Colors: Primary ${brand?.colors?.primary || '#6366f1'}, Secondary ${brand?.colors?.secondary || '#8b5cf6'}
+
+Rules:
+1. Only modify what the user specifically requests
+2. Keep the overall structure and design intact
+3. Maintain responsiveness and accessibility
+4. Return ONLY the complete HTML code, no explanations
+5. Start with <!DOCTYPE html> and end with </html>`;
+
+    const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+            { role: 'system', content: systemPrompt },
+            {
+                role: 'user',
+                content: `Current HTML:\n${currentHtml.substring(0, 12000)}\n\nPrevious conversation:\n${context}\n\nUser request: ${prompt}\n\nProvide the updated HTML.`
+            }
+        ],
+        max_tokens: 8192,
+        temperature: 0.7
+    });
+
+    let html = completion.choices[0].message.content || currentHtml;
+
+    // Clean up response
+    if (html.includes('```html')) {
+        html = html.split('```html')[1].split('```')[0];
+    } else if (html.includes('```')) {
+        html = html.split('```')[1].split('```')[0];
+    }
+
+    return html.trim();
+}
 
 /**
  * POST /api/studio/generate-email
@@ -926,37 +1168,11 @@ router.post('/publish', authenticate, async (req: Request, res: Response) => {
             cleanSubdomain = `site-${Date.now()}`;
         }
 
-        // In production, this would:
-        // 1. Store the HTML in a database or object storage (S3, Cloudflare R2)
-        // 2. Configure DNS for the subdomain
-        // 3. Deploy via Vercel/Netlify/Cloudflare Pages API
-        // 4. Set up SSL certificate
+        // Get the backend URL for hosting
+        const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'https://liv8-backend.onrender.com';
 
-        // Example Vercel deployment (commented for now):
-        /*
-        if (process.env.VERCEL_TOKEN) {
-            const vercelResponse = await fetch('https://api.vercel.com/v13/deployments', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.VERCEL_TOKEN}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name: cleanSubdomain,
-                    files: [
-                        { file: 'index.html', data: Buffer.from(html).toString('base64'), encoding: 'base64' }
-                    ],
-                    projectSettings: {
-                        framework: null
-                    }
-                })
-            });
-            const deployment = await vercelResponse.json();
-            // deployment.url would be the actual URL
-        }
-        */
-
-        const publishedUrl = `https://${cleanSubdomain}.liv8sites.com`;
+        // The published URL points to our site serving route
+        const publishedUrl = `${backendUrl}/api/studio/sites/${cleanSubdomain}`;
 
         // Log the publish event
         console.log(`[Studio] Publishing site for user ${user.userId}:`);
@@ -1004,7 +1220,7 @@ router.post('/publish', authenticate, async (req: Request, res: Response) => {
             siteId: savedAsset.id,
             assetId: savedAsset.id,
             message: 'Site published successfully!',
-            note: 'Subdomain hosting coming soon. For now, your site is saved and the URL is reserved.'
+            live: true
         });
 
     } catch (error: any) {
@@ -1389,5 +1605,45 @@ function generateFallbackEmail(prompt: string, type: string, brandContext: any):
 </body>
 </html>`;
 }
+
+/**
+ * GET /api/sites/:subdomain
+ * Serve a published website from the database
+ */
+router.get('/sites/:subdomain', async (req: Request, res: Response) => {
+    try {
+        const { subdomain } = req.params;
+
+        if (!subdomain) {
+            return res.status(400).send('Subdomain required');
+        }
+
+        // Find the published site
+        const site = await studioDb.getPublishedSite(subdomain);
+
+        if (!site) {
+            return res.status(404).send(`
+                <!DOCTYPE html>
+                <html>
+                <head><title>Site Not Found</title></head>
+                <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+                    <h1>Site Not Found</h1>
+                    <p>The site "${subdomain}" does not exist or has not been published.</p>
+                </body>
+                </html>
+            `);
+        }
+
+        // Set proper headers
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+
+        return res.send(site.content);
+
+    } catch (error: any) {
+        console.error('[Studio] Site serving error:', error);
+        res.status(500).send('Error loading site');
+    }
+});
 
 export default router;

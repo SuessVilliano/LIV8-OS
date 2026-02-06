@@ -20,6 +20,26 @@ export interface StudioAsset {
     updatedAt: Date;
 }
 
+export interface ConversationMessage {
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: string;
+    htmlSnapshot?: string;
+}
+
+export interface WebsiteSession {
+    id: string;
+    clientId: string;
+    assetId?: string;
+    conversationHistory: ConversationMessage[];
+    currentHtml: string;
+    model: string;
+    siteType: string;
+    brandContext: Record<string, any>;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 export const studioDb = {
     /**
      * Initialize studio tables
@@ -47,6 +67,27 @@ export const studioDb = {
             await sql`
                 CREATE INDEX IF NOT EXISTS idx_studio_assets_client_type
                 ON studio_assets(client_id, type)
+            `;
+
+            // Create website sessions table for conversation history
+            await sql`
+                CREATE TABLE IF NOT EXISTS studio_website_sessions (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    client_id TEXT NOT NULL,
+                    asset_id UUID REFERENCES studio_assets(id) ON DELETE SET NULL,
+                    conversation_history JSONB DEFAULT '[]',
+                    current_html TEXT,
+                    model TEXT DEFAULT 'gpt-4o',
+                    site_type TEXT,
+                    brand_context JSONB DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            `;
+
+            await sql`
+                CREATE INDEX IF NOT EXISTS idx_studio_sessions_client
+                ON studio_website_sessions(client_id)
             `;
 
             console.log('[StudioDB] Tables initialized');
@@ -312,6 +353,165 @@ export const studioDb = {
         } catch (error) {
             console.error('[StudioDB] Search error:', error);
             return [];
+        }
+    },
+
+    // ==================== Website Sessions ====================
+
+    /**
+     * Create a new website session
+     */
+    async createSession(session: Omit<WebsiteSession, 'id' | 'createdAt' | 'updatedAt'>): Promise<WebsiteSession> {
+        try {
+            const result = await sql`
+                INSERT INTO studio_website_sessions (
+                    client_id, asset_id, conversation_history, current_html,
+                    model, site_type, brand_context
+                )
+                VALUES (
+                    ${session.clientId},
+                    ${session.assetId || null},
+                    ${JSON.stringify(session.conversationHistory || [])},
+                    ${session.currentHtml || ''},
+                    ${session.model || 'gpt-4o'},
+                    ${session.siteType || 'landing'},
+                    ${JSON.stringify(session.brandContext || {})}
+                )
+                RETURNING *
+            `;
+
+            const row = result.rows[0];
+            return {
+                id: row.id,
+                clientId: row.client_id,
+                assetId: row.asset_id,
+                conversationHistory: row.conversation_history || [],
+                currentHtml: row.current_html,
+                model: row.model,
+                siteType: row.site_type,
+                brandContext: row.brand_context || {},
+                createdAt: row.created_at,
+                updatedAt: row.updated_at
+            };
+        } catch (error) {
+            console.error('[StudioDB] Create session error:', error);
+            // Return a local session if database fails
+            return {
+                id: `local_${Date.now()}`,
+                clientId: session.clientId,
+                assetId: session.assetId,
+                conversationHistory: session.conversationHistory || [],
+                currentHtml: session.currentHtml || '',
+                model: session.model || 'gpt-4o',
+                siteType: session.siteType || 'landing',
+                brandContext: session.brandContext || {},
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+        }
+    },
+
+    /**
+     * Get a session by ID
+     */
+    async getSession(sessionId: string): Promise<WebsiteSession | null> {
+        try {
+            const result = await sql`
+                SELECT * FROM studio_website_sessions
+                WHERE id = ${sessionId}::uuid
+            `;
+
+            if (result.rows.length === 0) return null;
+
+            const row = result.rows[0];
+            return {
+                id: row.id,
+                clientId: row.client_id,
+                assetId: row.asset_id,
+                conversationHistory: row.conversation_history || [],
+                currentHtml: row.current_html,
+                model: row.model,
+                siteType: row.site_type,
+                brandContext: row.brand_context || {},
+                createdAt: row.created_at,
+                updatedAt: row.updated_at
+            };
+        } catch (error) {
+            console.error('[StudioDB] Get session error:', error);
+            return null;
+        }
+    },
+
+    /**
+     * Update a session
+     */
+    async updateSession(sessionId: string, updates: Partial<WebsiteSession>): Promise<WebsiteSession | null> {
+        try {
+            const result = await sql`
+                UPDATE studio_website_sessions
+                SET
+                    conversation_history = COALESCE(${updates.conversationHistory ? JSON.stringify(updates.conversationHistory) : null}::jsonb, conversation_history),
+                    current_html = COALESCE(${updates.currentHtml || null}, current_html),
+                    asset_id = COALESCE(${updates.assetId || null}::uuid, asset_id),
+                    updated_at = NOW()
+                WHERE id = ${sessionId}::uuid
+                RETURNING *
+            `;
+
+            if (result.rows.length === 0) return null;
+
+            const row = result.rows[0];
+            return {
+                id: row.id,
+                clientId: row.client_id,
+                assetId: row.asset_id,
+                conversationHistory: row.conversation_history || [],
+                currentHtml: row.current_html,
+                model: row.model,
+                siteType: row.site_type,
+                brandContext: row.brand_context || {},
+                createdAt: row.created_at,
+                updatedAt: row.updated_at
+            };
+        } catch (error) {
+            console.error('[StudioDB] Update session error:', error);
+            return null;
+        }
+    },
+
+    /**
+     * Get published site by subdomain
+     */
+    async getPublishedSite(subdomain: string): Promise<StudioAsset | null> {
+        try {
+            const result = await sql`
+                SELECT * FROM studio_assets
+                WHERE status = 'published'
+                AND metadata->>'subdomain' = ${subdomain}
+                ORDER BY updated_at DESC
+                LIMIT 1
+            `;
+
+            if (result.rows.length === 0) return null;
+
+            const row = result.rows[0];
+            return {
+                id: row.id,
+                clientId: row.client_id,
+                type: row.type,
+                name: row.name,
+                content: row.content,
+                thumbnail: row.thumbnail,
+                prompt: row.prompt,
+                metadata: row.metadata,
+                status: row.status,
+                publishedUrl: row.published_url,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at
+            };
+        } catch (error) {
+            console.error('[StudioDB] Get published site error:', error);
+            return null;
         }
     }
 };
