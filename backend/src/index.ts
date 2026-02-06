@@ -78,9 +78,6 @@ const initDatabase = async () => {
     }
 };
 
-// Initialize in background (don't block startup)
-initDatabase();
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -454,10 +451,41 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
-// Start server
+// Start server with proper initialization
 const HOST = '0.0.0.0';
-app.listen(PORT, HOST, () => {
-    console.log(`🚀 LIV8 GHL Backend running on http://${HOST}:${PORT}`);
+
+const startServer = async () => {
+    // Initialize database before accepting requests
+    console.log('🔄 Initializing database...');
+    await initDatabase();
+
+    if (dbError && process.env.NODE_ENV === 'production') {
+        console.error('❌ Database initialization failed in production. Server may have limited functionality.');
+        console.error('   Error:', dbError);
+    }
+
+    const server = app.listen(Number(PORT), HOST, () => {
+        console.log(`🚀 LIV8 GHL Backend running on http://${HOST}:${PORT}`);
+        if (dbInitialized) {
+            console.log('✅ Database ready');
+        } else if (dbError) {
+            console.warn('⚠️ Database not available:', dbError);
+        }
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+        console.log('🛑 SIGTERM received, shutting down gracefully...');
+        server.close(() => {
+            console.log('👋 Server closed');
+            process.exit(0);
+        });
+    });
+};
+
+startServer().catch(err => {
+    console.error('❌ Failed to start server:', err);
+    process.exit(1);
 });
 
 // Export for Vercel

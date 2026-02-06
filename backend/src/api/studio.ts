@@ -152,64 +152,54 @@ router.post('/generate-image', authenticate, async (req: Request, res: Response)
                 });
             } catch (openaiError: any) {
                 console.error('DALL-E error:', openaiError);
-                // Return placeholder for demo
-                const placeholderUrl = `https://placehold.co/${size.replace('x', '/')}/6366f1/ffffff?text=${encodeURIComponent(prompt.slice(0, 20))}`;
-
-                // Still save to database as demo asset
-                const user = (req as any).user;
-                const clientId = user.userId || user.email || 'default';
-                const savedAsset = await studioDb.saveAsset({
-                    clientId,
-                    type: 'image',
-                    name: `Demo: ${prompt.slice(0, 40)}`,
-                    content: placeholderUrl,
-                    thumbnail: placeholderUrl,
-                    prompt: enhancedPrompt,
-                    metadata: { style, size, model: 'demo' },
-                    status: 'complete'
-                });
-
-                return res.json({
-                    success: true,
-                    imageUrl: placeholderUrl,
-                    message: 'Demo mode - configure OPENAI_API_KEY for real generation',
-                    assetId: savedAsset.id
+                // Check if it's a configuration error
+                if (!process.env.OPENAI_API_KEY) {
+                    return res.status(503).json({
+                        success: false,
+                        error: 'OpenAI API key not configured',
+                        message: 'Please configure OPENAI_API_KEY in environment variables'
+                    });
+                }
+                return res.status(500).json({
+                    success: false,
+                    error: 'Image generation failed',
+                    message: openaiError.message || 'DALL-E API error'
                 });
             }
         }
 
         // Stable Diffusion via Replicate or other providers
         if (model === 'stable-diffusion') {
-            // For now, return placeholder - integrate with Replicate API
-            return res.json({
-                success: true,
-                imageUrl: `https://placehold.co/1024/6366f1/ffffff?text=Stable+Diffusion`,
-                message: 'Stable Diffusion coming soon'
+            return res.status(501).json({
+                success: false,
+                error: 'Not implemented',
+                message: 'Stable Diffusion integration requires REPLICATE_API_KEY configuration'
             });
         }
 
         // Midjourney - requires Discord bot integration
         if (model === 'midjourney') {
-            return res.json({
-                success: true,
+            return res.status(501).json({
+                success: false,
                 imageUrl: `https://placehold.co/1024/6366f1/ffffff?text=Midjourney`,
-                message: 'Midjourney integration coming soon'
+                error: 'Not implemented',
+                message: 'Midjourney integration requires Discord bot configuration'
             });
         }
 
         // Flux
         if (model === 'flux') {
-            return res.json({
-                success: true,
-                imageUrl: `https://placehold.co/1024/6366f1/ffffff?text=Flux+Pro`,
-                message: 'Flux Pro coming soon'
+            return res.status(501).json({
+                success: false,
+                error: 'Not implemented',
+                message: 'Flux Pro integration requires API key configuration'
             });
         }
 
-        return res.json({
-            success: true,
-            imageUrl: `https://placehold.co/1024/6366f1/ffffff?text=AI+Generated`,
-            message: 'Demo mode'
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid model',
+            message: `Unknown model: ${model}. Use dall-e-3 for image generation.`
         });
 
     } catch (error: any) {

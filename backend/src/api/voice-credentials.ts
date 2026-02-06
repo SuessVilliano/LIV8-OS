@@ -8,15 +8,24 @@
 import { Router, Request, Response } from 'express';
 import { authService } from '../services/auth.js';
 import crypto from 'crypto';
+import { sql } from '@vercel/postgres';
 
 const router = Router();
 
-// Encryption key - in production, use a proper key management service (AWS KMS, etc.)
-const ENCRYPTION_KEY = process.env.CREDENTIALS_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
+// Encryption key - MUST be set in environment for persistence
+const ENCRYPTION_KEY = process.env.CREDENTIALS_ENCRYPTION_KEY;
 const ALGORITHM = 'aes-256-cbc';
 
-// In-memory store (use database in production)
+// Warn if encryption key is not configured
+if (!ENCRYPTION_KEY) {
+    console.error('[VoiceCredentials] CRITICAL: CREDENTIALS_ENCRYPTION_KEY not set! Credentials will not work properly.');
+}
+
+// In-memory store with database persistence
 const credentialsStore = new Map<string, EncryptedCredentials>();
+
+// Database table name
+const CREDENTIALS_TABLE = 'voice_credentials';
 
 interface TwilioCredentials {
     provider: 'twilio';
@@ -173,6 +182,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
         };
 
         credentialsStore.set(storeKey, credentials);
+        await saveCredentialsToDb(credentials); // Persist to database
 
         console.log(`[Voice Credentials] Stored ${provider} credentials for user ${user.userId}`);
 
@@ -269,6 +279,7 @@ router.post('/test', authenticate, async (req: Request, res: Response) => {
         stored.lastTested = new Date();
         stored.updatedAt = new Date();
         credentialsStore.set(storeKey, stored);
+        await saveCredentialsToDb(stored); // Persist to database
 
         res.json({
             success: true,
@@ -336,6 +347,7 @@ router.post('/phone-numbers', authenticate, async (req: Request, res: Response) 
         stored.phoneNumbers = validNumbers;
         stored.updatedAt = new Date();
         credentialsStore.set(storeKey, stored);
+        await saveCredentialsToDb(stored); // Persist to database
 
         res.json({
             success: true,
@@ -402,5 +414,72 @@ router.get('/vapi-config', authenticate, async (req: Request, res: Response) => 
         res.status(500).json({ error: error.message });
     }
 });
+
+// Initialize database table for credential persistence
+async function initCredentialsTable() {
+    try {
+        await sql`
+            CREATE TABLE IF NOT EXISTS voice_credentials (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id TEXT NOT NULL,
+                location_id TEXT NOT NULL,
+                provider TEXT NOT NULL CHECK (provider IN ('twilio', 'telnyx')),
+                encrypted_data TEXT NOT NULL,
+                iv TEXT NOT NULL,
+                phone_numbers JSONB DEFAULT '[]',
+                is_valid BOOLEAN DEFAULT NULL,
+                last_tested TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, location_id, provider)
+            )
+        `;
+        console.log('[VoiceCredentials] Table initialized');
+
+        // Load existing credentials into memory cache
+        const result = await sql`SELECT * FROM voice_credentials`;
+        for (const row of result.rows) {
+            const key = `${row.user_id}:${row.location_id}`;
+            credentialsStore.set(key, {
+                userId: row.user_id,
+                locationId: row.location_id,
+                provider: row.provider,
+                encryptedData: row.encrypted_data,
+                iv: row.iv,
+                phoneNumbers: row.phone_numbers || [],
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+                lastTested: row.last_tested,
+                isValid: row.is_valid
+            });
+        }
+        console.log(`[VoiceCredentials] Loaded ${result.rows.length} credentials from database`);
+    } catch (error) {
+        console.error('[VoiceCredentials] Table init error:', error);
+    }
+}
+
+// Save credentials to database
+async function saveCredentialsToDb(creds: EncryptedCredentials) {
+    try {
+        await sql`
+            INSERT INTO voice_credentials (user_id, location_id, provider, encrypted_data, iv, phone_numbers, is_valid, last_tested)
+            VALUES (${creds.userId}, ${creds.locationId}, ${creds.provider}, ${creds.encryptedData}, ${creds.iv}, ${JSON.stringify(creds.phoneNumbers)}, ${creds.isValid ?? null}, ${creds.lastTested ?? null})
+            ON CONFLICT (user_id, location_id, provider)
+            DO UPDATE SET
+                encrypted_data = ${creds.encryptedData},
+                iv = ${creds.iv},
+                phone_numbers = ${JSON.stringify(creds.phoneNumbers)},
+                is_valid = ${creds.isValid ?? null},
+                last_tested = ${creds.lastTested ?? null},
+                updated_at = NOW()
+        `;
+    } catch (error) {
+        console.error('[VoiceCredentials] Database save error:', error);
+    }
+}
+
+// Initialize table on module load
+initCredentialsTable();
 
 export default router;
