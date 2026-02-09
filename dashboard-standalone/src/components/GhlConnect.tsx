@@ -29,12 +29,12 @@ const GhlConnect: React.FC<GhlConnectProps> = ({ onConnect }) => {
     };
 
     return (
-        <div className="h-full bg-[var(--os-bg)] flex flex-col font-sans text-[var(--os-text)] relative overflow-hidden transition-colors duration-500">
+        <div className="min-h-full bg-[var(--os-bg)] font-sans text-[var(--os-text)] relative overflow-y-auto transition-colors duration-500">
             {/* Visual Depth Orbs */}
-            <div className="absolute top-[-5%] left-[-5%] w-[40%] h-[40%] bg-neuro/5 blur-[120px] rounded-full animate-pulse"></div>
+            <div className="absolute top-[-5%] left-[-5%] w-[40%] h-[40%] bg-neuro/5 blur-[120px] rounded-full animate-pulse pointer-events-none"></div>
 
-            <div className="flex-1 flex items-center justify-center p-10 relative z-10">
-                <div className="w-full max-w-xl space-y-12">
+            <div className="min-h-full flex items-center justify-center p-4 py-8 md:p-10 relative z-10">
+                <div className="w-full max-w-xl space-y-6 md:space-y-12">
                     <header className="text-center space-y-4">
                         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-neuro-light/50 border border-neuro-light text-neuro text-[9px] font-black uppercase tracking-widest">
                             <Shield className="h-3 w-3" /> Step 1: Secure Handshake
