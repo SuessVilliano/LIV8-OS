@@ -46,6 +46,15 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
     const [isVerifying, setIsVerifying] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const parseJsonSafe = async (response: Response) => {
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch {
+            throw new Error(`Server returned an unexpected response (${response.status}). Please ensure the backend is running.`);
+        }
+    };
+
     const handleGhlSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsVerifying(true);
@@ -63,7 +72,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                     })
                 });
 
-                const data = await response.json();
+                const data = await parseJsonSafe(response);
 
                 if (!response.ok || !data.success) {
                     throw new Error(data.error || 'Failed to create GHL sub-account');
@@ -83,7 +92,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                     body: JSON.stringify({ locationId: locId, apiKey })
                 });
 
-                const data = await response.json();
+                const data = await parseJsonSafe(response);
 
                 if (!response.ok || !data.success) {
                     throw new Error(data.error || 'Invalid GHL credentials');
@@ -118,7 +127,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                     })
                 });
 
-                const data = await response.json();
+                const data = await parseJsonSafe(response);
 
                 if (!response.ok || !data.success) {
                     throw new Error(data.error || 'Failed to create LIV8 CRM account');
@@ -135,7 +144,7 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
                     body: JSON.stringify({ email: vboutEmail })
                 });
 
-                const data = await response.json();
+                const data = await parseJsonSafe(response);
 
                 if (!response.ok || !data.success) {
                     throw new Error(data.error || 'Invalid LIV8 CRM credentials');
@@ -159,13 +168,13 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
     // CRM Selection Screen
     if (step === 'select') {
         return (
-            <div className="h-full bg-[var(--os-bg)] flex flex-col font-sans text-[var(--os-text)] relative overflow-hidden transition-colors duration-500">
+            <div className="min-h-full bg-[var(--os-bg)] font-sans text-[var(--os-text)] relative overflow-y-auto transition-colors duration-500">
                 {/* Visual Depth Orbs */}
-                <div className="absolute top-[-5%] left-[-5%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse"></div>
-                <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-purple-500/5 blur-[120px] rounded-full animate-pulse"></div>
+                <div className="absolute top-[-5%] left-[-5%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse pointer-events-none"></div>
+                <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-purple-500/5 blur-[120px] rounded-full animate-pulse pointer-events-none"></div>
 
-                <div className="flex-1 flex items-center justify-center p-10 relative z-10">
-                    <div className="w-full max-w-2xl space-y-12">
+                <div className="min-h-full flex items-center justify-center p-4 py-8 md:p-10 relative z-10">
+                    <div className="w-full max-w-2xl space-y-6 md:space-y-12">
                         <header className="text-center space-y-4">
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[9px] font-black uppercase tracking-widest">
                                 <Zap className="h-3 w-3" /> Connect Your CRM
@@ -248,8 +257,8 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
             <div className="min-h-full bg-[var(--os-bg)] font-sans text-[var(--os-text)] relative overflow-y-auto transition-colors duration-500">
                 <div className="absolute top-[-5%] left-[-5%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse pointer-events-none"></div>
 
-                <div className="min-h-full flex items-center justify-center p-10 py-16 relative z-10">
-                    <div className="w-full max-w-xl space-y-8">
+                <div className="min-h-full flex items-center justify-center p-4 py-8 md:p-10 md:py-16 relative z-10">
+                    <div className="w-full max-w-xl space-y-6 md:space-y-8">
                         {/* Back Button */}
                         <button
                             onClick={() => { setStep('select'); setError(null); }}
@@ -436,8 +445,8 @@ const CrmConnect: React.FC<CrmConnectProps> = ({ onConnect, onSkip }) => {
             <div className="min-h-full bg-[var(--os-bg)] font-sans text-[var(--os-text)] relative overflow-y-auto transition-colors duration-500">
                 <div className="absolute top-[-5%] right-[-5%] w-[40%] h-[40%] bg-purple-500/5 blur-[120px] rounded-full animate-pulse pointer-events-none"></div>
 
-                <div className="min-h-full flex items-center justify-center p-10 py-16 relative z-10">
-                    <div className="w-full max-w-xl space-y-8">
+                <div className="min-h-full flex items-center justify-center p-4 py-8 md:p-10 md:py-16 relative z-10">
+                    <div className="w-full max-w-xl space-y-6 md:space-y-8">
                         {/* Back Button */}
                         <button
                             onClick={() => { setStep('select'); setError(null); }}

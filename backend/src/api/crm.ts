@@ -60,6 +60,104 @@ router.post('/validate-ghl', async (req, res) => {
 });
 
 /**
+ * Create GHL sub-account (location) for new user
+ * POST /api/crm/create-ghl-subaccount
+ */
+router.post('/create-ghl-subaccount', async (req, res) => {
+    try {
+        const { businessName, email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email is required'
+            });
+        }
+
+        console.log('[CRM] Creating GHL sub-account for:', email);
+
+        // Agency API key is required to create sub-accounts (locations)
+        const agencyApiKey = process.env.GHL_AGENCY_API_KEY || process.env.GHL_TEST_TOKEN;
+
+        if (!agencyApiKey) {
+            console.error('[CRM] GHL Agency API key not configured - cannot create sub-accounts');
+            return res.status(503).json({
+                success: false,
+                error: 'GHL service is not configured. Please contact support or connect with an existing GHL account.',
+                code: 'GHL_NOT_CONFIGURED'
+            });
+        }
+
+        // Create location (sub-account) via GHL Agency API
+        const companyId = process.env.GHL_COMPANY_ID;
+        const createUrl = companyId
+            ? `https://services.leadconnectorhq.com/locations/`
+            : `https://services.leadconnectorhq.com/locations/`;
+
+        const locationPayload: Record<string, any> = {
+            name: businessName || `${email.split('@')[0]}'s Business`,
+            email: email,
+            address: '',
+            city: '',
+            state: '',
+            country: 'US',
+            postalCode: '',
+            timezone: 'America/New_York',
+            settings: {
+                allowDuplicateContact: false,
+                allowDuplicateOpportunity: false,
+                allowFacebookNameMerge: true
+            }
+        };
+
+        if (companyId) {
+            locationPayload.companyId = companyId;
+        }
+
+        const response = await fetch(createUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${agencyApiKey}`,
+                'Content-Type': 'application/json',
+                'Version': '2021-07-28'
+            },
+            body: JSON.stringify(locationPayload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            const errorMsg = data?.message || data?.msg || data?.error || `GHL API returned ${response.status}`;
+            console.error('[CRM] GHL sub-account creation failed:', errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        const location = data.location || data;
+
+        console.log('[CRM] GHL sub-account created:', location.id || location.locationId);
+
+        return res.json({
+            success: true,
+            message: 'GHL sub-account created successfully',
+            account: {
+                locationId: location.id || location.locationId,
+                apiKey: agencyApiKey,
+                name: location.name || businessName,
+                email: email,
+                status: 'active'
+            }
+        });
+
+    } catch (error: any) {
+        console.error('[CRM] GHL sub-account creation error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to create GHL sub-account'
+        });
+    }
+});
+
+/**
  * Create Vbout sub-account for new user
  * POST /api/crm/create-vbout-account
  */
