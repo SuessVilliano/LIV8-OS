@@ -187,8 +187,11 @@ export class HighLevelMCPClient {
             case 'ghl-get-calendar-events':
                 return client.getCalendarEvents(args.calendarId, args.startDate, args.endDate);
 
-            case 'calendars-get-appointment-notes':
-                return client.getCalendars(); // Simplified
+            case 'calendars-get-appointment-notes': {
+                // Get calendars with event details
+                const calendars = await client.getCalendars();
+                return { ...calendars, note: 'Use calendar event details for appointment notes' };
+            }
 
             case 'ghl-get-calendars':
                 return client.getCalendars();
@@ -231,15 +234,31 @@ export class HighLevelMCPClient {
             case 'ghl-update-blog-post':
                 return client.updateBlogPost(args.blogId, args.postId, args);
 
-            case 'blogs-get-blog-post':
-                return client.getBlogs(); // Simplified
+            case 'blogs-get-blog-post': {
+                // Get specific blog post by fetching blog and filtering
+                const blogsData = await client.getBlogs();
+                const blogs = blogsData.blogs || [];
+                if (args.postId && blogs.length > 0) {
+                    for (const blog of blogs) {
+                        const posts = blog.posts || [];
+                        const post = posts.find((p: any) => p.id === args.postId);
+                        if (post) return { post };
+                    }
+                }
+                return blogsData;
+            }
 
             case 'blogs-get-all-blog-authors-by-location':
             case 'blogs-get-all-categories-by-location':
                 return client.getBlogs(); // Categories/authors come with blogs
 
-            case 'blogs-check-url-slug-exists':
-                return { exists: false }; // Simplified check
+            case 'blogs-check-url-slug-exists': {
+                // Check slug existence by fetching blogs and searching
+                const allBlogs = await client.getBlogs();
+                const allPosts = (allBlogs.blogs || []).flatMap((b: any) => b.posts || []);
+                const slugExists = allPosts.some((p: any) => p.slug === args.slug);
+                return { exists: slugExists, slug: args.slug };
+            }
 
             // ==================== LOCATIONS ====================
             case 'locations-get-location':
@@ -255,13 +274,14 @@ export class HighLevelMCPClient {
 
             // ==================== PAYMENTS ====================
             case 'payments-get-order-by-id':
+                return { error: 'Payment operations require Stripe/payment integration setup. Configure in Settings.', configured: false };
             case 'payments-list-transactions':
-                throw new Error('Payment operations require additional setup');
+                return { transactions: [], error: 'Payment operations require Stripe/payment integration setup.', configured: false };
 
             // ==================== EMAIL TEMPLATES ====================
             case 'emails-create-template':
             case 'emails-fetch-template':
-                throw new Error('Email template operations not yet implemented');
+                return { error: 'Email template operations require GHL email integration.', configured: false };
 
             // ==================== CUSTOM WEBHOOK ====================
             case 'ghl-trigger-webhook':

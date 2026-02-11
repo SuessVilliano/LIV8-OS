@@ -73,6 +73,31 @@ const initDatabase = async () => {
         await businessTwin.initTables();
         dbInitialized = true;
         console.log('✅ Database tables initialized (agent_sessions + business_twins)');
+
+        // Initialize inbox, studio, and credential tables
+        try {
+            const { initConversationTables } = await import('./db/conversations.js');
+            await initConversationTables();
+            console.log('✅ Inbox conversation tables initialized');
+        } catch (e: any) {
+            console.warn('⚠️ Inbox tables init skipped:', e.message);
+        }
+
+        try {
+            const { studioDb } = await import('./db/studio.js');
+            await studioDb.initTables();
+            console.log('✅ Studio tables initialized');
+        } catch (e: any) {
+            console.warn('⚠️ Studio tables init skipped:', e.message);
+        }
+
+        try {
+            const { initializeTables } = await import('./db/init-tables.js');
+            await initializeTables();
+            console.log('✅ Core tables verified');
+        } catch (e: any) {
+            console.warn('⚠️ Core tables init skipped:', e.message);
+        }
     } catch (error: any) {
         dbError = error.message;
         console.warn('⚠️ Database init failed:', error.message);

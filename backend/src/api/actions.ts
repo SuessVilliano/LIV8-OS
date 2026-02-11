@@ -360,9 +360,8 @@ router.post('/execute', async (req: Request, res: Response) => {
             }
 
             case 'make_call': {
-                const { target, phone, contactId, contactName } = entities;
+                const { target, phone, contactId, contactName, assistantId } = entities;
 
-                // This would integrate with VAPI for actual calls
                 const callTarget = phone || target || contactName;
 
                 if (!callTarget && !contactId) {
@@ -373,11 +372,47 @@ router.post('/execute', async (req: Request, res: Response) => {
                     });
                 }
 
-                // In production, this would trigger VAPI
+                // Route through VAPI if configured
+                if (process.env.VAPI_API_KEY) {
+                    try {
+                        const vapiBody: any = {
+                            customer: { number: callTarget },
+                            metadata: { locationId, source: 'LIV8-OS-actions' }
+                        };
+                        if (assistantId) {
+                            vapiBody.assistantId = assistantId;
+                        }
+                        const vapiRes = await fetch('https://api.vapi.ai/call', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${process.env.VAPI_API_KEY}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(vapiBody)
+                        });
+                        if (vapiRes.ok) {
+                            const callData = await vapiRes.json();
+                            return res.json({
+                                success: true,
+                                message: `Call initiated to ${callTarget}`,
+                                data: { callId: callData.id, target: callTarget, status: 'initiated' }
+                            });
+                        }
+                        const errBody = await vapiRes.json().catch(() => ({}));
+                        throw new Error(errBody.message || `VAPI ${vapiRes.status}`);
+                    } catch (vapiErr: any) {
+                        return res.json({
+                            success: false,
+                            message: `Call failed: ${vapiErr.message}`,
+                            data: { target: callTarget, status: 'failed' }
+                        });
+                    }
+                }
+
                 return res.json({
                     success: true,
-                    message: `Initiating call to ${callTarget || contactId}`,
-                    data: { target: callTarget, status: 'initiated', demo: !process.env.VAPI_API_KEY }
+                    message: `Call would be initiated to ${callTarget || contactId}. Configure VAPI_API_KEY for live calls.`,
+                    data: { target: callTarget, status: 'pending_setup', demo: true }
                 });
             }
 
@@ -451,20 +486,39 @@ router.post('/execute', async (req: Request, res: Response) => {
             }
 
             case 'get_analytics': {
-                // Return analytics summary
+                const analytics: any = { period: '7 days' };
+
+                // Pull real data from GHL if connected
+                if (ghlClient) {
+                    try {
+                        const [contacts, conversations] = await Promise.allSettled([
+                            ghlClient.getContacts({ limit: 1 }),
+                            ghlClient.getConversations({})
+                        ]);
+                        analytics.contacts = (contacts.status === 'fulfilled' ? contacts.value.contacts?.length || contacts.value.meta?.total : 0) || 0;
+                        analytics.conversations = (conversations.status === 'fulfilled' ? conversations.value.conversations?.length : 0) || 0;
+                    } catch {}
+                }
+
+                // Pull VAPI call stats if configured
+                if (process.env.VAPI_API_KEY) {
+                    try {
+                        const vapiRes = await fetch('https://api.vapi.ai/call?limit=100', {
+                            headers: { 'Authorization': `Bearer ${process.env.VAPI_API_KEY}` }
+                        });
+                        if (vapiRes.ok) {
+                            const calls = await vapiRes.json();
+                            const callList = Array.isArray(calls) ? calls : [];
+                            const answered = callList.filter((c: any) => c.endedReason === 'assistant-ended-call' || c.endedReason === 'customer-ended-call');
+                            analytics.calls = { total: callList.length, answered: answered.length };
+                        }
+                    } catch {}
+                }
+
                 return res.json({
                     success: true,
                     message: 'Analytics loaded',
-                    data: {
-                        summary: {
-                            contacts: 150,
-                            emails: { sent: 45, opened: 32 },
-                            sms: { sent: 28, delivered: 26 },
-                            posts: { published: 12, engagement: 340 },
-                            calls: { total: 8, answered: 6 }
-                        },
-                        period: '7 days'
-                    }
+                    data: { summary: analytics }
                 });
             }
 
