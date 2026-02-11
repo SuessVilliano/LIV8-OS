@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Sparkles,
     Image,
@@ -170,6 +170,36 @@ const Studio = () => {
     };
 
     const brandContext = getBrandContext();
+
+    // Load saved assets from database on mount
+    useEffect(() => {
+        const loadSavedAssets = async () => {
+            try {
+                const token = localStorage.getItem('os_token');
+                const res = await fetch(`${API_BASE}/api/studio/assets`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.assets?.length) {
+                        setAssets(data.assets.map((a: any) => ({
+                            id: a.id,
+                            type: a.type,
+                            name: a.name,
+                            url: a.content,
+                            thumbnail: a.thumbnail,
+                            createdAt: new Date(a.created_at || a.createdAt),
+                            prompt: a.prompt,
+                            status: a.status || 'complete'
+                        })));
+                    }
+                }
+            } catch (err) {
+                console.warn('[Studio] Failed to load saved assets:', err);
+            }
+        };
+        loadSavedAssets();
+    }, []);
 
     const templates: Template[] = [
         { id: 't1', name: 'SaaS Landing', category: 'Landing Pages', thumbnail: '🚀', description: 'Modern SaaS product landing page', type: 'website' },

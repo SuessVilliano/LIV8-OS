@@ -428,7 +428,54 @@ router.post('/send', async (req: Request, res: Response) => {
           console.log(`[Inbox] ${conversation.channel} message sent via GHL`);
           break;
         }
-        // Add more channel implementations as needed
+        case 'twitter':
+        case 'linkedin':
+        case 'tiktok':
+        case 'google_business': {
+          // Social DMs via Late API
+          const lateApiKey = process.env.LATE_API_KEY;
+          if (!lateApiKey) throw new Error('Late API key not configured for social messaging');
+
+          const lateRes = await fetch('https://api.getlate.dev/v1/messages/send', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${lateApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              platform: conversation.channel.replace('_', ''),
+              recipientId: contact.external_id || contact.metadata?.socialId,
+              message: content
+            })
+          });
+          if (!lateRes.ok) {
+            const err = await lateRes.json().catch(() => ({}));
+            throw new Error(err.message || `Late API ${lateRes.status}`);
+          }
+          const lateData = await lateRes.json();
+          externalId = lateData.messageId || lateData.id;
+          console.log(`[Inbox] ${conversation.channel} message sent via Late API`);
+          break;
+        }
+        case 'telegram': {
+          // Telegram via bot API or Late API
+          const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+          const chatId = contact.metadata?.telegramChatId || contact.external_id;
+          if (telegramToken && chatId) {
+            const tgRes = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: content })
+            });
+            if (!tgRes.ok) throw new Error('Telegram send failed');
+            const tgData = await tgRes.json();
+            externalId = String(tgData.result?.message_id);
+          } else {
+            throw new Error('Telegram bot token or chat ID not configured');
+          }
+          console.log('[Inbox] Telegram message sent');
+          break;
+        }
         default:
           console.log(`[Inbox] Channel ${conversation.channel} sending not implemented`);
       }

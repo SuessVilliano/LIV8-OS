@@ -15,8 +15,55 @@ const router = Router();
 const ENCRYPTION_KEY = process.env.CREDENTIALS_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
 const ALGORITHM = 'aes-256-cbc';
 
-// In-memory store for Late credentials (use database in production)
+// In-memory cache backed by database persistence
 const lateCredentialsStore = new Map<string, LateCredentials>();
+
+// DB persistence helpers for Late credentials
+async function loadCredentialsFromDb(userId: string, locationId: string): Promise<LateCredentials | null> {
+    try {
+        const { sql } = await import('@vercel/postgres');
+        const result = await sql`
+            SELECT * FROM late_credentials WHERE user_id = ${userId} AND location_id = ${locationId}
+        `;
+        if (result.rows[0]) {
+            const row = result.rows[0];
+            return {
+                userId: row.user_id,
+                locationId: row.location_id,
+                encryptedApiKey: row.encrypted_api_key,
+                iv: row.iv,
+                profileId: row.profile_id,
+                isValid: row.is_valid,
+                lastTested: row.last_tested ? new Date(row.last_tested) : undefined,
+                createdAt: new Date(row.created_at),
+                updatedAt: new Date(row.updated_at)
+            };
+        }
+        return null;
+    } catch {
+        return null; // DB not available, rely on in-memory only
+    }
+}
+
+async function saveCredentialsToDb(creds: LateCredentials): Promise<void> {
+    try {
+        const { sql } = await import('@vercel/postgres');
+        await sql`
+            INSERT INTO late_credentials (user_id, location_id, encrypted_api_key, iv, profile_id, is_valid, last_tested)
+            VALUES (${creds.userId}, ${creds.locationId}, ${creds.encryptedApiKey}, ${creds.iv}, ${creds.profileId || null}, ${creds.isValid ?? true}, ${creds.lastTested?.toISOString() || null})
+            ON CONFLICT (user_id, location_id)
+            DO UPDATE SET
+                encrypted_api_key = ${creds.encryptedApiKey},
+                iv = ${creds.iv},
+                profile_id = ${creds.profileId || null},
+                is_valid = ${creds.isValid ?? true},
+                last_tested = ${creds.lastTested?.toISOString() || null},
+                updated_at = NOW()
+        `;
+    } catch (err) {
+        console.warn('[Late API] DB save failed, using in-memory only:', (err as Error).message);
+    }
+}
 
 interface LateCredentials {
     userId: string;
@@ -66,7 +113,13 @@ function decrypt(encrypted: string, ivHex: string): string {
 // Helper to get Late service for a location
 async function getLateServiceForLocation(userId: string, locationId: string): Promise<LateService> {
     const storeKey = `${userId}_${locationId}`;
-    const stored = lateCredentialsStore.get(storeKey);
+    let stored = lateCredentialsStore.get(storeKey);
+
+    // Fallback to DB if not in cache
+    if (!stored) {
+        stored = await loadCredentialsFromDb(userId, locationId) || undefined;
+        if (stored) lateCredentialsStore.set(storeKey, stored);
+    }
 
     if (!stored) {
         throw new Error('Late API key not configured. Please add your API key in Settings.');
@@ -88,7 +141,13 @@ router.get('/credentials', authenticate, async (req: Request, res: Response) => 
         const locationId = req.headers['x-location-id'] as string || 'default';
         const storeKey = `${user.userId}_${locationId}`;
 
-        const stored = lateCredentialsStore.get(storeKey);
+        let stored = lateCredentialsStore.get(storeKey);
+
+        // Fallback to DB if not in cache
+        if (!stored) {
+            stored = await loadCredentialsFromDb(user.userId, locationId) || undefined;
+            if (stored) lateCredentialsStore.set(storeKey, stored);
+        }
 
         if (!stored) {
             return res.json({
@@ -144,6 +203,7 @@ router.post('/credentials', authenticate, async (req: Request, res: Response) =>
         };
 
         lateCredentialsStore.set(storeKey, credentials);
+        await saveCredentialsToDb(credentials);
 
         console.log(`[Late API] Stored credentials for user ${user.userId}`);
 

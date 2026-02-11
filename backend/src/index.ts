@@ -40,6 +40,7 @@ import inboxRouter from './api/inbox.js'; // Unified multi-channel inbox
 import anychatRouter from './api/anychat.js'; // AnyChat.one live chat integration
 import openclawRouter from './api/openclaw.js'; // OpenClaw AI Manager integration (openclaw.ai)
 import scrapersRouter from './api/scrapers.js'; // Unified scrapers API (Apify, RapidAPI, Firecrawl, Kimi)
+import voiceAiRouter from './api/voice-ai.js'; // Voice AI - White-label VAPI integration
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -72,6 +73,31 @@ const initDatabase = async () => {
         await businessTwin.initTables();
         dbInitialized = true;
         console.log('✅ Database tables initialized (agent_sessions + business_twins)');
+
+        // Initialize inbox, studio, and credential tables
+        try {
+            const { initConversationTables } = await import('./db/conversations.js');
+            await initConversationTables();
+            console.log('✅ Inbox conversation tables initialized');
+        } catch (e: any) {
+            console.warn('⚠️ Inbox tables init skipped:', e.message);
+        }
+
+        try {
+            const { studioDb } = await import('./db/studio.js');
+            await studioDb.initTables();
+            console.log('✅ Studio tables initialized');
+        } catch (e: any) {
+            console.warn('⚠️ Studio tables init skipped:', e.message);
+        }
+
+        try {
+            const { initializeTables } = await import('./db/init-tables.js');
+            await initializeTables();
+            console.log('✅ Core tables verified');
+        } catch (e: any) {
+            console.warn('⚠️ Core tables init skipped:', e.message);
+        }
     } catch (error: any) {
         dbError = error.message;
         console.warn('⚠️ Database init failed:', error.message);
@@ -173,6 +199,7 @@ app.use('/api/inbox', rateLimitPresets.api, inboxRouter); // Unified multi-chann
 app.use('/api/anychat', rateLimitPresets.api, anychatRouter); // AnyChat.one live chat integration
 app.use('/api/openclaw', rateLimitPresets.api, openclawRouter); // OpenClaw AI Manager integration
 app.use('/api/scrapers', rateLimitPresets.ai, scrapersRouter); // Unified scrapers API (Apify, RapidAPI, Firecrawl, Kimi)
+app.use('/api/voice-ai', rateLimitPresets.api, voiceAiRouter); // Voice AI - White-label VAPI integration
 
 
 // --- MCP Integration ---

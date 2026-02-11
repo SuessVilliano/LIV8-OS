@@ -122,6 +122,152 @@ export async function initializeTables() {
     `;
     console.log('✅ coupons table ready');
 
+    // Create inbox_contacts table
+    await sql`
+      CREATE TABLE IF NOT EXISTS inbox_contacts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        location_id VARCHAR(100) NOT NULL,
+        external_id VARCHAR(255),
+        phone VARCHAR(50),
+        email VARCHAR(255),
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        avatar_url TEXT,
+        company VARCHAR(255),
+        tags TEXT[] DEFAULT '{}',
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    console.log('✅ inbox_contacts table ready');
+
+    // Create inbox_conversations table
+    await sql`
+      CREATE TABLE IF NOT EXISTS inbox_conversations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        location_id VARCHAR(100) NOT NULL,
+        contact_id UUID NOT NULL REFERENCES inbox_contacts(id) ON DELETE CASCADE,
+        channel VARCHAR(50) NOT NULL,
+        channel_conversation_id VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'active',
+        unread_count INTEGER DEFAULT 0,
+        last_message_at TIMESTAMPTZ DEFAULT NOW(),
+        last_message_preview TEXT,
+        assigned_to VARCHAR(100),
+        priority VARCHAR(20) DEFAULT 'normal',
+        labels TEXT[] DEFAULT '{}',
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    console.log('✅ inbox_conversations table ready');
+
+    // Create inbox_messages table
+    await sql`
+      CREATE TABLE IF NOT EXISTS inbox_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id UUID NOT NULL REFERENCES inbox_conversations(id) ON DELETE CASCADE,
+        location_id VARCHAR(100) NOT NULL,
+        direction VARCHAR(20) NOT NULL,
+        channel VARCHAR(50) NOT NULL,
+        sender_id VARCHAR(255),
+        sender_name VARCHAR(255),
+        sender_type VARCHAR(20) DEFAULT 'contact',
+        content TEXT NOT NULL,
+        content_type VARCHAR(20) DEFAULT 'text',
+        media_urls TEXT[] DEFAULT '{}',
+        status VARCHAR(20) DEFAULT 'sent',
+        external_id VARCHAR(255),
+        error_message TEXT,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    console.log('✅ inbox_messages table ready');
+
+    // Create inbox indexes
+    await sql`CREATE INDEX IF NOT EXISTS idx_contacts_location ON inbox_contacts(location_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_contacts_phone ON inbox_contacts(phone)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_conversations_location ON inbox_conversations(location_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_conversations_channel ON inbox_conversations(channel)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_conversations_last_message ON inbox_conversations(last_message_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_messages_conversation ON inbox_messages(conversation_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_messages_created ON inbox_messages(created_at DESC)`;
+    console.log('✅ inbox indexes ready');
+
+    // Create studio_assets table
+    await sql`
+      CREATE TABLE IF NOT EXISTS studio_assets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('image', 'video', 'website', 'email')),
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        thumbnail TEXT,
+        prompt TEXT,
+        metadata JSONB DEFAULT '{}',
+        status TEXT DEFAULT 'complete',
+        published_url TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_studio_assets_client_type ON studio_assets(client_id, type)`;
+    console.log('✅ studio_assets table ready');
+
+    // Create studio_website_sessions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS studio_website_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id TEXT NOT NULL,
+        asset_id UUID REFERENCES studio_assets(id) ON DELETE SET NULL,
+        conversation_history JSONB DEFAULT '[]',
+        current_html TEXT,
+        model TEXT DEFAULT 'gpt-4o',
+        site_type TEXT DEFAULT 'landing',
+        brand_context JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ studio_website_sessions table ready');
+
+    // Create Late API credentials persistence table
+    await sql`
+      CREATE TABLE IF NOT EXISTS late_credentials (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id TEXT NOT NULL,
+        location_id TEXT NOT NULL,
+        encrypted_api_key TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        profile_id TEXT,
+        is_valid BOOLEAN DEFAULT TRUE,
+        last_tested TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, location_id)
+      )
+    `;
+    console.log('✅ late_credentials table ready');
+
+    // Create SMS credentials persistence table
+    await sql`
+      CREATE TABLE IF NOT EXISTS sms_credentials (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id TEXT NOT NULL,
+        location_id TEXT NOT NULL,
+        default_provider VARCHAR(20) NOT NULL,
+        credentials_data JSONB NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, location_id)
+      )
+    `;
+    console.log('✅ sms_credentials table ready');
+
     console.log('🎉 All database tables initialized successfully!');
     return { success: true };
   } catch (error: any) {

@@ -16,6 +16,7 @@ import Pricing from './pages/Pricing';
 import Studio from './pages/Studio';
 import Support from './pages/Support';
 import Inbox from './pages/Inbox';
+import VoiceAI from './pages/VoiceAI';
 import Sidebar from './components/Sidebar';
 import CrmConnect from './components/CrmConnect';
 import GhlOnboarding from './components/GhlOnboarding';
@@ -162,6 +163,7 @@ function App() {
               <Route path="/settings" element={isCoreActive ? <ErrorBoundary><Settings /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/support" element={isCoreActive ? <ErrorBoundary><Support /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/inbox" element={isCoreActive ? <ErrorBoundary><Inbox /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/voice-ai" element={isCoreActive ? <ErrorBoundary><VoiceAI /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/pricing" element={<Pricing />} />
 
