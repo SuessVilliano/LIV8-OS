@@ -18,7 +18,8 @@ import {
     Palette,
     Wand2,
     BookOpen,
-    Inbox
+    Inbox,
+    Phone,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import LocationSwitcher from './LocationSwitcher';
@@ -39,6 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
         { icon: Target, label: 'Opportunities', path: '/opportunities' },
         { icon: Users, label: 'Agencies', path: '/agencies' },
         { icon: MessageSquare, label: 'Staff Hub', path: '/staff' },
+        { icon: Phone, label: 'Voice AI', path: '/voice-ai' },
         { icon: Palette, label: 'Brand Hub', path: '/brand' },
         { icon: Wand2, label: 'Studio', path: '/studio' },
         { icon: Workflow, label: 'Workflows', path: '/workflows' },

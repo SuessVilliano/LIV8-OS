@@ -40,6 +40,7 @@ import inboxRouter from './api/inbox.js'; // Unified multi-channel inbox
 import anychatRouter from './api/anychat.js'; // AnyChat.one live chat integration
 import openclawRouter from './api/openclaw.js'; // OpenClaw AI Manager integration (openclaw.ai)
 import scrapersRouter from './api/scrapers.js'; // Unified scrapers API (Apify, RapidAPI, Firecrawl, Kimi)
+import voiceAiRouter from './api/voice-ai.js'; // Voice AI - White-label VAPI integration
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -173,6 +174,7 @@ app.use('/api/inbox', rateLimitPresets.api, inboxRouter); // Unified multi-chann
 app.use('/api/anychat', rateLimitPresets.api, anychatRouter); // AnyChat.one live chat integration
 app.use('/api/openclaw', rateLimitPresets.api, openclawRouter); // OpenClaw AI Manager integration
 app.use('/api/scrapers', rateLimitPresets.ai, scrapersRouter); // Unified scrapers API (Apify, RapidAPI, Firecrawl, Kimi)
+app.use('/api/voice-ai', rateLimitPresets.api, voiceAiRouter); // Voice AI - White-label VAPI integration
 
 
 // --- MCP Integration ---
