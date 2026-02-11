@@ -602,11 +602,177 @@ router.get('/media/:token/status', authenticate, async (req: Request, res: Respo
     }
 });
 
+// ============ INTERACTIVE MESSAGING (Inbox API) ============
+
+/**
+ * POST /api/late/inbox/conversations/:conversationId/messages
+ * Send interactive message (quick replies, buttons, carousel, file attachments)
+ */
+router.post('/inbox/conversations/:conversationId/messages', authenticate, async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const locationId = req.headers['x-location-id'] as string || 'default';
+        const { conversationId } = req.params;
+        const { text, quickReplies, buttons, genericTemplates, replyMarkup, fileUrl, fileType, fileName } = req.body;
+
+        if (!text && !quickReplies && !buttons && !genericTemplates && !fileUrl) {
+            return res.status(400).json({ error: 'At least one of text, quickReplies, buttons, genericTemplates, or fileUrl is required' });
+        }
+
+        const late = await getLateServiceForLocation(user.userId, locationId);
+        const result = await late.sendInteractiveMessage(conversationId, {
+            text, quickReplies, buttons, genericTemplates, replyMarkup, fileUrl, fileType, fileName
+        });
+
+        res.json({ success: true, message: result });
+    } catch (error: any) {
+        console.error('[Late API] Send interactive message error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * PATCH /api/late/inbox/conversations/:conversationId/messages/:messageId
+ * Edit a Telegram message
+ */
+router.patch('/inbox/conversations/:conversationId/messages/:messageId', authenticate, async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const locationId = req.headers['x-location-id'] as string || 'default';
+        const { conversationId, messageId } = req.params;
+        const { text, replyMarkup } = req.body;
+
+        if (!text) {
+            return res.status(400).json({ error: 'text is required' });
+        }
+
+        const late = await getLateServiceForLocation(user.userId, locationId);
+        const result = await late.editTelegramMessage(conversationId, messageId, text, replyMarkup);
+
+        res.json({ success: true, message: result });
+    } catch (error: any) {
+        console.error('[Late API] Edit message error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/late/inbox/conversations
+ * List inbox conversations
+ */
+router.get('/inbox/conversations', authenticate, async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const locationId = req.headers['x-location-id'] as string || 'default';
+        const { accountId, status, limit } = req.query;
+
+        const late = await getLateServiceForLocation(user.userId, locationId);
+        const conversations = await late.listInboxConversations({
+            accountId: accountId as string,
+            status: status as string,
+            limit: limit ? parseInt(limit as string) : undefined
+        });
+
+        res.json({ success: true, conversations });
+    } catch (error: any) {
+        console.error('[Late API] List inbox conversations error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/late/inbox/conversations/:conversationId/messages
+ * Get messages in a conversation
+ */
+router.get('/inbox/conversations/:conversationId/messages', authenticate, async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const locationId = req.headers['x-location-id'] as string || 'default';
+        const { conversationId } = req.params;
+        const limit = parseInt(req.query.limit as string) || 50;
+
+        const late = await getLateServiceForLocation(user.userId, locationId);
+        const messages = await late.getInboxMessages(conversationId, limit);
+
+        res.json({ success: true, messages });
+    } catch (error: any) {
+        console.error('[Late API] Get inbox messages error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ TELEGRAM BOT COMMANDS ============
+
+/**
+ * GET /api/late/accounts/:accountId/telegram-commands
+ * Get Telegram bot commands
+ */
+router.get('/accounts/:accountId/telegram-commands', authenticate, async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const locationId = req.headers['x-location-id'] as string || 'default';
+        const { accountId } = req.params;
+
+        const late = await getLateServiceForLocation(user.userId, locationId);
+        const commands = await late.getTelegramCommands(accountId);
+
+        res.json({ success: true, commands });
+    } catch (error: any) {
+        console.error('[Late API] Get Telegram commands error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * PUT /api/late/accounts/:accountId/telegram-commands
+ * Set Telegram bot commands
+ */
+router.put('/accounts/:accountId/telegram-commands', authenticate, async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const locationId = req.headers['x-location-id'] as string || 'default';
+        const { accountId } = req.params;
+        const { commands } = req.body;
+
+        if (!commands || !Array.isArray(commands)) {
+            return res.status(400).json({ error: 'commands array is required' });
+        }
+
+        const late = await getLateServiceForLocation(user.userId, locationId);
+        const result = await late.setTelegramCommands(accountId, commands);
+
+        res.json({ success: true, ...result });
+    } catch (error: any) {
+        console.error('[Late API] Set Telegram commands error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * DELETE /api/late/accounts/:accountId/telegram-commands
+ * Delete all Telegram bot commands
+ */
+router.delete('/accounts/:accountId/telegram-commands', authenticate, async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const locationId = req.headers['x-location-id'] as string || 'default';
+        const { accountId } = req.params;
+
+        const late = await getLateServiceForLocation(user.userId, locationId);
+        await late.deleteTelegramCommands(accountId);
+
+        res.json({ success: true, message: 'Telegram bot commands deleted' });
+    } catch (error: any) {
+        console.error('[Late API] Delete Telegram commands error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ============ WEBHOOKS ============
 
 /**
  * POST /api/late/webhook
- * Receive webhook events from Late
+ * Receive webhook events from Late (posts + inbox interactive events)
  */
 router.post('/webhook', async (req: Request, res: Response) => {
     try {
@@ -630,25 +796,130 @@ router.post('/webhook', async (req: Request, res: Response) => {
             }
         }
 
-        const { event, postId, accountId, data } = req.body;
+        const { event, postId, accountId, conversationId, messageId, data } = req.body;
 
         // Process webhook event
         switch (event) {
             case 'post.published':
                 console.log(`[Late Webhook] Post published: ${postId}`);
-                // TODO: Update analytics, notify user
                 break;
             case 'post.failed':
                 console.log(`[Late Webhook] Post failed: ${postId}`, data);
-                // TODO: Add to retry queue, notify user
                 break;
             case 'post.partial':
                 console.log(`[Late Webhook] Post partially published: ${postId}`, data);
                 break;
             case 'account.disconnected':
                 console.log(`[Late Webhook] Account disconnected: ${accountId}`);
-                // TODO: Notify user to reconnect
                 break;
+
+            // ===== INBOX INTERACTIVE EVENTS =====
+            case 'inbox.message.received':
+                console.log(`[Late Webhook] Inbox message received in conversation ${conversationId}:`, data);
+                // Store inbound message in our DB
+                try {
+                    const { messages: msgDb } = await import('../db/conversations.js');
+                    await msgDb.create({
+                        conversationId: conversationId || 'unknown',
+                        locationId: data?.locationId || 'default',
+                        direction: 'inbound',
+                        channel: data?.platform || 'unknown',
+                        senderId: data?.senderId || 'unknown',
+                        senderName: data?.senderName || 'Unknown',
+                        senderType: 'contact',
+                        content: data?.text || data?.message || '',
+                        contentType: data?.attachment ? 'file' : 'text',
+                        mediaUrls: data?.attachment ? [data.attachment.url] : [],
+                        status: 'delivered',
+                        externalId: messageId,
+                        metadata: data
+                    });
+                } catch (dbErr) {
+                    console.error('[Late Webhook] Failed to store inbound message:', dbErr);
+                }
+                break;
+
+            case 'inbox.button.clicked':
+                console.log(`[Late Webhook] Button clicked in conversation ${conversationId}:`, {
+                    buttonTitle: data?.title,
+                    buttonPayload: data?.payload,
+                    buttonType: data?.type
+                });
+                // Store button click as an inbound event
+                try {
+                    const { messages: msgDb2 } = await import('../db/conversations.js');
+                    await msgDb2.create({
+                        conversationId: conversationId || 'unknown',
+                        locationId: data?.locationId || 'default',
+                        direction: 'inbound',
+                        channel: data?.platform || 'unknown',
+                        senderId: data?.senderId || 'unknown',
+                        senderName: data?.senderName || 'Unknown',
+                        senderType: 'contact',
+                        content: `[Button: ${data?.title}] ${data?.payload || ''}`,
+                        contentType: 'interactive',
+                        status: 'delivered',
+                        externalId: messageId,
+                        metadata: { type: 'button_click', ...data }
+                    });
+                } catch (dbErr) {
+                    console.error('[Late Webhook] Failed to store button click:', dbErr);
+                }
+                break;
+
+            case 'inbox.quickreply.clicked':
+                console.log(`[Late Webhook] Quick reply clicked in conversation ${conversationId}:`, {
+                    replyTitle: data?.title,
+                    replyPayload: data?.payload
+                });
+                // Store quick reply as an inbound event
+                try {
+                    const { messages: msgDb3 } = await import('../db/conversations.js');
+                    await msgDb3.create({
+                        conversationId: conversationId || 'unknown',
+                        locationId: data?.locationId || 'default',
+                        direction: 'inbound',
+                        channel: data?.platform || 'unknown',
+                        senderId: data?.senderId || 'unknown',
+                        senderName: data?.senderName || 'Unknown',
+                        senderType: 'contact',
+                        content: `[Quick Reply: ${data?.title}] ${data?.payload || ''}`,
+                        contentType: 'interactive',
+                        status: 'delivered',
+                        externalId: messageId,
+                        metadata: { type: 'quick_reply', ...data }
+                    });
+                } catch (dbErr) {
+                    console.error('[Late Webhook] Failed to store quick reply:', dbErr);
+                }
+                break;
+
+            case 'inbox.postback':
+                console.log(`[Late Webhook] Postback in conversation ${conversationId}:`, {
+                    payload: data?.payload,
+                    referral: data?.referral
+                });
+                try {
+                    const { messages: msgDb4 } = await import('../db/conversations.js');
+                    await msgDb4.create({
+                        conversationId: conversationId || 'unknown',
+                        locationId: data?.locationId || 'default',
+                        direction: 'inbound',
+                        channel: data?.platform || 'unknown',
+                        senderId: data?.senderId || 'unknown',
+                        senderName: data?.senderName || 'Unknown',
+                        senderType: 'contact',
+                        content: `[Postback] ${data?.payload || ''}`,
+                        contentType: 'interactive',
+                        status: 'delivered',
+                        externalId: messageId,
+                        metadata: { type: 'postback', ...data }
+                    });
+                } catch (dbErr) {
+                    console.error('[Late Webhook] Failed to store postback:', dbErr);
+                }
+                break;
+
             default:
                 console.log(`[Late Webhook] Unknown event: ${event}`);
         }

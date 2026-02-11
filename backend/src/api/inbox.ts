@@ -18,6 +18,8 @@ import { createTwilioSMS, createTelnyxSMS } from '../services/sms-providers.js';
 import { getTextLinkService } from '../services/textlink.js';
 import { GHLApiClient } from '../services/ghl-api-client.js';
 import { vapiService } from '../integrations/vapi.js';
+import { createLateService } from '../services/late.js';
+import type { QuickReply, MessageButton, GenericTemplateElement, TelegramReplyMarkup } from '../services/late.js';
 
 const router = Router();
 
@@ -212,7 +214,15 @@ router.post('/send', async (req: Request, res: Response) => {
       mediaUrls = [],
       senderName,
       senderId,
-      subject // For email messages
+      subject, // For email messages
+      // Interactive message options (Late API channels)
+      quickReplies,
+      buttons,
+      genericTemplates,
+      replyMarkup,
+      fileUrl,
+      fileType,
+      fileName
     } = req.body;
 
     if (!content) {
@@ -409,69 +419,141 @@ router.post('/send', async (req: Request, res: Response) => {
             throw new Error('VAPI voice service not configured');
           }
         }
-        case 'facebook':
-        case 'instagram': {
-          // Social DMs via GHL
-          const ghlToken = req.headers['x-ghl-token'] as string;
-          if (!ghlToken) throw new Error('GHL token required for social messaging');
-
-          const ghlClient = new GHLApiClient(ghlToken, locationId);
-          if (contact.external_id) {
-            await ghlClient.sendMessage({
-              type: 'SMS', // GHL handles routing based on conversation type
-              contactId: contact.external_id,
-              message: content
-            });
-          } else {
-            throw new Error('Contact not linked to GHL');
-          }
-          console.log(`[Inbox] ${conversation.channel} message sent via GHL`);
-          break;
-        }
         case 'twitter':
         case 'linkedin':
         case 'tiktok':
         case 'google_business': {
-          // Social DMs via Late API
+          // Social DMs via Late API — now supports interactive messages
           const lateApiKey = process.env.LATE_API_KEY;
           if (!lateApiKey) throw new Error('Late API key not configured for social messaging');
 
-          const lateRes = await fetch('https://api.getlate.dev/v1/messages/send', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${lateApiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              platform: conversation.channel.replace('_', ''),
-              recipientId: contact.external_id || contact.metadata?.socialId,
-              message: content
-            })
-          });
-          if (!lateRes.ok) {
-            const err = await lateRes.json().catch(() => ({}));
-            throw new Error(err.message || `Late API ${lateRes.status}`);
+          const lateConvId = conversation.channel_conversation_id || contact.metadata?.lateConversationId;
+          const hasInteractive = quickReplies || buttons || genericTemplates || fileUrl;
+
+          if (lateConvId && hasInteractive) {
+            // Use Late Inbox API for interactive messages
+            const late = createLateService(lateApiKey);
+            const result = await late.sendInteractiveMessage(lateConvId, {
+              text: content,
+              quickReplies: quickReplies as QuickReply[],
+              buttons: buttons as MessageButton[],
+              genericTemplates: genericTemplates as GenericTemplateElement[],
+              fileUrl, fileType, fileName
+            });
+            externalId = result?.messageId || result?.id;
+          } else {
+            // Fallback to simple message send
+            const lateRes = await fetch('https://api.getlate.dev/v1/messages/send', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${lateApiKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                platform: conversation.channel.replace('_', ''),
+                recipientId: contact.external_id || contact.metadata?.socialId,
+                message: content
+              })
+            });
+            if (!lateRes.ok) {
+              const err = await lateRes.json().catch(() => ({}));
+              throw new Error(err.message || `Late API ${lateRes.status}`);
+            }
+            const lateData = await lateRes.json();
+            externalId = lateData.messageId || lateData.id;
           }
-          const lateData = await lateRes.json();
-          externalId = lateData.messageId || lateData.id;
           console.log(`[Inbox] ${conversation.channel} message sent via Late API`);
           break;
         }
-        case 'telegram': {
-          // Telegram via bot API or Late API
-          const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-          const chatId = contact.metadata?.telegramChatId || contact.external_id;
-          if (telegramToken && chatId) {
-            const tgRes = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chat_id: chatId, text: content })
+        case 'facebook':
+        case 'instagram': {
+          // Social DMs via GHL or Late API (with interactive message support)
+          const ghlTokenSocial = req.headers['x-ghl-token'] as string;
+          const lateApiKeySocial = process.env.LATE_API_KEY;
+          const hasInteractiveSocial = quickReplies || buttons || genericTemplates || fileUrl;
+          const lateConvIdSocial = conversation.channel_conversation_id || contact.metadata?.lateConversationId;
+
+          if (lateApiKeySocial && lateConvIdSocial && hasInteractiveSocial) {
+            // Use Late Inbox API for interactive messages (buttons, quick replies, carousels)
+            const late = createLateService(lateApiKeySocial);
+            const result = await late.sendInteractiveMessage(lateConvIdSocial, {
+              text: content,
+              quickReplies: quickReplies as QuickReply[],
+              buttons: buttons as MessageButton[],
+              genericTemplates: genericTemplates as GenericTemplateElement[],
+              fileUrl, fileType, fileName
             });
-            if (!tgRes.ok) throw new Error('Telegram send failed');
-            const tgData = await tgRes.json();
-            externalId = String(tgData.result?.message_id);
+            externalId = result?.messageId || result?.id;
+          } else if (ghlTokenSocial && contact.external_id) {
+            // Fallback to GHL for plain messages
+            const ghlClient = new GHLApiClient(ghlTokenSocial, locationId);
+            await ghlClient.sendMessage({
+              type: 'SMS',
+              contactId: contact.external_id,
+              message: content
+            });
           } else {
-            throw new Error('Telegram bot token or chat ID not configured');
+            throw new Error('No messaging provider configured for social channel');
+          }
+          console.log(`[Inbox] ${conversation.channel} message sent`);
+          break;
+        }
+        case 'telegram': {
+          // Telegram via Late API (interactive) or Telegram Bot API (basic)
+          const lateApiKeyTg = process.env.LATE_API_KEY;
+          const lateConvIdTg = conversation.channel_conversation_id || contact.metadata?.lateConversationId;
+          const hasInteractiveTg = quickReplies || buttons || genericTemplates || replyMarkup;
+
+          if (lateApiKeyTg && lateConvIdTg && hasInteractiveTg) {
+            // Use Late Inbox API for interactive messages (inline keyboard, reply markup)
+            const late = createLateService(lateApiKeyTg);
+            const result = await late.sendInteractiveMessage(lateConvIdTg, {
+              text: content,
+              quickReplies: quickReplies as QuickReply[],
+              buttons: buttons as MessageButton[],
+              genericTemplates: genericTemplates as GenericTemplateElement[],
+              replyMarkup: replyMarkup as TelegramReplyMarkup
+            });
+            externalId = result?.messageId || result?.id;
+          } else {
+            // Fallback to direct Telegram Bot API for plain text
+            const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+            const chatId = contact.metadata?.telegramChatId || contact.external_id;
+            if (telegramToken && chatId) {
+              const tgBody: any = { chat_id: chatId, text: content };
+              // Support basic reply_markup even through Bot API
+              if (replyMarkup) {
+                const markup: any = {};
+                if (replyMarkup.inlineKeyboard) {
+                  markup.inline_keyboard = replyMarkup.inlineKeyboard.map((row: any[]) =>
+                    row.map((btn: any) => ({
+                      text: btn.text,
+                      ...(btn.url ? { url: btn.url } : {}),
+                      ...(btn.callbackData ? { callback_data: btn.callbackData } : {})
+                    }))
+                  );
+                }
+                if (replyMarkup.keyboard) {
+                  markup.keyboard = replyMarkup.keyboard;
+                  markup.one_time_keyboard = replyMarkup.oneTimeKeyboard ?? true;
+                  markup.resize_keyboard = replyMarkup.resizeKeyboard ?? true;
+                }
+                if (replyMarkup.removeKeyboard) {
+                  markup.remove_keyboard = true;
+                }
+                tgBody.reply_markup = JSON.stringify(markup);
+              }
+              const tgRes = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(tgBody)
+              });
+              if (!tgRes.ok) throw new Error('Telegram send failed');
+              const tgData = await tgRes.json();
+              externalId = String(tgData.result?.message_id);
+            } else {
+              throw new Error('Telegram bot token or chat ID not configured');
+            }
           }
           console.log('[Inbox] Telegram message sent');
           break;
@@ -495,11 +577,18 @@ router.post('/send', async (req: Request, res: Response) => {
       senderName: senderName || 'System',
       senderType: 'user',
       content,
-      contentType,
+      contentType: (quickReplies || buttons || genericTemplates) ? 'interactive' : contentType,
       mediaUrls,
       status,
       externalId,
-      metadata: errorMessage ? { error: errorMessage } : {}
+      metadata: {
+        ...(errorMessage ? { error: errorMessage } : {}),
+        ...(quickReplies ? { quickReplies } : {}),
+        ...(buttons ? { buttons } : {}),
+        ...(genericTemplates ? { genericTemplates } : {}),
+        ...(replyMarkup ? { replyMarkup } : {}),
+        ...(fileUrl ? { fileUrl, fileType, fileName } : {})
+      }
     });
 
     res.json({
