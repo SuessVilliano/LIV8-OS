@@ -31,11 +31,60 @@ interface LateAccount {
 }
 
 interface LateWebhookPayload {
-    event: 'post.scheduled' | 'post.published' | 'post.failed' | 'post.partial' | 'account.disconnected';
+    event: 'post.scheduled' | 'post.published' | 'post.failed' | 'post.partial' | 'account.disconnected'
+        | 'inbox.message.received' | 'inbox.button.clicked' | 'inbox.quickreply.clicked' | 'inbox.postback';
     postId?: string;
     accountId?: string;
+    conversationId?: string;
+    messageId?: string;
     timestamp: string;
     data: any;
+}
+
+// Interactive message types for the Inbox API
+interface QuickReply {
+    title: string;        // Display text (max ~20 chars recommended)
+    payload?: string;     // Developer-defined payload sent on tap
+    imageUrl?: string;    // Optional icon (IG/FB only)
+}
+
+interface MessageButton {
+    title: string;        // Display text
+    type: 'url' | 'postback';
+    url?: string;         // Required for type 'url'
+    payload?: string;     // Required for type 'postback'
+}
+
+interface GenericTemplateElement {
+    title: string;
+    subtitle?: string;
+    imageUrl?: string;
+    buttons?: MessageButton[];
+    defaultAction?: { type: 'url'; url: string };
+}
+
+interface TelegramReplyMarkup {
+    inlineKeyboard?: Array<Array<{ text: string; url?: string; callbackData?: string }>>;
+    keyboard?: Array<Array<{ text: string; requestContact?: boolean; requestLocation?: boolean }>>;
+    removeKeyboard?: boolean;
+    oneTimeKeyboard?: boolean;
+    resizeKeyboard?: boolean;
+}
+
+interface TelegramBotCommand {
+    command: string;      // e.g. "start", "help"
+    description: string;  // e.g. "Show welcome message"
+}
+
+interface InteractiveMessageOptions {
+    text?: string;
+    quickReplies?: QuickReply[];
+    buttons?: MessageButton[];
+    genericTemplates?: GenericTemplateElement[];
+    replyMarkup?: TelegramReplyMarkup;
+    fileUrl?: string;
+    fileType?: 'image' | 'video' | 'audio' | 'file';
+    fileName?: string;
 }
 
 interface LateProfile {
@@ -253,6 +302,157 @@ class LateService {
         }
     }
 
+    // ============ INBOX / INTERACTIVE MESSAGES ============
+
+    /**
+     * Send an interactive message in a conversation
+     * Supports quick replies, buttons, generic templates, reply markup, and file attachments
+     */
+    async sendInteractiveMessage(conversationId: string, options: InteractiveMessageOptions): Promise<any> {
+        const body: any = {};
+
+        if (options.text) body.text = options.text;
+
+        // Quick Replies — up to 13 on IG/FB, inline keyboard on Telegram
+        if (options.quickReplies && options.quickReplies.length > 0) {
+            body.quickReplies = options.quickReplies.map(qr => ({
+                title: qr.title,
+                payload: qr.payload || qr.title,
+                ...(qr.imageUrl ? { imageUrl: qr.imageUrl } : {})
+            }));
+        }
+
+        // Buttons — up to 3 on IG/FB, inline keyboard on Telegram
+        if (options.buttons && options.buttons.length > 0) {
+            body.buttons = options.buttons.map(btn => ({
+                title: btn.title,
+                type: btn.type,
+                ...(btn.url ? { url: btn.url } : {}),
+                ...(btn.payload ? { payload: btn.payload } : {})
+            }));
+        }
+
+        // Generic Templates (carousel on IG/FB, photo + keyboard on Telegram)
+        if (options.genericTemplates && options.genericTemplates.length > 0) {
+            body.genericTemplates = options.genericTemplates.map(el => ({
+                title: el.title,
+                ...(el.subtitle ? { subtitle: el.subtitle } : {}),
+                ...(el.imageUrl ? { imageUrl: el.imageUrl } : {}),
+                ...(el.buttons ? { buttons: el.buttons } : {}),
+                ...(el.defaultAction ? { defaultAction: el.defaultAction } : {})
+            }));
+        }
+
+        // Telegram Reply Markup
+        if (options.replyMarkup) {
+            body.replyMarkup = options.replyMarkup;
+        }
+
+        // File Attachment (Instagram file attachments)
+        if (options.fileUrl) {
+            body.attachment = {
+                type: options.fileType || 'file',
+                url: options.fileUrl,
+                ...(options.fileName ? { fileName: options.fileName } : {})
+            };
+        }
+
+        const response = await this.client.post(`/inbox/conversations/${conversationId}/messages`, body);
+        return response.data;
+    }
+
+    /**
+     * Send a plain text message in a conversation
+     */
+    async sendInboxMessage(conversationId: string, text: string): Promise<any> {
+        return this.sendInteractiveMessage(conversationId, { text });
+    }
+
+    /**
+     * Send quick replies in a conversation
+     */
+    async sendQuickReplies(conversationId: string, text: string, quickReplies: QuickReply[]): Promise<any> {
+        return this.sendInteractiveMessage(conversationId, { text, quickReplies });
+    }
+
+    /**
+     * Send buttons in a conversation
+     */
+    async sendButtons(conversationId: string, text: string, buttons: MessageButton[]): Promise<any> {
+        return this.sendInteractiveMessage(conversationId, { text, buttons });
+    }
+
+    /**
+     * Send a carousel / generic template in a conversation
+     */
+    async sendCarousel(conversationId: string, elements: GenericTemplateElement[]): Promise<any> {
+        return this.sendInteractiveMessage(conversationId, { genericTemplates: elements });
+    }
+
+    /**
+     * Send a file attachment (Instagram)
+     */
+    async sendFileAttachment(conversationId: string, fileUrl: string, fileType: 'image' | 'video' | 'audio' | 'file' = 'file', fileName?: string): Promise<any> {
+        return this.sendInteractiveMessage(conversationId, { fileUrl, fileType, fileName });
+    }
+
+    /**
+     * Edit a Telegram message
+     */
+    async editTelegramMessage(conversationId: string, messageId: string, text: string, replyMarkup?: TelegramReplyMarkup): Promise<any> {
+        const body: any = { text };
+        if (replyMarkup) body.replyMarkup = replyMarkup;
+        const response = await this.client.patch(`/inbox/conversations/${conversationId}/messages/${messageId}`, body);
+        return response.data;
+    }
+
+    // ============ TELEGRAM BOT COMMANDS ============
+
+    /**
+     * Get Telegram bot commands for an account
+     */
+    async getTelegramCommands(accountId: string): Promise<TelegramBotCommand[]> {
+        const response = await this.client.get(`/accounts/${accountId}/telegram-commands`);
+        return response.data.commands || [];
+    }
+
+    /**
+     * Set Telegram bot commands for an account
+     */
+    async setTelegramCommands(accountId: string, commands: TelegramBotCommand[]): Promise<any> {
+        const response = await this.client.put(`/accounts/${accountId}/telegram-commands`, { commands });
+        return response.data;
+    }
+
+    /**
+     * Delete all Telegram bot commands for an account
+     */
+    async deleteTelegramCommands(accountId: string): Promise<void> {
+        await this.client.delete(`/accounts/${accountId}/telegram-commands`);
+    }
+
+    // ============ INBOX CONVERSATIONS ============
+
+    /**
+     * List inbox conversations
+     */
+    async listInboxConversations(params?: { accountId?: string; status?: string; limit?: number }): Promise<any[]> {
+        const searchParams = new URLSearchParams();
+        if (params?.accountId) searchParams.append('accountId', params.accountId);
+        if (params?.status) searchParams.append('status', params.status);
+        if (params?.limit) searchParams.append('limit', params.limit.toString());
+        const response = await this.client.get(`/inbox/conversations?${searchParams.toString()}`);
+        return response.data.conversations || [];
+    }
+
+    /**
+     * Get messages in a conversation
+     */
+    async getInboxMessages(conversationId: string, limit = 50): Promise<any[]> {
+        const response = await this.client.get(`/inbox/conversations/${conversationId}/messages?limit=${limit}`);
+        return response.data.messages || [];
+    }
+
     // ============ ANALYTICS ============
 
     async getPostAnalytics(postId: string): Promise<any> {
@@ -317,4 +517,8 @@ export function getLateService(apiKey?: string): LateService {
 }
 
 export { LateService };
-export type { LateConfig, LatePost, LateAccount, LateWebhookPayload, LateProfile };
+export type {
+    LateConfig, LatePost, LateAccount, LateWebhookPayload, LateProfile,
+    QuickReply, MessageButton, GenericTemplateElement, TelegramReplyMarkup,
+    TelegramBotCommand, InteractiveMessageOptions
+};

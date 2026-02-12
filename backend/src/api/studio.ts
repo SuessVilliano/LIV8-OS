@@ -1260,10 +1260,18 @@ router.get('/assets', authenticate, async (req: Request, res: Response) => {
 router.get('/assets/:id', authenticate, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const user = (req as any).user;
+        const clientId = user.userId || user.email || 'default';
+
         const asset = await studioDb.getAsset(id);
 
         if (!asset) {
             return res.status(404).json({ error: 'Asset not found' });
+        }
+
+        // Ownership validation: ensure asset belongs to requesting user
+        if (asset.clientId !== clientId && user.role !== 'super_admin') {
+            return res.status(403).json({ error: 'Access denied' });
         }
 
         res.json({
@@ -1284,10 +1292,22 @@ router.get('/assets/:id', authenticate, async (req: Request, res: Response) => {
 router.delete('/assets/:id', authenticate, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const user = (req as any).user;
+        const clientId = user.userId || user.email || 'default';
+
+        // Ownership validation before delete
+        const asset = await studioDb.getAsset(id);
+        if (!asset) {
+            return res.status(404).json({ error: 'Asset not found' });
+        }
+        if (asset.clientId !== clientId && user.role !== 'super_admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
         const deleted = await studioDb.deleteAsset(id);
 
         if (!deleted) {
-            return res.status(404).json({ error: 'Asset not found or could not be deleted' });
+            return res.status(500).json({ error: 'Could not delete asset' });
         }
 
         res.json({
@@ -1309,11 +1329,18 @@ router.get('/export/:id', authenticate, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const format = req.query.format as string || 'html';
+        const user = (req as any).user;
+        const clientId = user.userId || user.email || 'default';
 
         const asset = await studioDb.getAsset(id);
 
         if (!asset) {
             return res.status(404).json({ error: 'Asset not found' });
+        }
+
+        // Ownership validation
+        if (asset.clientId !== clientId && user.role !== 'super_admin') {
+            return res.status(403).json({ error: 'Access denied' });
         }
 
         // For websites and emails, return downloadable HTML

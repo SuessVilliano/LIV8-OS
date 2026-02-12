@@ -36,19 +36,46 @@ export const verifyManualConnection = async (locationId: string, apiKey: string)
 };
 
 /**
- * Refreshes token if a refresh token exists.
- * For manual static keys, this simply returns the current token if possible, or throws if strictly required.
+ * Refreshes the OS JWT token via the backend /api/auth/refresh endpoint.
+ * For GHL API keys (manual static keys), no refresh is needed — they don't expire.
+ * This handles the LIV8 OS session token refresh.
  */
-export const refreshAuthToken = async (refreshToken: string): Promise<VaultToken> => {
-  if (!refreshToken) {
-    throw new AuthError("No refresh token available for this session type.");
+export const refreshAuthToken = async (currentToken: string): Promise<VaultToken> => {
+  if (!currentToken) {
+    throw new AuthError("No token available for refresh.");
   }
 
-  // This would only be used if we implemented full OAuth later
-  return {
-    accessToken: `ghl_access_${Math.random().toString(36).substring(2)}`,
-    refreshToken: `ghl_refresh_${Math.random().toString(36).substring(2)}`,
-    expiresAt: Date.now() + (24 * 60 * 60 * 1000),
-    scope: "refreshed_scope"
-  };
+  try {
+    // Import dynamically to avoid circular dependency
+    const { getBackendUrl } = await import('./api');
+    const backendUrl = getBackendUrl();
+
+    const response = await fetch(`${backendUrl}/api/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new AuthError("Token refresh failed. Please log in again.");
+    }
+
+    const data = await response.json();
+    logger.info("[Auth] Token refreshed successfully.");
+
+    // Store the new token
+    localStorage.setItem('os_token', data.token);
+
+    return {
+      accessToken: data.token,
+      refreshToken: data.token, // OS uses single-token model
+      expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days (matches backend JWT_EXPIRES_IN)
+      scope: "full_access"
+    };
+  } catch (error: any) {
+    logger.error("[Auth] Token refresh failed:", error);
+    throw new AuthError("Session expired. Please log in again.", error);
+  }
 };

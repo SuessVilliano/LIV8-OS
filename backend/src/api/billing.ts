@@ -545,7 +545,34 @@ router.delete('/coupons/:promotionCodeId', async (req: Request, res: Response) =
 });
 
 /**
- * Stripe webhook handler
+ * Idempotency: Track processed Stripe event IDs to prevent duplicate processing.
+ * In production with multiple instances, replace with a database table (stripe_events).
+ */
+const processedStripeEvents = new Map<string, number>(); // eventId -> timestamp
+const STRIPE_EVENT_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Cleanup old events every hour
+setInterval(() => {
+  const cutoff = Date.now() - STRIPE_EVENT_TTL;
+  for (const [id, ts] of processedStripeEvents) {
+    if (ts < cutoff) processedStripeEvents.delete(id);
+  }
+}, 60 * 60 * 1000);
+
+/**
+ * Grace period tracking for failed payments.
+ * Maps customerId -> { failedAt, notified, graceEndsAt }
+ */
+const paymentGracePeriods = new Map<string, {
+  failedAt: Date;
+  notified: boolean;
+  graceEndsAt: Date;
+  subscriptionId: string;
+}>();
+const GRACE_PERIOD_DAYS = 7;
+
+/**
+ * Stripe webhook handler (idempotent)
  */
 router.post('/webhook', async (req: Request, res: Response) => {
   try {
@@ -559,34 +586,87 @@ router.post('/webhook', async (req: Request, res: Response) => {
     const payload = JSON.stringify(req.body);
     const result = await stripeService.handleWebhook(payload, signature);
 
-    console.log('Webhook received:', result.event, result.data);
+    // Idempotency check: skip if already processed
+    const eventId = req.body?.id;
+    if (eventId && processedStripeEvents.has(eventId)) {
+      console.log(`[Billing] Duplicate webhook event ${eventId}, skipping`);
+      return res.json({ received: true, duplicate: true });
+    }
+
+    console.log(`[Billing] Processing webhook: ${result.event}`, result.data);
 
     // Handle specific events
     switch (result.event) {
-      case 'subscription_created':
+      case 'subscription_created': {
         // Update user's subscription status in database
-        console.log('New subscription created:', result.data);
+        console.log('[Billing] New subscription created:', result.data);
+        // TODO: db.updateUserSubscription(result.data.customerId, { status: 'active', subscriptionId: result.data.subscriptionId })
+        // Clear any grace period
+        if (result.data.customerId) {
+          paymentGracePeriods.delete(result.data.customerId as string);
+        }
         break;
+      }
 
-      case 'payment_succeeded':
-        // Record payment, potentially add credits
-        console.log('Payment succeeded:', result.data);
+      case 'payment_succeeded': {
+        // Record payment, clear grace period if active
+        console.log('[Billing] Payment succeeded:', result.data);
+        if (result.data.customerId) {
+          const gracePeriod = paymentGracePeriods.get(result.data.customerId as string);
+          if (gracePeriod) {
+            console.log(`[Billing] Payment recovered for customer ${result.data.customerId}, clearing grace period`);
+            paymentGracePeriods.delete(result.data.customerId as string);
+            // TODO: db.updateUserSubscription(result.data.customerId, { status: 'active', pastDue: false })
+          }
+        }
         break;
+      }
 
-      case 'payment_failed':
-        // Notify user, potentially downgrade
-        console.log('Payment failed:', result.data);
+      case 'payment_failed': {
+        // Start grace period instead of immediate lockout
+        console.log('[Billing] Payment failed:', result.data);
+        const customerId = result.data.customerId as string;
+        if (customerId && !paymentGracePeriods.has(customerId)) {
+          const now = new Date();
+          const graceEnd = new Date(now.getTime() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+          paymentGracePeriods.set(customerId, {
+            failedAt: now,
+            notified: false,
+            graceEndsAt: graceEnd,
+            subscriptionId: result.data.subscriptionId as string
+          });
+          console.log(`[Billing] Grace period started for ${customerId}, expires ${graceEnd.toISOString()}`);
+          // TODO: Send email notification about failed payment
+          // TODO: db.updateUserSubscription(customerId, { status: 'past_due', graceEndsAt: graceEnd })
+        }
         break;
+      }
 
-      case 'subscription_cancelled':
-        // Update user's access
-        console.log('Subscription cancelled:', result.data);
+      case 'subscription_updated': {
+        console.log('[Billing] Subscription updated:', result.data);
+        // TODO: db.updateUserSubscription(result.data.customerId, { planId: result.data.planId, status: result.data.status })
         break;
+      }
+
+      case 'subscription_cancelled': {
+        // Disable premium features but don't delete data
+        console.log('[Billing] Subscription cancelled:', result.data);
+        // TODO: db.updateUserSubscription(result.data.customerId, { status: 'cancelled', features: 'free_tier' })
+        if (result.data.customerId) {
+          paymentGracePeriods.delete(result.data.customerId as string);
+        }
+        break;
+      }
+    }
+
+    // Mark event as processed (idempotency)
+    if (eventId) {
+      processedStripeEvents.set(eventId, Date.now());
     }
 
     res.json({ received: true });
   } catch (error: any) {
-    console.error('Webhook error:', error);
+    console.error('[Billing] Webhook error:', error);
     res.status(400).json({ error: error.message });
   }
 });

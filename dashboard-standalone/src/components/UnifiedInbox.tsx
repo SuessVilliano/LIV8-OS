@@ -22,7 +22,15 @@ import {
   Inbox,
   Users,
   Bot,
-  Zap
+  Zap,
+  MousePointerClick,
+  LayoutGrid,
+  X,
+  Plus,
+  Link,
+  Image,
+  FileText,
+  ChevronRight
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
@@ -88,6 +96,28 @@ interface InboxStats {
   todayMessages: number;
 }
 
+interface QuickReplyOption {
+  title: string;
+  payload?: string;
+}
+
+interface ButtonOption {
+  title: string;
+  type: 'url' | 'postback';
+  url?: string;
+  payload?: string;
+}
+
+interface CarouselCard {
+  title: string;
+  subtitle?: string;
+  imageUrl?: string;
+  buttons?: ButtonOption[];
+}
+
+// Channels that support Late interactive messaging
+const INTERACTIVE_CHANNELS = ['facebook', 'instagram', 'telegram', 'twitter', 'linkedin', 'tiktok', 'google_business'];
+
 const UnifiedInbox = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -100,6 +130,10 @@ const UnifiedInbox = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [interactiveMode, setInteractiveMode] = useState<'none' | 'quick_replies' | 'buttons' | 'carousel'>('none');
+  const [quickReplies, setQuickReplies] = useState<QuickReplyOption[]>([]);
+  const [msgButtons, setMsgButtons] = useState<ButtonOption[]>([]);
+  const [carouselCards, setCarouselCards] = useState<CarouselCard[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch conversations
@@ -173,12 +207,38 @@ const UnifiedInbox = () => {
     }
   };
 
-  // Send message
+  // Send message (with optional interactive elements)
   const sendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation) return;
 
     setSending(true);
     try {
+      const body: any = {
+        conversationId: selectedConversation.id,
+        content: messageInput,
+        senderName: 'You',
+        ...(selectedConversation.channel === 'email' && emailSubject ? { subject: emailSubject } : {})
+      };
+
+      // Attach interactive elements
+      if (interactiveMode === 'quick_replies' && quickReplies.length > 0) {
+        body.quickReplies = quickReplies.map(qr => ({
+          title: qr.title,
+          payload: qr.payload || qr.title
+        }));
+      }
+      if (interactiveMode === 'buttons' && msgButtons.length > 0) {
+        body.buttons = msgButtons;
+      }
+      if (interactiveMode === 'carousel' && carouselCards.length > 0) {
+        body.genericTemplates = carouselCards.map(card => ({
+          title: card.title,
+          subtitle: card.subtitle,
+          imageUrl: card.imageUrl,
+          buttons: card.buttons
+        }));
+      }
+
       const response = await fetch(`${API_BASE}/api/inbox/send`, {
         method: 'POST',
         headers: {
@@ -186,12 +246,7 @@ const UnifiedInbox = () => {
           'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`,
           'x-location-id': localStorage.getItem('location_id') || 'default'
         },
-        body: JSON.stringify({
-          conversationId: selectedConversation.id,
-          content: messageInput,
-          senderName: 'You',
-          ...(selectedConversation.channel === 'email' && emailSubject ? { subject: emailSubject } : {})
-        })
+        body: JSON.stringify(body)
       });
 
       if (response.ok) {
@@ -199,6 +254,7 @@ const UnifiedInbox = () => {
         setMessages(prev => [...prev, data.message]);
         setMessageInput('');
         setEmailSubject('');
+        resetInteractiveMode();
         scrollToBottom();
       }
     } catch (error) {
@@ -207,6 +263,19 @@ const UnifiedInbox = () => {
       setSending(false);
     }
   };
+
+  // Reset interactive mode
+  const resetInteractiveMode = () => {
+    setInteractiveMode('none');
+    setQuickReplies([]);
+    setMsgButtons([]);
+    setCarouselCards([]);
+  };
+
+  // Check if current channel supports interactive messages
+  const supportsInteractive = selectedConversation
+    ? INTERACTIVE_CHANNELS.includes(selectedConversation.channel)
+    : false;
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
@@ -497,7 +566,81 @@ const UnifiedInbox = () => {
                   )}
 
                   {/* Content */}
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  {msg.content_type === 'interactive' && msg.content.startsWith('[Button:') ? (
+                    <div className="flex items-center gap-2">
+                      <MousePointerClick className={`h-3.5 w-3.5 ${msg.direction === 'outbound' ? 'text-white/80' : 'text-neuro'}`} />
+                      <p className="text-sm italic">{msg.content}</p>
+                    </div>
+                  ) : msg.content_type === 'interactive' && msg.content.startsWith('[Quick Reply:') ? (
+                    <div className="flex items-center gap-2">
+                      <Zap className={`h-3.5 w-3.5 ${msg.direction === 'outbound' ? 'text-white/80' : 'text-neuro'}`} />
+                      <p className="text-sm italic">{msg.content}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  )}
+
+                  {/* Render Quick Replies attached to this message */}
+                  {(msg as any).metadata?.quickReplies && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {((msg as any).metadata.quickReplies as QuickReplyOption[]).map((qr, i) => (
+                        <span key={i} className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                          msg.direction === 'outbound'
+                            ? 'border-white/40 text-white/90'
+                            : 'border-neuro/40 text-neuro'
+                        }`}>
+                          {qr.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Render Buttons attached to this message */}
+                  {(msg as any).metadata?.buttons && (
+                    <div className="flex flex-col gap-1.5 mt-2">
+                      {((msg as any).metadata.buttons as ButtonOption[]).map((btn, i) => (
+                        <span key={i} className={`px-3 py-1.5 rounded-lg text-xs font-bold text-center border ${
+                          msg.direction === 'outbound'
+                            ? 'border-white/40 text-white/90'
+                            : 'border-neuro/40 text-neuro'
+                        }`}>
+                          {btn.type === 'url' ? '🔗 ' : ''}{btn.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Render Carousel / Generic Templates */}
+                  {(msg as any).metadata?.genericTemplates && (
+                    <div className="flex gap-2 mt-2 overflow-x-auto pb-1 -mx-1 px-1">
+                      {((msg as any).metadata.genericTemplates as CarouselCard[]).map((card, i) => (
+                        <div key={i} className={`min-w-[180px] max-w-[200px] rounded-xl border flex-shrink-0 overflow-hidden ${
+                          msg.direction === 'outbound' ? 'border-white/30 bg-white/10' : 'border-[var(--os-border)] bg-[var(--os-bg)]'
+                        }`}>
+                          {card.imageUrl && (
+                            <img src={card.imageUrl} alt="" className="w-full h-24 object-cover" />
+                          )}
+                          <div className="p-2">
+                            <p className={`text-xs font-bold ${msg.direction === 'outbound' ? 'text-white' : ''}`}>{card.title}</p>
+                            {card.subtitle && (
+                              <p className={`text-[10px] mt-0.5 ${msg.direction === 'outbound' ? 'text-white/70' : 'text-[var(--os-text-muted)]'}`}>{card.subtitle}</p>
+                            )}
+                            {card.buttons && card.buttons.length > 0 && (
+                              <div className="mt-1.5 space-y-1">
+                                {card.buttons.map((btn, bi) => (
+                                  <div key={bi} className={`text-[10px] font-semibold text-center py-1 rounded border ${
+                                    msg.direction === 'outbound' ? 'border-white/30 text-white/90' : 'border-neuro/30 text-neuro'
+                                  }`}>
+                                    {btn.title}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Media */}
                   {msg.media_urls && msg.media_urls.length > 0 && (
@@ -538,6 +681,185 @@ const UnifiedInbox = () => {
                 className="w-full bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl px-4 py-2.5 mb-3 text-sm focus:border-neuro outline-none"
               />
             )}
+
+            {/* Interactive Message Builder */}
+            {interactiveMode !== 'none' && (
+              <div className="mb-3 p-3 bg-[var(--os-surface)] border border-neuro/30 rounded-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-black uppercase text-neuro flex items-center gap-1.5">
+                    {interactiveMode === 'quick_replies' && <><Zap className="h-3.5 w-3.5" /> Quick Replies</>}
+                    {interactiveMode === 'buttons' && <><MousePointerClick className="h-3.5 w-3.5" /> Buttons</>}
+                    {interactiveMode === 'carousel' && <><LayoutGrid className="h-3.5 w-3.5" /> Carousel</>}
+                  </span>
+                  <button onClick={resetInteractiveMode} className="p-1 hover:bg-[var(--os-bg)] rounded">
+                    <X className="h-3.5 w-3.5 text-[var(--os-text-muted)]" />
+                  </button>
+                </div>
+
+                {/* Quick Replies Builder */}
+                {interactiveMode === 'quick_replies' && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {quickReplies.map((qr, i) => (
+                        <div key={i} className="flex items-center gap-1 px-2.5 py-1 bg-neuro/10 border border-neuro/30 rounded-full">
+                          <span className="text-xs font-semibold">{qr.title}</span>
+                          <button onClick={() => setQuickReplies(prev => prev.filter((_, j) => j !== i))} className="hover:text-red-500">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {quickReplies.length < 13 && (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Quick reply text..."
+                          className="flex-1 bg-[var(--os-bg)] border border-[var(--os-border)] rounded-lg px-3 py-1.5 text-xs focus:border-neuro outline-none"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                              setQuickReplies(prev => [...prev, { title: (e.target as HTMLInputElement).value.trim() }]);
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                        />
+                        <span className="text-[10px] text-[var(--os-text-muted)] self-center">{quickReplies.length}/13</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Buttons Builder */}
+                {interactiveMode === 'buttons' && (
+                  <div className="space-y-2">
+                    {msgButtons.map((btn, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2 bg-[var(--os-bg)] rounded-lg">
+                        <select
+                          value={btn.type}
+                          onChange={(e) => setMsgButtons(prev => prev.map((b, j) => j === i ? { ...b, type: e.target.value as 'url' | 'postback' } : b))}
+                          className="bg-transparent border border-[var(--os-border)] rounded px-2 py-1 text-[10px] font-bold"
+                        >
+                          <option value="postback">Action</option>
+                          <option value="url">URL</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={btn.title}
+                          onChange={(e) => setMsgButtons(prev => prev.map((b, j) => j === i ? { ...b, title: e.target.value } : b))}
+                          placeholder="Button label"
+                          className="flex-1 bg-transparent border border-[var(--os-border)] rounded px-2 py-1 text-xs focus:border-neuro outline-none"
+                        />
+                        {btn.type === 'url' && (
+                          <input
+                            type="text"
+                            value={btn.url || ''}
+                            onChange={(e) => setMsgButtons(prev => prev.map((b, j) => j === i ? { ...b, url: e.target.value } : b))}
+                            placeholder="https://..."
+                            className="flex-1 bg-transparent border border-[var(--os-border)] rounded px-2 py-1 text-xs focus:border-neuro outline-none"
+                          />
+                        )}
+                        <button onClick={() => setMsgButtons(prev => prev.filter((_, j) => j !== i))} className="hover:text-red-500">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {msgButtons.length < 3 && (
+                      <button
+                        onClick={() => setMsgButtons(prev => [...prev, { title: '', type: 'postback', payload: '' }])}
+                        className="flex items-center gap-1 text-xs font-semibold text-neuro hover:text-neuro-dark"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add Button ({msgButtons.length}/3)
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Carousel Builder */}
+                {interactiveMode === 'carousel' && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {carouselCards.map((card, i) => (
+                        <div key={i} className="min-w-[200px] max-w-[200px] border border-[var(--os-border)] rounded-xl bg-[var(--os-bg)] flex-shrink-0 overflow-hidden">
+                          <div className="p-2 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-[var(--os-text-muted)]">Card {i + 1}</span>
+                              <button onClick={() => setCarouselCards(prev => prev.filter((_, j) => j !== i))} className="hover:text-red-500">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={card.title}
+                              onChange={(e) => setCarouselCards(prev => prev.map((c, j) => j === i ? { ...c, title: e.target.value } : c))}
+                              placeholder="Title"
+                              className="w-full bg-transparent border border-[var(--os-border)] rounded px-2 py-1 text-xs focus:border-neuro outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={card.subtitle || ''}
+                              onChange={(e) => setCarouselCards(prev => prev.map((c, j) => j === i ? { ...c, subtitle: e.target.value } : c))}
+                              placeholder="Subtitle"
+                              className="w-full bg-transparent border border-[var(--os-border)] rounded px-2 py-1 text-[10px] focus:border-neuro outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={card.imageUrl || ''}
+                              onChange={(e) => setCarouselCards(prev => prev.map((c, j) => j === i ? { ...c, imageUrl: e.target.value } : c))}
+                              placeholder="Image URL"
+                              className="w-full bg-transparent border border-[var(--os-border)] rounded px-2 py-1 text-[10px] focus:border-neuro outline-none"
+                            />
+                            <button
+                              onClick={() => {
+                                setCarouselCards(prev => prev.map((c, j) => j === i ? {
+                                  ...c,
+                                  buttons: [...(c.buttons || []), { title: 'Button', type: 'postback' as const }]
+                                } : c));
+                              }}
+                              className="text-[10px] font-semibold text-neuro flex items-center gap-0.5"
+                              disabled={(card.buttons?.length || 0) >= 3}
+                            >
+                              <Plus className="h-2.5 w-2.5" /> Button
+                            </button>
+                            {card.buttons?.map((btn, bi) => (
+                              <div key={bi} className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={btn.title}
+                                  onChange={(e) => {
+                                    setCarouselCards(prev => prev.map((c, j) => j === i ? {
+                                      ...c,
+                                      buttons: c.buttons?.map((b, k) => k === bi ? { ...b, title: e.target.value } : b)
+                                    } : c));
+                                  }}
+                                  placeholder="Label"
+                                  className="flex-1 bg-transparent border border-[var(--os-border)] rounded px-1.5 py-0.5 text-[10px] focus:border-neuro outline-none"
+                                />
+                                <button onClick={() => {
+                                  setCarouselCards(prev => prev.map((c, j) => j === i ? {
+                                    ...c,
+                                    buttons: c.buttons?.filter((_, k) => k !== bi)
+                                  } : c));
+                                }}>
+                                  <X className="h-2.5 w-2.5 text-[var(--os-text-muted)]" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {carouselCards.length < 10 && (
+                        <button
+                          onClick={() => setCarouselCards(prev => [...prev, { title: '', subtitle: '' }])}
+                          className="min-w-[80px] border border-dashed border-neuro/40 rounded-xl flex items-center justify-center text-neuro hover:bg-neuro/5"
+                        >
+                          <Plus className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-end gap-3">
               <button className="p-2.5 hover:bg-[var(--os-surface)] rounded-xl">
                 <Paperclip className="h-5 w-5 text-[var(--os-text-muted)]" />
@@ -576,16 +898,44 @@ const UnifiedInbox = () => {
             </div>
 
             {/* Quick Actions */}
-            <div className="flex items-center gap-2 mt-3">
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
               <button className="px-3 py-1.5 bg-[var(--os-surface)] rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-[var(--os-border)]">
                 <Bot className="h-3 w-3" /> AI Reply
               </button>
               <button className="px-3 py-1.5 bg-[var(--os-surface)] rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-[var(--os-border)]">
-                <Zap className="h-3 w-3" /> Quick Reply
-              </button>
-              <button className="px-3 py-1.5 bg-[var(--os-surface)] rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-[var(--os-border)]">
                 <Users className="h-3 w-3" /> Assign
               </button>
+
+              {/* Interactive Message Tools (only for supported channels) */}
+              {supportsInteractive && (
+                <>
+                  <div className="w-px h-4 bg-[var(--os-border)]" />
+                  <button
+                    onClick={() => setInteractiveMode(interactiveMode === 'quick_replies' ? 'none' : 'quick_replies')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                      interactiveMode === 'quick_replies' ? 'bg-neuro/20 text-neuro' : 'bg-[var(--os-surface)] hover:bg-[var(--os-border)]'
+                    }`}
+                  >
+                    <Zap className="h-3 w-3" /> Quick Replies
+                  </button>
+                  <button
+                    onClick={() => setInteractiveMode(interactiveMode === 'buttons' ? 'none' : 'buttons')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                      interactiveMode === 'buttons' ? 'bg-neuro/20 text-neuro' : 'bg-[var(--os-surface)] hover:bg-[var(--os-border)]'
+                    }`}
+                  >
+                    <MousePointerClick className="h-3 w-3" /> Buttons
+                  </button>
+                  <button
+                    onClick={() => setInteractiveMode(interactiveMode === 'carousel' ? 'none' : 'carousel')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                      interactiveMode === 'carousel' ? 'bg-neuro/20 text-neuro' : 'bg-[var(--os-surface)] hover:bg-[var(--os-border)]'
+                    }`}
+                  >
+                    <LayoutGrid className="h-3 w-3" /> Carousel
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

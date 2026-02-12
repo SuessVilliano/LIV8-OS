@@ -119,12 +119,29 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
             } catch (e) {
                 // Not JSON
             }
+
+            // Global 401 handler: auto-logout and redirect to login
+            if (response.status === 401) {
+                console.warn(`[Neuro] Session expired or invalid token. Logging out.`);
+                // Clear all auth state
+                localStorage.removeItem('os_auth');
+                localStorage.removeItem('os_token');
+                localStorage.removeItem('os_user');
+                localStorage.removeItem('os_crm_connected');
+                localStorage.removeItem('os_onboarded');
+                await storage.remove(['sessionToken', 'user']);
+                // Redirect to login (avoid infinite loops by checking current path)
+                if (typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/') {
+                    window.location.href = '/login';
+                }
+                throw new Error('Session expired. Please log in again.');
+            }
+
             console.error(`[Neuro] Request failed: ${errorMsg}`);
             throw new Error(errorMsg);
         }
 
         const data = await response.json();
-        console.log(`[Neuro] Success: ${endpoint}`);
         return data;
 
     } catch (err: any) {
