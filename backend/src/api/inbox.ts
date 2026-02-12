@@ -20,8 +20,20 @@ import { GHLApiClient } from '../services/ghl-api-client.js';
 import { vapiService } from '../integrations/vapi.js';
 import { createLateService } from '../services/late.js';
 import type { QuickReply, MessageButton, GenericTemplateElement, TelegramReplyMarkup } from '../services/late.js';
+import { authenticate } from '../middleware/authenticate.js';
 
 const router = Router();
+
+// Apply authentication to all routes except webhooks and info
+// Webhooks use their own auth (provider signatures), info is public
+router.use((req, res, next) => {
+  // Allow unauthenticated access to webhooks and info
+  if (req.path.startsWith('/webhook') || req.path === '/info') {
+    return next();
+  }
+  // All other routes require authentication
+  authenticate(req, res, next);
+});
 
 // Email transporter for sending emails
 const emailTransporter = nodemailer.createTransport({
@@ -90,11 +102,17 @@ router.get('/conversations', async (req: Request, res: Response) => {
 router.get('/conversations/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const locationId = getLocationId(req);
     const { messageLimit = '50' } = req.query;
 
     const conversation = await conversations.getById(id);
     if (!conversation) {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
+    }
+
+    // Tenant isolation: verify conversation belongs to this location
+    if (conversation.location_id !== locationId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
     const contact = await contacts.getById(conversation.contact_id);
@@ -124,7 +142,14 @@ router.get('/conversations/:id', async (req: Request, res: Response) => {
 router.get('/conversations/:id/messages', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const locationId = getLocationId(req);
     const { limit = '50', offset = '0', before } = req.query;
+
+    // Tenant isolation: verify conversation belongs to this location
+    const conversation = await conversations.getById(id);
+    if (!conversation || conversation.location_id !== locationId) {
+      return res.status(404).json({ success: false, error: 'Conversation not found' });
+    }
 
     const result = await messages.listByConversation(id, {
       limit: parseInt(limit as string, 10),
@@ -150,6 +175,14 @@ router.get('/conversations/:id/messages', async (req: Request, res: Response) =>
 router.post('/conversations/:id/read', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const locationId = getLocationId(req);
+
+    // Tenant isolation
+    const conversation = await conversations.getById(id);
+    if (!conversation || conversation.location_id !== locationId) {
+      return res.status(404).json({ success: false, error: 'Conversation not found' });
+    }
+
     await conversations.markAsRead(id);
     res.json({ success: true });
   } catch (error: any) {
@@ -165,10 +198,17 @@ router.post('/conversations/:id/read', async (req: Request, res: Response) => {
 router.post('/conversations/:id/assign', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const locationId = getLocationId(req);
     const { assignedTo } = req.body;
 
     if (!assignedTo) {
       return res.status(400).json({ success: false, error: 'assignedTo is required' });
+    }
+
+    // Tenant isolation
+    const conversation = await conversations.getById(id);
+    if (!conversation || conversation.location_id !== locationId) {
+      return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
 
     await conversations.assign(id, assignedTo);
@@ -186,6 +226,14 @@ router.post('/conversations/:id/assign', async (req: Request, res: Response) => 
 router.post('/conversations/:id/archive', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const locationId = getLocationId(req);
+
+    // Tenant isolation
+    const conversation = await conversations.getById(id);
+    if (!conversation || conversation.location_id !== locationId) {
+      return res.status(404).json({ success: false, error: 'Conversation not found' });
+    }
+
     await conversations.archive(id);
     res.json({ success: true });
   } catch (error: any) {
@@ -676,6 +724,11 @@ router.get('/contacts/:id', async (req: Request, res: Response) => {
     const contact = await contacts.getById(id);
     if (!contact) {
       return res.status(404).json({ success: false, error: 'Contact not found' });
+    }
+
+    // Tenant isolation: verify contact belongs to this location
+    if (contact.location_id !== locationId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
     // Get all conversations for this contact

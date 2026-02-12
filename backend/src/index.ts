@@ -47,6 +47,7 @@ import { mcpClient } from './services/mcp-client.js'; // From stashed changes
 import { authenticateMcp } from './middleware/authenticateMcp.js'; // From stashed changes
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types'; // From stashed changes
 import { rateLimit, rateLimitPresets } from './middleware/rateLimit.js';
+import { requestLogger } from './services/logger.js';
 
 // Log environment status (not the actual values for security)
 console.log('Environment check:', {
@@ -137,6 +138,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Structured request logging
+app.use(requestLogger());
 
 // Health check with configuration status
 app.get('/health', (req, res) => {
