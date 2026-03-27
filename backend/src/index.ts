@@ -41,6 +41,8 @@ import anychatRouter from './api/anychat.js'; // AnyChat.one live chat integrati
 import openclawRouter from './api/openclaw.js'; // OpenClaw AI Manager integration (openclaw.ai)
 import scrapersRouter from './api/scrapers.js'; // Unified scrapers API (Apify, RapidAPI, Firecrawl, Kimi)
 import voiceAiRouter from './api/voice-ai.js'; // Voice AI - White-label VAPI integration
+import agentStudioRouter from './api/agent-studio.js'; // GHL Agent Studio + Conversation AI + Voice AI (native)
+import askAiRouter from './api/ask-ai.js'; // Ask AI + Agent Studio integration
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -204,6 +206,8 @@ app.use('/api/anychat', rateLimitPresets.api, anychatRouter); // AnyChat.one liv
 app.use('/api/openclaw', rateLimitPresets.api, openclawRouter); // OpenClaw AI Manager integration
 app.use('/api/scrapers', rateLimitPresets.ai, scrapersRouter); // Unified scrapers API (Apify, RapidAPI, Firecrawl, Kimi)
 app.use('/api/voice-ai', rateLimitPresets.api, voiceAiRouter); // Voice AI - White-label VAPI integration
+app.use('/api/agent-studio', rateLimitPresets.ai, agentStudioRouter); // GHL Agent Studio + Conversation AI + Voice AI (native)
+app.use('/api/ask-ai', rateLimitPresets.ai, askAiRouter); // Ask AI + Agent Studio integration
 
 
 // --- MCP Integration ---
@@ -290,7 +294,156 @@ const ghlToolDefinitions = {
             }
         }
     },
-    // TODO: Add more tool definitions as needed
+    // --- Agent Studio Tools ---
+    'ghl-list-studio-agents': {
+        description: 'List all active Agent Studio agents for the location. Returns agents in Production lifecycle stage.',
+        parameters: {
+            type: 'object',
+            properties: {
+                limit: { type: 'number', description: 'Max agents to return (pagination)' },
+                offset: { type: 'number', description: 'Offset for pagination' }
+            }
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                agents: { type: 'array' },
+                total: { type: 'number' }
+            }
+        }
+    },
+    'ghl-execute-agent': {
+        description: 'Execute a GHL Agent Studio agent with input. Returns structured JSON output. Use executionId for conversation continuity.',
+        parameters: {
+            type: 'object',
+            properties: {
+                agentId: { type: 'string', description: 'ID of the Agent Studio agent to execute' },
+                input: { type: 'string', description: 'Input text/query for the agent' },
+                executionId: { type: 'string', description: 'Optional execution ID for continuing a conversation thread' }
+            },
+            required: ['agentId', 'input']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                result: { type: 'object' },
+                executionId: { type: 'string' }
+            }
+        }
+    },
+    'ghl-create-conversation-agent': {
+        description: 'Create a new Conversation AI agent in GHL with a name, prompt, and optional knowledge base.',
+        parameters: {
+            type: 'object',
+            properties: {
+                name: { type: 'string', description: 'Agent name' },
+                prompt: { type: 'string', description: 'System prompt for the agent' },
+                channels: { type: 'array', items: { type: 'string' }, description: 'Channels (SMS, Email, WhatsApp, etc.)' },
+                knowledgeBaseIds: { type: 'array', items: { type: 'string' }, description: 'Knowledge base IDs to attach' }
+            },
+            required: ['name']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                status: { type: 'string' }
+            }
+        }
+    },
+    'ghl-attach-conversation-action': {
+        description: 'Attach an action (book appointment, send follow-up, collect info, trigger webhook) to a Conversation AI agent.',
+        parameters: {
+            type: 'object',
+            properties: {
+                agentId: { type: 'string', description: 'Conversation AI agent ID' },
+                name: { type: 'string', description: 'Action name' },
+                description: { type: 'string', description: 'Action description' },
+                type: { type: 'string', description: 'Action type (webhook, workflow, booking, etc.)' },
+                workflowId: { type: 'string', description: 'Workflow ID to trigger (optional)' },
+                triggerMessage: { type: 'string', description: 'Message that triggers this action' }
+            },
+            required: ['agentId', 'name', 'type']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                actionId: { type: 'string' },
+                name: { type: 'string' }
+            }
+        }
+    },
+    'ghl-get-ai-generations': {
+        description: 'Get Conversation AI generation details for analytics, compliance, and debugging. Shows knowledge sources used, conversation history, and action decisions.',
+        parameters: {
+            type: 'object',
+            properties: {
+                agentId: { type: 'string', description: 'Filter by agent ID' },
+                contactId: { type: 'string', description: 'Filter by contact ID' },
+                limit: { type: 'number', description: 'Max results' },
+                startDate: { type: 'string', description: 'Start date (ISO 8601)' },
+                endDate: { type: 'string', description: 'End date (ISO 8601)' }
+            }
+        },
+        returns: {
+            type: 'array',
+            items: { type: 'object' }
+        }
+    },
+    'ghl-create-voice-agent': {
+        description: 'Create a GHL native Voice AI agent with a prompt, voice, and language configuration.',
+        parameters: {
+            type: 'object',
+            properties: {
+                name: { type: 'string', description: 'Voice agent name' },
+                prompt: { type: 'string', description: 'System prompt for voice conversations' },
+                voiceId: { type: 'string', description: 'Voice ID for TTS' },
+                language: { type: 'string', description: 'Language code (e.g., en-US)' },
+                firstMessage: { type: 'string', description: 'Initial greeting message' }
+            },
+            required: ['name']
+        },
+        returns: {
+            type: 'object',
+            properties: {
+                id: { type: 'string' },
+                name: { type: 'string' }
+            }
+        }
+    },
+    'ghl-list-voice-calls': {
+        description: 'List Voice AI call logs with filters for agent, contact, date range, and call type.',
+        parameters: {
+            type: 'object',
+            properties: {
+                agentId: { type: 'string', description: 'Filter by voice agent ID' },
+                contactId: { type: 'string', description: 'Filter by contact ID' },
+                callType: { type: 'string', description: 'Filter by call type (inbound/outbound)' },
+                startDate: { type: 'string', description: 'Start date (ISO 8601)' },
+                endDate: { type: 'string', description: 'End date (ISO 8601)' },
+                limit: { type: 'number', description: 'Max results' }
+            }
+        },
+        returns: {
+            type: 'array',
+            items: { type: 'object' }
+        }
+    },
+    'ghl-mcp-call': {
+        description: 'Call a tool on GHL native MCP server. This bridges to GHL internal AI assistant (Ask AI) capabilities including contacts, conversations, calendars, pipelines, payments, workflows, and more.',
+        parameters: {
+            type: 'object',
+            properties: {
+                toolName: { type: 'string', description: 'MCP tool name (e.g., contacts_create-contact, conversations_send-a-new-message)' },
+                arguments: { type: 'object', description: 'Tool arguments' }
+            },
+            required: ['toolName']
+        },
+        returns: {
+            type: 'object'
+        }
+    },
 
     // --- Late Social Media Tools ---
     'late-list-accounts': {

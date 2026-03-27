@@ -39,6 +39,10 @@ export const GHL_TEST_LOCATION_ID = getEnv('GHL_TEST_LOCATION_ID', '');
 // HighLevel MCP Endpoint
 export const HIGHLEVEL_MCP_URL = getEnv('HIGHLEVEL_MCP_URL', 'https://services.leadconnectorhq.com/mcp/');
 
+// GHL Agent Studio & AI APIs
+export const GHL_ACCESS_TOKEN = getEnv('GHL_ACCESS_TOKEN', '');
+export const GHL_LOCATION_ID = getEnv('GHL_LOCATION_ID', '');
+
 // Vbout.com Integration
 export const VBOUT_API_KEY = getEnv('VBOUT_API_KEY', '');
 export const VBOUT_APP_KEY = getEnv('VBOUT_APP_KEY', ''); // Vbout App Key (Client ID)
