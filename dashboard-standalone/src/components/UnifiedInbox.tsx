@@ -26,11 +26,7 @@ import {
   MousePointerClick,
   LayoutGrid,
   X,
-  Plus,
-  Link,
-  Image,
-  FileText,
-  ChevronRight
+  Plus
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 

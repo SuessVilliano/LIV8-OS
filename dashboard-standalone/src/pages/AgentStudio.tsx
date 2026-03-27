@@ -12,21 +12,18 @@ import {
     Settings,
     Plus,
     Eye,
-    Trash2,
     Send,
     Activity,
     Globe,
     Wrench,
     BarChart3,
     Network,
-    ArrowRight,
     CheckCircle2,
     AlertCircle,
-    Clock,
     Sparkles,
     MessageCircle
 } from 'lucide-react';
-import { getBackendUrl, apiCall } from '../services/api';
+import { apiCall } from '../services/api';
 
 type AgentTab = 'overview' | 'studio' | 'conversation' | 'voice' | 'ask-ai' | 'mcp';
 

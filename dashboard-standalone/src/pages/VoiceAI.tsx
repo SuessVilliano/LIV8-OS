@@ -4,17 +4,12 @@ import {
     PhoneCall,
     PhoneIncoming,
     PhoneOutgoing,
-    PhoneMissed,
     Bot,
     Plus,
     Search,
-    Filter,
     MoreVertical,
-    Play,
-    Pause,
     Clock,
     CheckCircle,
-    XCircle,
     AlertCircle,
     ChevronDown,
     ChevronRight,
@@ -23,7 +18,6 @@ import {
     Copy,
     BarChart3,
     Activity,
-    Users,
     Timer,
     TrendingUp,
     ArrowUpRight,
@@ -31,17 +25,10 @@ import {
     Mic,
     Volume2,
     FileText,
-    ExternalLink,
     RefreshCw,
     X,
     Save,
     Sparkles,
-    Zap,
-    Globe,
-    Hash,
-    MessageSquare,
-    Settings,
-    ChevronLeft,
 } from 'lucide-react';
 import { getBackendUrl } from '../services/api';
 
@@ -668,7 +655,7 @@ function OverviewTab({ summary, calls, assistants, phoneNumbers, loading, setAct
 // ASSISTANTS TAB
 // ============================================================
 
-function AssistantsTab({ assistants, searchQuery, setSearchQuery, loading, onEdit, onDelete, onDuplicate, onCreate, assistantMenuId, setAssistantMenuId }: {
+function AssistantsTab({ assistants, searchQuery, setSearchQuery, loading: _loading, onEdit, onDelete, onDuplicate, onCreate, assistantMenuId, setAssistantMenuId }: {
     assistants: Assistant[]; searchQuery: string; setSearchQuery: (q: string) => void; loading: boolean;
     onEdit: (a: Assistant) => void; onDelete: (id: string) => void; onDuplicate: (id: string) => void; onCreate: () => void;
     assistantMenuId: string | null; setAssistantMenuId: (id: string | null) => void;
@@ -793,7 +780,7 @@ function AssistantsTab({ assistants, searchQuery, setSearchQuery, loading, onEdi
 // CALL LOGS TAB
 // ============================================================
 
-function CallLogsTab({ calls, assistants, searchQuery, setSearchQuery, callFilter, setCallFilter, expandedCallId, setExpandedCallId, loading, playingAudio, setPlayingAudio }: {
+function CallLogsTab({ calls, assistants, searchQuery, setSearchQuery, callFilter, setCallFilter, expandedCallId, setExpandedCallId, loading, playingAudio: _playingAudio, setPlayingAudio: _setPlayingAudio }: {
     calls: Call[]; assistants: Assistant[]; searchQuery: string; setSearchQuery: (q: string) => void;
     callFilter: string; setCallFilter: (f: string) => void; expandedCallId: string | null; setExpandedCallId: (id: string | null) => void;
     loading: boolean; playingAudio: string | null; setPlayingAudio: (id: string | null) => void;
@@ -1083,7 +1070,7 @@ function PhoneNumbersTab({ phoneNumbers, assistants, loading, onRefresh }: {
 // ANALYTICS TAB
 // ============================================================
 
-function AnalyticsTab({ summary, calls, assistants, loading }: {
+function AnalyticsTab({ summary, calls, assistants, loading: _loading }: {
     summary: AnalyticsSummary | null; calls: Call[]; assistants: Assistant[]; loading: boolean;
 }) {
     // Compute per-assistant stats
