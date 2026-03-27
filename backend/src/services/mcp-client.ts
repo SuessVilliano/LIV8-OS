@@ -288,6 +288,92 @@ export class HighLevelMCPClient {
             case 'trigger-webhook':
                 return client.triggerCustomWebhook(args.webhookUrl, args.payload);
 
+            // ==================== AGENT STUDIO ====================
+            case 'agent-studio-list-agents':
+            case 'ghl-list-studio-agents':
+                return client.listAgentStudioAgents(args);
+
+            case 'agent-studio-get-agent':
+            case 'ghl-get-studio-agent':
+                return client.getAgentStudioAgent(args.agentId);
+
+            case 'agent-studio-execute-agent':
+            case 'ghl-execute-agent':
+                return client.executeAgentStudioAgent(args.agentId, args.input, args.executionId);
+
+            // ==================== CONVERSATION AI ====================
+            case 'conversation-ai-list-agents':
+            case 'ghl-list-conversation-agents':
+                return client.listConversationAIAgents(args);
+
+            case 'conversation-ai-get-agent':
+            case 'ghl-get-conversation-agent':
+                return client.getConversationAIAgent(args.agentId);
+
+            case 'conversation-ai-create-agent':
+            case 'ghl-create-conversation-agent':
+                return client.createConversationAIAgent(args as any);
+
+            case 'conversation-ai-update-agent':
+            case 'ghl-update-conversation-agent':
+                return client.updateConversationAIAgent(args.agentId, args);
+
+            case 'conversation-ai-delete-agent':
+            case 'ghl-delete-conversation-agent':
+                return client.deleteConversationAIAgent(args.agentId);
+
+            case 'conversation-ai-attach-action':
+            case 'ghl-attach-conversation-action':
+                return client.attachConversationAIAction(args.agentId, args);
+
+            case 'conversation-ai-list-actions':
+            case 'ghl-list-conversation-actions':
+                return client.listConversationAIActions(args.agentId);
+
+            case 'conversation-ai-get-generations':
+            case 'ghl-get-ai-generations':
+                return client.getConversationAIGenerations(args);
+
+            // ==================== VOICE AI (GHL Native) ====================
+            case 'voice-ai-list-agents':
+            case 'ghl-list-voice-agents':
+                return client.listVoiceAIAgents(args);
+
+            case 'voice-ai-get-agent':
+            case 'ghl-get-voice-agent':
+                return client.getVoiceAIAgent(args.agentId);
+
+            case 'voice-ai-create-agent':
+            case 'ghl-create-voice-agent':
+                return client.createVoiceAIAgent(args as any);
+
+            case 'voice-ai-update-agent':
+            case 'ghl-update-voice-agent':
+                return client.updateVoiceAIAgent(args.agentId, args);
+
+            case 'voice-ai-delete-agent':
+            case 'ghl-delete-voice-agent':
+                return client.deleteVoiceAIAgent(args.agentId);
+
+            case 'voice-ai-create-action':
+            case 'ghl-create-voice-action':
+                return client.createVoiceAIAction(args.agentId, args);
+
+            case 'voice-ai-list-calls':
+            case 'ghl-list-voice-calls':
+                return client.listVoiceAICallLogs(args);
+
+            case 'voice-ai-get-call':
+            case 'ghl-get-voice-call':
+                return client.getVoiceAICallLog(args.callId);
+
+            // ==================== GHL NATIVE MCP ====================
+            case 'ghl-mcp-call':
+                return client.callGHLMCP(args.toolName, args.arguments || {});
+
+            case 'ghl-mcp-list-tools':
+                return client.listGHLMCPTools();
+
             default:
                 throw new Error(`Unknown tool: ${toolName}`);
         }
@@ -350,6 +436,62 @@ export class HighLevelMCPClient {
 
     async getSocialMediaPosts(token: string, locationId: string, filters?: any) {
         return this.callTool('ghl-get-social-posts', filters || {}, token, locationId);
+    }
+
+    // ==================== AGENT STUDIO CONVENIENCE METHODS ====================
+
+    async listAgentStudioAgents(token: string, locationId: string, params?: any) {
+        return this.callTool('agent-studio-list-agents', params || {}, token, locationId);
+    }
+
+    async getAgentStudioAgent(token: string, locationId: string, agentId: string) {
+        return this.callTool('agent-studio-get-agent', { agentId }, token, locationId);
+    }
+
+    async executeAgentStudioAgent(token: string, locationId: string, agentId: string, input: string, executionId?: string) {
+        return this.callTool('agent-studio-execute-agent', { agentId, input, executionId }, token, locationId);
+    }
+
+    // ==================== CONVERSATION AI CONVENIENCE METHODS ====================
+
+    async listConversationAIAgents(token: string, locationId: string, params?: any) {
+        return this.callTool('conversation-ai-list-agents', params || {}, token, locationId);
+    }
+
+    async createConversationAIAgent(token: string, locationId: string, agentData: any) {
+        return this.callTool('conversation-ai-create-agent', agentData, token, locationId);
+    }
+
+    async attachConversationAIAction(token: string, locationId: string, agentId: string, actionData: any) {
+        return this.callTool('conversation-ai-attach-action', { agentId, ...actionData }, token, locationId);
+    }
+
+    async getAIGenerations(token: string, locationId: string, params?: any) {
+        return this.callTool('conversation-ai-get-generations', params || {}, token, locationId);
+    }
+
+    // ==================== VOICE AI (GHL NATIVE) CONVENIENCE METHODS ====================
+
+    async listVoiceAIAgents(token: string, locationId: string, params?: any) {
+        return this.callTool('voice-ai-list-agents', params || {}, token, locationId);
+    }
+
+    async createVoiceAIAgent(token: string, locationId: string, agentData: any) {
+        return this.callTool('voice-ai-create-agent', agentData, token, locationId);
+    }
+
+    async listVoiceAICallLogs(token: string, locationId: string, params?: any) {
+        return this.callTool('voice-ai-list-calls', params || {}, token, locationId);
+    }
+
+    // ==================== GHL NATIVE MCP ====================
+
+    async callGHLNativeMCP(token: string, locationId: string, toolName: string, args: any) {
+        return this.callTool('ghl-mcp-call', { toolName, arguments: args }, token, locationId);
+    }
+
+    async listGHLNativeMCPTools(token: string, locationId: string) {
+        return this.callTool('ghl-mcp-list-tools', {}, token, locationId);
     }
 }
 

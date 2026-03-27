@@ -458,6 +458,395 @@ export class GHLApiClient {
         });
         return response.data;
     }
+
+    // ==================== AGENT STUDIO ====================
+
+    /**
+     * List all active Agent Studio agents for a location
+     * GET /agent-studio/public-api/agents?locationId={locationId}
+     */
+    async listAgentStudioAgents(params?: { limit?: number; offset?: number }): Promise<any> {
+        const response = await this.client.get('/agent-studio/public-api/agents', {
+            params: {
+                locationId: this.locationId,
+                ...params
+            }
+        });
+        return response.data;
+    }
+
+    /**
+     * Get full metadata about a single Agent Studio agent
+     * GET /agent-studio/public-api/agents/{agentId}?locationId={locationId}
+     */
+    async getAgentStudioAgent(agentId: string): Promise<any> {
+        const response = await this.client.get(`/agent-studio/public-api/agents/${agentId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * Execute an Agent Studio agent and get JSON output
+     * POST /agent-studio/public-api/agents/{agentId}/execute
+     * First call omits executionId; response returns executionId for conversation continuity
+     */
+    async executeAgentStudioAgent(agentId: string, input: string, executionId?: string): Promise<any> {
+        const body: any = {
+            locationId: this.locationId,
+            input
+        };
+        if (executionId) {
+            body.executionId = executionId;
+        }
+        const response = await this.client.post(
+            `/agent-studio/public-api/agents/${agentId}/execute`,
+            body
+        );
+        return response.data;
+    }
+
+    // ==================== CONVERSATION AI ====================
+
+    /**
+     * Create a new Conversation AI agent
+     * POST /conversation-ai/agents
+     */
+    async createConversationAIAgent(agentData: {
+        name: string;
+        type?: string;
+        status?: string;
+        prompt?: string;
+        knowledgeBaseIds?: string[];
+        channels?: string[];
+    }): Promise<any> {
+        const response = await this.client.post('/conversation-ai/agents', {
+            ...agentData,
+            locationId: this.locationId
+        });
+        return response.data;
+    }
+
+    /**
+     * List/search Conversation AI agents
+     * GET /conversation-ai/agents
+     */
+    async listConversationAIAgents(params?: { status?: string; limit?: number; offset?: number }): Promise<any> {
+        const response = await this.client.get('/conversation-ai/agents', {
+            params: {
+                locationId: this.locationId,
+                ...params
+            }
+        });
+        return response.data;
+    }
+
+    /**
+     * Get a specific Conversation AI agent by ID
+     * GET /conversation-ai/agents/{agentId}
+     */
+    async getConversationAIAgent(agentId: string): Promise<any> {
+        const response = await this.client.get(`/conversation-ai/agents/${agentId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * Update a Conversation AI agent
+     * PUT /conversation-ai/agents/{agentId}
+     */
+    async updateConversationAIAgent(agentId: string, updates: {
+        name?: string;
+        status?: string;
+        prompt?: string;
+        knowledgeBaseIds?: string[];
+    }): Promise<any> {
+        const response = await this.client.put(`/conversation-ai/agents/${agentId}`, {
+            ...updates,
+            locationId: this.locationId
+        });
+        return response.data;
+    }
+
+    /**
+     * Delete a Conversation AI agent
+     * DELETE /conversation-ai/agents/{agentId}
+     */
+    async deleteConversationAIAgent(agentId: string): Promise<any> {
+        const response = await this.client.delete(`/conversation-ai/agents/${agentId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * Attach an action to a Conversation AI agent
+     * POST /conversation-ai/agents/{agentId}/actions
+     */
+    async attachConversationAIAction(agentId: string, actionData: {
+        name: string;
+        description: string;
+        type: string;
+        actionParameters?: Record<string, any>;
+        triggerMessage?: string;
+        workflowId?: string;
+    }): Promise<any> {
+        const response = await this.client.post(`/conversation-ai/agents/${agentId}/actions`, {
+            ...actionData,
+            locationId: this.locationId
+        });
+        return response.data;
+    }
+
+    /**
+     * List actions for a Conversation AI agent
+     * GET /conversation-ai/agents/{agentId}/actions
+     */
+    async listConversationAIActions(agentId: string): Promise<any> {
+        const response = await this.client.get(`/conversation-ai/agents/${agentId}/actions`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * Update a Conversation AI action
+     * PUT /conversation-ai/agents/{agentId}/actions/{actionId}
+     */
+    async updateConversationAIAction(agentId: string, actionId: string, updates: Record<string, any>): Promise<any> {
+        const response = await this.client.put(`/conversation-ai/agents/${agentId}/actions/${actionId}`, {
+            ...updates,
+            locationId: this.locationId
+        });
+        return response.data;
+    }
+
+    /**
+     * Delete a Conversation AI action
+     * DELETE /conversation-ai/agents/{agentId}/actions/{actionId}
+     */
+    async deleteConversationAIAction(agentId: string, actionId: string): Promise<any> {
+        const response = await this.client.delete(`/conversation-ai/agents/${agentId}/actions/${actionId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * Get AI generation details (message-level response data for analytics/compliance)
+     * GET /conversation-ai/generations
+     */
+    async getConversationAIGenerations(params?: {
+        agentId?: string;
+        contactId?: string;
+        conversationId?: string;
+        limit?: number;
+        offset?: number;
+        startDate?: string;
+        endDate?: string;
+    }): Promise<any> {
+        const response = await this.client.get('/conversation-ai/generations', {
+            params: {
+                locationId: this.locationId,
+                ...params
+            }
+        });
+        return response.data;
+    }
+
+    // ==================== VOICE AI (GHL Native) ====================
+
+    /**
+     * Create a Voice AI agent
+     * POST /voice-ai/agents
+     */
+    async createVoiceAIAgent(agentData: {
+        name: string;
+        prompt?: string;
+        voiceId?: string;
+        language?: string;
+        firstMessage?: string;
+        model?: string;
+    }): Promise<any> {
+        const response = await this.client.post('/voice-ai/agents', {
+            ...agentData,
+            locationId: this.locationId
+        });
+        return response.data;
+    }
+
+    /**
+     * List Voice AI agents
+     * GET /voice-ai/agents
+     */
+    async listVoiceAIAgents(params?: { limit?: number; offset?: number }): Promise<any> {
+        const response = await this.client.get('/voice-ai/agents', {
+            params: {
+                locationId: this.locationId,
+                ...params
+            }
+        });
+        return response.data;
+    }
+
+    /**
+     * Get a specific Voice AI agent
+     * GET /voice-ai/agents/{agentId}
+     */
+    async getVoiceAIAgent(agentId: string): Promise<any> {
+        const response = await this.client.get(`/voice-ai/agents/${agentId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * Update a Voice AI agent
+     * PATCH /voice-ai/agents/{agentId}
+     */
+    async updateVoiceAIAgent(agentId: string, updates: Record<string, any>): Promise<any> {
+        const response = await this.client.patch(`/voice-ai/agents/${agentId}`, {
+            ...updates,
+            locationId: this.locationId
+        });
+        return response.data;
+    }
+
+    /**
+     * Delete a Voice AI agent
+     * DELETE /voice-ai/agents/{agentId}
+     */
+    async deleteVoiceAIAgent(agentId: string): Promise<any> {
+        const response = await this.client.delete(`/voice-ai/agents/${agentId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * Create a Voice AI action for an agent
+     * POST /voice-ai/agents/{agentId}/actions
+     */
+    async createVoiceAIAction(agentId: string, actionData: {
+        name: string;
+        description: string;
+        type: string;
+        actionParameters?: Record<string, any>;
+        webhookUrl?: string;
+    }): Promise<any> {
+        const response = await this.client.post(`/voice-ai/agents/${agentId}/actions`, {
+            ...actionData,
+            locationId: this.locationId
+        });
+        return response.data;
+    }
+
+    /**
+     * Get a Voice AI action
+     * GET /voice-ai/agents/{agentId}/actions/{actionId}
+     */
+    async getVoiceAIAction(agentId: string, actionId: string): Promise<any> {
+        const response = await this.client.get(`/voice-ai/agents/${agentId}/actions/${actionId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * Update a Voice AI action
+     * PUT /voice-ai/agents/{agentId}/actions/{actionId}
+     */
+    async updateVoiceAIAction(agentId: string, actionId: string, updates: Record<string, any>): Promise<any> {
+        const response = await this.client.put(`/voice-ai/agents/${agentId}/actions/${actionId}`, {
+            ...updates,
+            locationId: this.locationId
+        });
+        return response.data;
+    }
+
+    /**
+     * Delete a Voice AI action
+     * DELETE /voice-ai/agents/{agentId}/actions/{actionId}
+     */
+    async deleteVoiceAIAction(agentId: string, actionId: string): Promise<any> {
+        const response = await this.client.delete(`/voice-ai/agents/${agentId}/actions/${actionId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    /**
+     * List Voice AI call logs
+     * GET /voice-ai/calls
+     */
+    async listVoiceAICallLogs(params?: {
+        agentId?: string;
+        contactId?: string;
+        callType?: string;
+        startDate?: string;
+        endDate?: string;
+        timezone?: string;
+        limit?: number;
+        page?: number;
+        sortBy?: string;
+        sortOrder?: string;
+    }): Promise<any> {
+        const response = await this.client.get('/voice-ai/calls', {
+            params: {
+                locationId: this.locationId,
+                ...params
+            }
+        });
+        return response.data;
+    }
+
+    /**
+     * Get a specific Voice AI call log
+     * GET /voice-ai/calls/{callId}
+     */
+    async getVoiceAICallLog(callId: string): Promise<any> {
+        const response = await this.client.get(`/voice-ai/calls/${callId}`, {
+            params: { locationId: this.locationId }
+        });
+        return response.data;
+    }
+
+    // ==================== GHL MCP SERVER (Native) ====================
+
+    /**
+     * Connect to GHL's native MCP server for AI assistant orchestration
+     * This proxies requests to https://services.leadconnectorhq.com/mcp/
+     */
+    async callGHLMCP(toolName: string, args: Record<string, any>): Promise<any> {
+        const response = await this.client.post('/mcp/', {
+            method: 'tools/call',
+            params: {
+                name: toolName,
+                arguments: args
+            }
+        }, {
+            headers: {
+                'locationId': this.locationId
+            }
+        });
+        return response.data;
+    }
+
+    /**
+     * List available tools from GHL's native MCP server
+     */
+    async listGHLMCPTools(): Promise<any> {
+        const response = await this.client.post('/mcp/', {
+            method: 'tools/list',
+            params: {}
+        }, {
+            headers: {
+                'locationId': this.locationId
+            }
+        });
+        return response.data;
+    }
 }
 
 /**
