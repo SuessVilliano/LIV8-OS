@@ -61,6 +61,9 @@ router.put('/:locationId', authenticate, async (req: Request, res: Response) => 
         if (updates.openaiApiKey?.includes('*')) delete updates.openaiApiKey;
         if (updates.anthropicApiKey?.includes('*')) delete updates.anthropicApiKey;
         if (updates.webhookSecret?.includes('*')) delete updates.webhookSecret;
+        if (updates.heygenApiKey?.includes('*')) delete updates.heygenApiKey;
+        if (updates.freepikApiKey?.includes('*')) delete updates.freepikApiKey;
+        if (updates.klingApiKey?.includes('*')) delete updates.klingApiKey;
 
         await userSettingsVault.saveSettings(locationId, updates);
 

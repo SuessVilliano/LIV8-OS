@@ -44,6 +44,7 @@ import voiceAiRouter from './api/voice-ai.js'; // Voice AI - White-label VAPI in
 import agentStudioRouter from './api/agent-studio.js'; // GHL Agent Studio + Conversation AI + Voice AI (native)
 import askAiRouter from './api/ask-ai.js'; // Ask AI + Agent Studio integration
 import creativePipelineRouter from './api/creative-pipeline.js'; // Creative Pipeline - automated content generation (HeyGen, Freepik, Kling AI)
+import mcpServerRouter from './api/mcp-server.js'; // LIV8 OS MCP Server - external platform integration
 import { agentSessions } from './db/agent-sessions.js';
 import { businessTwin } from './db/business-twin.js';
 import { mcpClient } from './services/mcp-client.js'; // From stashed changes
@@ -210,6 +211,7 @@ app.use('/api/voice-ai', rateLimitPresets.api, voiceAiRouter); // Voice AI - Whi
 app.use('/api/agent-studio', rateLimitPresets.ai, agentStudioRouter); // GHL Agent Studio + Conversation AI + Voice AI (native)
 app.use('/api/ask-ai', rateLimitPresets.ai, askAiRouter); // Ask AI + Agent Studio integration
 app.use('/api/pipeline', rateLimitPresets.ai, creativePipelineRouter); // Creative Pipeline - automated content generation
+app.use('/api/mcp', rateLimitPresets.api, mcpServerRouter); // LIV8 OS MCP Server - external platform integration
 
 
 // --- MCP Integration ---
