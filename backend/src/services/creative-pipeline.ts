@@ -395,7 +395,7 @@ Return ONLY valid JSON array. No markdown.`;
     const imageProvider = options?.imageProvider || config?.preferredImageProvider || 'freepik';
     const videoProvider = options?.videoProvider || config?.preferredVideoProvider || 'heygen';
 
-    let result: GenerationResult;
+    let result: GenerationResult | undefined;
 
     if (idea.contentType === 'image_post' || idea.contentType === 'carousel') {
       result = await aiProviderService.generate(locationId, {
@@ -435,7 +435,7 @@ Return ONLY valid JSON array. No markdown.`;
       }
     } else if (idea.contentType === 'video_script' || idea.contentType === 'reel_script') {
       result = await aiProviderService.generate(locationId, {
-        provider: videoProvider === 'kling' ? 'kling' : 'kling',
+        provider: videoProvider === 'kling' ? 'kling' : 'heygen',
         type: 'video',
         prompt: idea.mediaPrompt,
         options: {
@@ -448,6 +448,11 @@ Return ONLY valid JSON array. No markdown.`;
         idea.videoId = result.metadata?.taskId;
         idea.mediaUrl = result.mediaUrl;
       }
+    }
+
+    // If content type didn't match any media generation path, return as-is
+    if (!result) {
+      return idea;
     }
 
     this.ideas.set(ideaId, idea);
@@ -755,9 +760,11 @@ Return ONLY valid JSON array.`;
     const pillars = this.getPillars(locationId).filter(p => p.isActive);
     const trends = this.getTrends(locationId).filter(t => !t.isUsed);
 
-    const byStatus: any = {};
-    const byPlatform: any = {};
-    const byType: any = {};
+    const byStatus: Record<string, number> = {
+      generated: 0, queued: 0, approved: 0, scheduled: 0, posted: 0, rejected: 0
+    };
+    const byPlatform: Record<string, number> = {};
+    const byType: Record<string, number> = {};
 
     ideas.forEach(idea => {
       byStatus[idea.status] = (byStatus[idea.status] || 0) + 1;

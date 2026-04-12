@@ -58,6 +58,26 @@ router.post('/config', async (req: Request, res: Response) => {
     if (!config.locationId) {
       config.locationId = (req as any).user.locationId;
     }
+
+    // Validate required fields
+    if (!config.brandName || typeof config.brandName !== 'string') {
+      return res.status(400).json({ error: 'brandName is required' });
+    }
+    if (!config.brandVoice || !config.brandVoice.industry) {
+      return res.status(400).json({ error: 'brandVoice.industry is required' });
+    }
+    if (!config.contentRatio || typeof config.contentRatio !== 'object') {
+      return res.status(400).json({ error: 'contentRatio is required' });
+    }
+
+    // Ensure defaults for optional fields
+    config.postsPerDay = config.postsPerDay || 3;
+    config.platforms = config.platforms || ['instagram', 'facebook'];
+    config.requireApproval = config.requireApproval !== false;
+    config.autoGenerateMedia = config.autoGenerateMedia !== false;
+    config.preferredImageProvider = config.preferredImageProvider || 'freepik';
+    config.preferredVideoProvider = config.preferredVideoProvider || 'heygen';
+
     creativePipeline.setConfig(config);
     res.json({ success: true, config });
   } catch (error: any) {
@@ -392,6 +412,46 @@ router.get('/heygen/status/:videoId', async (req: Request, res: Response) => {
     if (!apiKey) return res.status(400).json({ error: 'HeyGen API key not configured' });
 
     const status = await aiProviderService.checkHeyGenStatus(apiKey, req.params.videoId);
+    res.json(status);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============ KLING AI STATUS ============
+
+/**
+ * GET /api/pipeline/kling/status/:taskId
+ * Check Kling AI video generation status
+ */
+router.get('/kling/status/:taskId', async (req: Request, res: Response) => {
+  try {
+    const locationId = req.query.locationId as string || (req as any).user.locationId;
+    const settings = await userSettingsVault.getSettings(locationId);
+    const apiKey = settings.klingApiKey || process.env.KLING_API_KEY;
+
+    if (!apiKey) return res.status(400).json({ error: 'Kling AI API key not configured' });
+
+    const status = await aiProviderService.checkKlingStatus(apiKey, req.params.taskId);
+    res.json(status);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/pipeline/freepik/status/:taskId
+ * Check Freepik image generation status
+ */
+router.get('/freepik/status/:taskId', async (req: Request, res: Response) => {
+  try {
+    const locationId = req.query.locationId as string || (req as any).user.locationId;
+    const settings = await userSettingsVault.getSettings(locationId);
+    const apiKey = settings.freepikApiKey || process.env.FREEPIK_API_KEY;
+
+    if (!apiKey) return res.status(400).json({ error: 'Freepik API key not configured' });
+
+    const status = await aiProviderService.checkFreepikStatus(apiKey, req.params.taskId);
     res.json(status);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

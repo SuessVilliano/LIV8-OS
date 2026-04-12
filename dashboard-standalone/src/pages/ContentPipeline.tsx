@@ -120,8 +120,8 @@ interface PipelineConfig {
     };
 }
 
-const getToken = () => localStorage.getItem('auth_token') || '';
-const getLocationId = () => localStorage.getItem('ghl_location_id') || '';
+const getToken = () => localStorage.getItem('os_token') || '';
+const getLocationId = () => localStorage.getItem('os_loc_id') || '';
 
 const apiFetch = async (path: string, options: RequestInit = {}) => {
     const res = await fetch(`${API_BASE}/api/pipeline${path}`, {

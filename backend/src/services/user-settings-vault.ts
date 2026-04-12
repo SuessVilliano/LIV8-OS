@@ -273,7 +273,7 @@ export const userSettingsVault = {
     /**
      * Delete a specific API key
      */
-    async deleteApiKey(locationId: string, keyType: 'gemini' | 'openai' | 'anthropic'): Promise<void> {
+    async deleteApiKey(locationId: string, keyType: 'gemini' | 'openai' | 'anthropic' | 'heygen' | 'freepik' | 'kling'): Promise<void> {
         const settings = await this.getSettings(locationId);
 
         switch (keyType) {
@@ -285,6 +285,15 @@ export const userSettingsVault = {
                 break;
             case 'anthropic':
                 delete settings.anthropicApiKey;
+                break;
+            case 'heygen':
+                delete settings.heygenApiKey;
+                break;
+            case 'freepik':
+                delete settings.freepikApiKey;
+                break;
+            case 'kling':
+                delete settings.klingApiKey;
                 break;
         }
 
