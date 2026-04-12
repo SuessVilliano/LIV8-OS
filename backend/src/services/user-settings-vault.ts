@@ -24,6 +24,9 @@ export interface UserSettings {
     geminiApiKey?: string;
     openaiApiKey?: string;
     anthropicApiKey?: string;
+    heygenApiKey?: string;
+    freepikApiKey?: string;
+    klingApiKey?: string;
 
     // Webhook Configuration
     webhookSecret?: string;
@@ -102,6 +105,15 @@ function encryptSettings(settings: UserSettings): any {
     if (settings.webhookSecret) {
         encrypted.webhookSecret = encrypt(settings.webhookSecret);
     }
+    if (settings.heygenApiKey) {
+        encrypted.heygenApiKey = encrypt(settings.heygenApiKey);
+    }
+    if (settings.freepikApiKey) {
+        encrypted.freepikApiKey = encrypt(settings.freepikApiKey);
+    }
+    if (settings.klingApiKey) {
+        encrypted.klingApiKey = encrypt(settings.klingApiKey);
+    }
 
     return encrypted;
 }
@@ -124,6 +136,15 @@ function decryptSettings(encrypted: any): UserSettings {
         }
         if (encrypted.webhookSecret) {
             settings.webhookSecret = decrypt(encrypted.webhookSecret);
+        }
+        if (encrypted.heygenApiKey) {
+            settings.heygenApiKey = decrypt(encrypted.heygenApiKey);
+        }
+        if (encrypted.freepikApiKey) {
+            settings.freepikApiKey = decrypt(encrypted.freepikApiKey);
+        }
+        if (encrypted.klingApiKey) {
+            settings.klingApiKey = decrypt(encrypted.klingApiKey);
         }
     } catch (error) {
         console.error('[Vault] Decryption failed:', error);
@@ -203,11 +224,17 @@ export const userSettingsVault = {
             openaiApiKey: maskApiKey(settings.openaiApiKey),
             anthropicApiKey: maskApiKey(settings.anthropicApiKey),
             webhookSecret: maskApiKey(settings.webhookSecret),
+            heygenApiKey: maskApiKey(settings.heygenApiKey),
+            freepikApiKey: maskApiKey(settings.freepikApiKey),
+            klingApiKey: maskApiKey(settings.klingApiKey),
             // Include flags for which keys are set
             hasGeminiKey: !!settings.geminiApiKey,
             hasOpenaiKey: !!settings.openaiApiKey,
             hasAnthropicKey: !!settings.anthropicApiKey,
-            hasWebhookSecret: !!settings.webhookSecret
+            hasWebhookSecret: !!settings.webhookSecret,
+            hasHeygenKey: !!settings.heygenApiKey,
+            hasFreepikKey: !!settings.freepikApiKey,
+            hasKlingKey: !!settings.klingApiKey
         };
     },
 

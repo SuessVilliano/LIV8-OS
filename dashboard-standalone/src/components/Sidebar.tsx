@@ -21,6 +21,7 @@ import {
     Inbox,
     Phone,
     Bot,
+    Zap,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import LocationSwitcher from './LocationSwitcher';
@@ -44,6 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
         { icon: Phone, label: 'Voice AI', path: '/voice-ai' },
         { icon: Bot, label: 'Agent Studio', path: '/agent-studio' },
         { icon: Palette, label: 'Brand Hub', path: '/brand' },
+        { icon: Zap, label: 'Content Pipeline', path: '/pipeline' },
         { icon: Wand2, label: 'Studio', path: '/studio' },
         { icon: Workflow, label: 'Workflows', path: '/workflows' },
         { icon: BarChart, label: 'Analytics', path: '/analytics' },

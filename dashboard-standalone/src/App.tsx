@@ -14,6 +14,7 @@ import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Pricing from './pages/Pricing';
 import Studio from './pages/Studio';
+import ContentPipeline from './pages/ContentPipeline';
 import Support from './pages/Support';
 import Inbox from './pages/Inbox';
 import VoiceAI from './pages/VoiceAI';
@@ -159,6 +160,7 @@ function App() {
               <Route path="/staff" element={isCoreActive ? <ErrorBoundary><Staff /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/brand" element={isCoreActive ? <ErrorBoundary><Brand /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/workflows" element={isCoreActive ? <ErrorBoundary><Workflows /></ErrorBoundary> : <Navigate to="/login" replace />} />
+              <Route path="/pipeline" element={isCoreActive ? <ErrorBoundary><ContentPipeline /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/studio" element={isCoreActive ? <ErrorBoundary><Studio /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/analytics" element={isCoreActive ? <ErrorBoundary><Analytics /></ErrorBoundary> : <Navigate to="/login" replace />} />
               <Route path="/settings" element={isCoreActive ? <ErrorBoundary><Settings /></ErrorBoundary> : <Navigate to="/login" replace />} />

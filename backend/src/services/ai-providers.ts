@@ -16,8 +16,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Provider types
-export type AIProvider = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'kling';
-export type ContentGenerationType = 'text' | 'image' | 'video' | 'code' | 'edit';
+export type AIProvider = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'kling' | 'heygen' | 'freepik';
+export type ContentGenerationType = 'text' | 'image' | 'video' | 'code' | 'edit' | 'avatar_video';
 
 // Configuration for each provider
 export interface ProviderConfig {
@@ -61,7 +61,9 @@ export const PROVIDER_CAPABILITIES: Record<AIProvider, ContentGenerationType[]> 
   openai: ['text', 'image', 'code'],
   claude: ['text', 'code'],
   deepseek: ['text', 'code'],
-  kling: ['video', 'image']
+  kling: ['video', 'image'],
+  heygen: ['avatar_video', 'video'],
+  freepik: ['image']
 };
 
 // Default models per provider
@@ -70,7 +72,9 @@ const DEFAULT_MODELS: Record<AIProvider, string> = {
   openai: 'gpt-4o',
   claude: 'claude-3-5-sonnet-20241022',
   deepseek: 'deepseek-chat',
-  kling: 'kling-v1'
+  kling: 'kling-v1',
+  heygen: 'v2',
+  freepik: 'flux-1.1-ultra'
 };
 
 // Generation request
@@ -86,6 +90,13 @@ export interface GenerationRequest {
     videoDuration?: number;
     style?: string;
     negativePrompt?: string;
+    // HeyGen options
+    avatarId?: string;
+    voiceId?: string;
+    aspectRatio?: string;
+    // Freepik options
+    numImages?: number;
+    guidanceScale?: number;
   };
   context?: {
     businessTwin?: any;
@@ -131,7 +142,9 @@ class AIProviderService {
     openai: process.env.OPENAI_API_KEY,
     claude: process.env.ANTHROPIC_API_KEY,
     deepseek: process.env.DEEPSEEK_API_KEY,
-    kling: process.env.KLING_API_KEY
+    kling: process.env.KLING_API_KEY,
+    heygen: process.env.HEYGEN_API_KEY,
+    freepik: process.env.FREEPIK_API_KEY
   };
 
   /**
@@ -281,6 +294,12 @@ class AIProviderService {
           break;
         case 'kling':
           result = await this.generateWithKling(apiKey, request);
+          break;
+        case 'heygen':
+          result = await this.generateWithHeyGen(apiKey, request);
+          break;
+        case 'freepik':
+          result = await this.generateWithFreepik(apiKey, request);
           break;
         default:
           return { success: false, provider: request.provider, type: request.type, error: 'Unknown provider' };
@@ -597,6 +616,200 @@ class AIProviderService {
       status: data.status,
       mediaUrl: data.output?.url,
       error: data.error?.message
+    };
+  }
+
+  /**
+   * Generate with HeyGen (avatar video)
+   */
+  private async generateWithHeyGen(apiKey: string, request: GenerationRequest): Promise<GenerationResult> {
+    // Create video from script using HeyGen avatar
+    const body: any = {
+      video_inputs: [{
+        character: {
+          type: 'avatar',
+          avatar_id: request.options?.avatarId || 'default',
+          avatar_style: request.options?.style || 'normal'
+        },
+        voice: {
+          type: 'text',
+          input_text: request.prompt,
+          voice_id: request.options?.voiceId || undefined
+        }
+      }],
+      dimension: {
+        width: request.options?.aspectRatio === '9:16' ? 720 : 1280,
+        height: request.options?.aspectRatio === '9:16' ? 1280 : 720
+      }
+    };
+
+    const response = await fetch('https://api.heygen.com/v2/video/generate', {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await response.json();
+
+    if (data.error || data.code !== 100) {
+      return { success: false, provider: 'heygen', type: 'avatar_video', error: data.error?.message || data.message || 'HeyGen generation failed' };
+    }
+
+    return {
+      success: true,
+      provider: 'heygen',
+      type: 'avatar_video',
+      content: `Video generation started. Video ID: ${data.data?.video_id}`,
+      metadata: {
+        model: 'heygen-v2',
+        videoId: data.data?.video_id
+      }
+    };
+  }
+
+  /**
+   * Check HeyGen video status
+   */
+  async checkHeyGenStatus(apiKey: string, videoId: string): Promise<{
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    mediaUrl?: string;
+    thumbnailUrl?: string;
+    duration?: number;
+    error?: string;
+  }> {
+    const response = await fetch(`https://api.heygen.com/v1/video_status.get?video_id=${videoId}`, {
+      headers: { 'X-Api-Key': apiKey }
+    });
+
+    const data = await response.json();
+    const statusMap: Record<string, any> = {
+      'pending': 'pending',
+      'processing': 'processing',
+      'completed': 'completed',
+      'failed': 'failed'
+    };
+
+    return {
+      status: statusMap[data.data?.status] || 'pending',
+      mediaUrl: data.data?.video_url,
+      thumbnailUrl: data.data?.thumbnail_url,
+      duration: data.data?.duration,
+      error: data.data?.error?.message
+    };
+  }
+
+  /**
+   * List HeyGen avatars
+   */
+  async listHeyGenAvatars(apiKey: string): Promise<any[]> {
+    const response = await fetch('https://api.heygen.com/v2/avatars', {
+      headers: { 'X-Api-Key': apiKey }
+    });
+
+    const data = await response.json();
+    return data.data?.avatars || [];
+  }
+
+  /**
+   * List HeyGen voices
+   */
+  async listHeyGenVoices(apiKey: string): Promise<any[]> {
+    const response = await fetch('https://api.heygen.com/v2/voices', {
+      headers: { 'X-Api-Key': apiKey }
+    });
+
+    const data = await response.json();
+    return data.data?.voices || [];
+  }
+
+  /**
+   * Generate with Freepik (AI image generation)
+   */
+  private async generateWithFreepik(apiKey: string, request: GenerationRequest): Promise<GenerationResult> {
+    const body: any = {
+      prompt: request.prompt,
+      negative_prompt: request.options?.negativePrompt || '',
+      num_images: request.options?.numImages || 1,
+      image: {
+        size: request.options?.imageSize || 'square_1_1'
+      },
+      styling: {
+        style: request.options?.style || 'photo'
+      }
+    };
+
+    const response = await fetch('https://api.freepik.com/v1/ai/text-to-image', {
+      method: 'POST',
+      headers: {
+        'x-freepik-api-key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, provider: 'freepik', type: 'image', error: data.message || data.detail || 'Freepik generation failed' };
+    }
+
+    // Freepik returns task-based async generation
+    if (data.data?.task_id) {
+      return {
+        success: true,
+        provider: 'freepik',
+        type: 'image',
+        content: `Image generation started. Task ID: ${data.data.task_id}`,
+        metadata: {
+          model: 'flux-1.1-ultra',
+          taskId: data.data.task_id
+        }
+      };
+    }
+
+    // Direct response with images
+    const images = data.data || [];
+    return {
+      success: true,
+      provider: 'freepik',
+      type: 'image',
+      mediaUrl: images[0]?.base64 ? `data:image/png;base64,${images[0].base64}` : images[0]?.url,
+      content: `Generated ${images.length} image(s)`,
+      metadata: {
+        model: 'flux-1.1-ultra',
+        imageCount: images.length,
+        allImages: images.map((img: any) => img.url || `data:image/png;base64,${img.base64}`)
+      }
+    };
+  }
+
+  /**
+   * Check Freepik task status
+   */
+  async checkFreepikStatus(apiKey: string, taskId: string): Promise<{
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    images?: string[];
+    error?: string;
+  }> {
+    const response = await fetch(`https://api.freepik.com/v1/ai/text-to-image/${taskId}`, {
+      headers: { 'x-freepik-api-key': apiKey }
+    });
+
+    const data = await response.json();
+
+    if (data.data?.status === 'COMPLETED') {
+      return {
+        status: 'completed',
+        images: data.data.images?.map((img: any) => img.url || `data:image/png;base64,${img.base64}`)
+      };
+    }
+
+    return {
+      status: data.data?.status === 'FAILED' ? 'failed' : 'processing',
+      error: data.data?.error
     };
   }
 
