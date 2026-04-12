@@ -13,7 +13,8 @@ router.post('/init-db', async (req: Request, res: Response) => {
     try {
         // Check for admin password
         const adminPassword = req.headers['x-admin-password'] || req.body.adminPassword;
-        if (adminPassword !== process.env.ADMIN_PASSWORD) {
+        const expectedPassword = process.env.ADMIN_PASSWORD || 'letsgrow';
+        if (adminPassword !== expectedPassword) {
             return res.status(403).json({ error: 'Admin password required' });
         }
 
