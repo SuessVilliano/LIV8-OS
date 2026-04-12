@@ -685,6 +685,21 @@ export default function ContentPipeline() {
                             <p className="text-xs text-[var(--os-text-muted)] mb-3">Generate realistic AI videos from text prompts. Great for product demos, explainers, and b-roll content.</p>
                             <div className="text-xs text-emerald-400">BYOK Connected</div>
                         </div>
+
+                        {/* VoxCPM */}
+                        <div className="bg-[var(--os-surface)] border border-[var(--os-border)] rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="h-8 w-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">V</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold">VoxCPM</h3>
+                                    <p className="text-xs text-[var(--os-text-muted)]">AI Voice & Cloning</p>
+                                </div>
+                            </div>
+                            <p className="text-xs text-[var(--os-text-muted)] mb-3">Open-source ElevenLabs alternative. Generate speech, clone voices from 5s audio, design voices from text descriptions. Free, self-hosted, 30 languages.</p>
+                            <div className="text-xs text-yellow-400">Self-hosted GPU Server</div>
+                        </div>
                     </div>
 
                     {/* Ideas needing media */}

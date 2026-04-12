@@ -215,6 +215,41 @@ const LIV8_TOOLS = {
       }
     }
   },
+  'creative.text_to_speech': {
+    description: 'Generate speech audio from text using VoxCPM (self-hosted, open-source ElevenLabs alternative). Supports voice design from natural language descriptions, voice cloning from reference audio, and style control.',
+    inputSchema: {
+      type: 'object', required: ['locationId', 'text'],
+      properties: {
+        locationId: { type: 'string' },
+        text: { type: 'string', description: 'The text to convert to speech' },
+        voiceDescription: { type: 'string', description: 'Natural language voice description (e.g. "young confident male, deep authoritative tone"). Used for voice design mode.' },
+        referenceAudioUrl: { type: 'string', description: 'URL to reference audio file for voice cloning' },
+        referenceText: { type: 'string', description: 'Transcript of reference audio for ultimate cloning mode' },
+        emotion: { type: 'string', description: 'Control emotion: cheerful, calm, excited, serious, warm' },
+        speed: { type: 'number', description: 'Speech speed multiplier (0.5-2.0)', default: 1.0 }
+      }
+    }
+  },
+  'creative.voice_clone': {
+    description: 'Clone a voice from reference audio. Provide a short audio sample and VoxCPM will generate new speech in that voice. Requires self-hosted VoxCPM server.',
+    inputSchema: {
+      type: 'object', required: ['locationId', 'text', 'referenceAudioUrl'],
+      properties: {
+        locationId: { type: 'string' },
+        text: { type: 'string', description: 'Text to speak in the cloned voice' },
+        referenceAudioUrl: { type: 'string', description: 'URL to voice sample audio (5+ seconds)' },
+        referenceText: { type: 'string', description: 'Transcript of the reference audio for ultimate cloning accuracy' },
+        emotion: { type: 'string', description: 'Override emotion while keeping cloned voice' }
+      }
+    }
+  },
+  'creative.check_voxcpm': {
+    description: 'Check if the VoxCPM voice server is online and responding.',
+    inputSchema: {
+      type: 'object', required: ['locationId'],
+      properties: { locationId: { type: 'string' } }
+    }
+  },
   'creative.generate_text': {
     description: 'Generate text content using any AI provider (Gemini, OpenAI, Claude, DeepSeek).',
     inputSchema: {
@@ -335,6 +370,34 @@ async function executeTool(toolName: string, args: any, user: any): Promise<any>
         provider: args.provider || 'gemini', type: 'text', prompt: args.prompt,
         options: { maxTokens: args.maxTokens, temperature: args.temperature }
       });
+
+    // VoxCPM Voice
+    case 'creative.text_to_speech':
+      return await aiProviderService.generate(locationId, {
+        provider: 'voxcpm', type: 'tts', prompt: args.text,
+        options: {
+          voiceDescription: args.voiceDescription,
+          referenceAudioUrl: args.referenceAudioUrl,
+          referenceText: args.referenceText,
+          emotion: args.emotion,
+          speed: args.speed
+        }
+      });
+
+    case 'creative.voice_clone':
+      return await aiProviderService.generate(locationId, {
+        provider: 'voxcpm', type: 'voice_clone', prompt: args.text,
+        options: {
+          referenceAudioUrl: args.referenceAudioUrl,
+          referenceText: args.referenceText,
+          emotion: args.emotion
+        }
+      });
+
+    case 'creative.check_voxcpm':
+      return await aiProviderService.checkVoxCPMHealth(
+        args.baseUrl || process.env.VOXCPM_BASE_URL || ''
+      );
 
     // Trends
     case 'trends.fetch':

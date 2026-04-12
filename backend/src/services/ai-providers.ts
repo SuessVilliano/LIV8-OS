@@ -7,6 +7,9 @@
  * - Anthropic Claude (text)
  * - DeepSeek (text, code)
  * - Kling AI (video generation)
+ * - HeyGen (avatar video)
+ * - Freepik (AI images)
+ * - VoxCPM (open-source TTS, voice cloning, voice design)
  *
  * Hybrid approach:
  * - Default: LIV8 provides AI with tier-based limits
@@ -16,8 +19,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Provider types
-export type AIProvider = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'kling' | 'heygen' | 'freepik';
-export type ContentGenerationType = 'text' | 'image' | 'video' | 'code' | 'edit' | 'avatar_video';
+export type AIProvider = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'kling' | 'heygen' | 'freepik' | 'voxcpm';
+export type ContentGenerationType = 'text' | 'image' | 'video' | 'code' | 'edit' | 'avatar_video' | 'tts' | 'voice_clone';
 
 // Configuration for each provider
 export interface ProviderConfig {
@@ -63,7 +66,8 @@ export const PROVIDER_CAPABILITIES: Record<AIProvider, ContentGenerationType[]> 
   deepseek: ['text', 'code'],
   kling: ['video', 'image'],
   heygen: ['avatar_video', 'video'],
-  freepik: ['image']
+  freepik: ['image'],
+  voxcpm: ['tts', 'voice_clone']
 };
 
 // Default models per provider
@@ -74,7 +78,8 @@ const DEFAULT_MODELS: Record<AIProvider, string> = {
   deepseek: 'deepseek-chat',
   kling: 'kling-v1',
   heygen: 'v2',
-  freepik: 'flux-1.1-ultra'
+  freepik: 'flux-1.1-ultra',
+  voxcpm: 'VoxCPM2'
 };
 
 // Generation request
@@ -97,6 +102,14 @@ export interface GenerationRequest {
     // Freepik options
     numImages?: number;
     guidanceScale?: number;
+    // VoxCPM options
+    referenceAudioUrl?: string;   // URL to reference audio for voice cloning
+    referenceText?: string;       // Transcript of reference audio (for ultimate cloning)
+    voiceDescription?: string;    // Natural language voice description (for voice design)
+    emotion?: string;             // Control emotion: "cheerful", "calm", "excited", etc.
+    speed?: number;               // Speech speed multiplier (0.5-2.0)
+    sampleRate?: number;          // Output sample rate (default 48000)
+    outputFormat?: string;        // "wav" | "mp3"
   };
   context?: {
     businessTwin?: any;
@@ -144,7 +157,8 @@ class AIProviderService {
     deepseek: process.env.DEEPSEEK_API_KEY,
     kling: process.env.KLING_API_KEY,
     heygen: process.env.HEYGEN_API_KEY,
-    freepik: process.env.FREEPIK_API_KEY
+    freepik: process.env.FREEPIK_API_KEY,
+    voxcpm: process.env.VOXCPM_API_URL || process.env.VOXCPM_BASE_URL  // Self-hosted URL acts as "key"
   };
 
   /**
@@ -300,6 +314,9 @@ class AIProviderService {
           break;
         case 'freepik':
           result = await this.generateWithFreepik(apiKey, request);
+          break;
+        case 'voxcpm':
+          result = await this.generateWithVoxCPM(apiKey, request);
           break;
         default:
           return { success: false, provider: request.provider, type: request.type, error: 'Unknown provider' };
@@ -811,6 +828,176 @@ class AIProviderService {
       status: data.data?.status === 'FAILED' ? 'failed' : 'processing',
       error: data.data?.error
     };
+  }
+
+  /**
+   * Generate with VoxCPM (TTS / Voice Cloning / Voice Design)
+   *
+   * VoxCPM is self-hosted — the "apiKey" is actually the base URL of the user's
+   * VoxCPM instance (e.g. http://gpu-server:8808 or https://voxcpm.myserver.com)
+   *
+   * Supports 3 modes:
+   * 1. TTS with voice design — describe a voice in natural language
+   * 2. Voice cloning — provide reference audio
+   * 3. Ultimate cloning — reference audio + transcript
+   */
+  private async generateWithVoxCPM(baseUrl: string, request: GenerationRequest): Promise<GenerationResult> {
+    // Determine which VoxCPM mode to use
+    const hasReference = !!request.options?.referenceAudioUrl;
+    const hasTranscript = !!request.options?.referenceText;
+    const hasVoiceDescription = !!request.options?.voiceDescription;
+
+    let endpoint: string;
+    let body: any;
+
+    if (hasReference && hasTranscript) {
+      // Ultimate cloning: reference audio + transcript
+      endpoint = `${baseUrl}/api/clone`;
+      body = {
+        text: request.prompt,
+        prompt_audio: request.options!.referenceAudioUrl,
+        prompt_text: request.options!.referenceText,
+        sample_rate: request.options?.sampleRate || 48000
+      };
+    } else if (hasReference) {
+      // Voice cloning with optional style control
+      endpoint = `${baseUrl}/api/clone`;
+      body = {
+        text: request.prompt,
+        reference_audio: request.options!.referenceAudioUrl,
+        control: request.options?.emotion || request.options?.voiceDescription || undefined,
+        sample_rate: request.options?.sampleRate || 48000
+      };
+    } else {
+      // Voice design or basic TTS
+      endpoint = `${baseUrl}/api/tts`;
+      const textWithDesign = hasVoiceDescription
+        ? `(${request.options!.voiceDescription})${request.prompt}`
+        : request.prompt;
+
+      body = {
+        text: textWithDesign,
+        cfg_value: 2.0,
+        inference_timesteps: 10,
+        sample_rate: request.options?.sampleRate || 48000
+      };
+    }
+
+    // Add speed control if specified
+    if (request.options?.speed) {
+      body.speed = request.options.speed;
+    }
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return {
+          success: false,
+          provider: 'voxcpm',
+          type: request.type,
+          error: `VoxCPM error (${response.status}): ${errorText}`
+        };
+      }
+
+      // VoxCPM returns audio data — check content type
+      const contentType = response.headers.get('content-type') || '';
+
+      if (contentType.includes('audio') || contentType.includes('octet-stream')) {
+        // Binary audio response — convert to base64 data URL
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        const mimeType = contentType.includes('wav') ? 'audio/wav' : 'audio/mpeg';
+
+        return {
+          success: true,
+          provider: 'voxcpm',
+          type: request.type,
+          mediaUrl: `data:${mimeType};base64,${base64}`,
+          content: `Audio generated (${(arrayBuffer.byteLength / 1024).toFixed(1)}KB)`,
+          metadata: {
+            model: 'VoxCPM2',
+            format: mimeType,
+            sizeBytes: arrayBuffer.byteLength,
+            sampleRate: request.options?.sampleRate || 48000,
+            mode: hasReference ? (hasTranscript ? 'ultimate_clone' : 'voice_clone') : (hasVoiceDescription ? 'voice_design' : 'tts')
+          }
+        };
+      }
+
+      // JSON response (task-based or URL-based)
+      const data = await response.json();
+
+      if (data.audio_url || data.url) {
+        return {
+          success: true,
+          provider: 'voxcpm',
+          type: request.type,
+          mediaUrl: data.audio_url || data.url,
+          content: 'Audio generated',
+          metadata: {
+            model: 'VoxCPM2',
+            mode: hasReference ? 'voice_clone' : 'tts'
+          }
+        };
+      }
+
+      if (data.task_id) {
+        return {
+          success: true,
+          provider: 'voxcpm',
+          type: request.type,
+          content: `Audio generation started. Task ID: ${data.task_id}`,
+          metadata: {
+            model: 'VoxCPM2',
+            taskId: data.task_id
+          }
+        };
+      }
+
+      return {
+        success: true,
+        provider: 'voxcpm',
+        type: request.type,
+        content: JSON.stringify(data),
+        metadata: { model: 'VoxCPM2' }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        provider: 'voxcpm',
+        type: request.type,
+        error: `VoxCPM connection failed: ${error.message}. Is your VoxCPM server running at ${baseUrl}?`
+      };
+    }
+  }
+
+  /**
+   * Check VoxCPM server health
+   */
+  async checkVoxCPMHealth(baseUrl: string): Promise<{
+    online: boolean;
+    model?: string;
+    version?: string;
+    error?: string;
+  }> {
+    try {
+      const response = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
+      if (response.ok) {
+        const data = await response.json();
+        return { online: true, model: data.model || 'VoxCPM2', version: data.version };
+      }
+      // Try root endpoint as fallback
+      const rootResponse = await fetch(baseUrl, { signal: AbortSignal.timeout(5000) });
+      return { online: rootResponse.ok, model: 'VoxCPM2' };
+    } catch (error: any) {
+      return { online: false, error: error.message };
+    }
   }
 
   /**

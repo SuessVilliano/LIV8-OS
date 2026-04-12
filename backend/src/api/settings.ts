@@ -64,6 +64,7 @@ router.put('/:locationId', authenticate, async (req: Request, res: Response) => 
         if (updates.heygenApiKey?.includes('*')) delete updates.heygenApiKey;
         if (updates.freepikApiKey?.includes('*')) delete updates.freepikApiKey;
         if (updates.klingApiKey?.includes('*')) delete updates.klingApiKey;
+        // VoxCPM URL is not masked — it's a server URL, not a secret
 
         await userSettingsVault.saveSettings(locationId, updates);
 

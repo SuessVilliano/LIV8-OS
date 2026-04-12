@@ -418,6 +418,56 @@ router.get('/heygen/status/:videoId', async (req: Request, res: Response) => {
   }
 });
 
+// ============ VOXCPM (TTS / VOICE CLONING) ============
+
+/**
+ * POST /api/pipeline/voxcpm/tts
+ * Generate speech from text using VoxCPM
+ * Supports: basic TTS, voice design (describe voice), voice cloning
+ */
+router.post('/voxcpm/tts', async (req: Request, res: Response) => {
+  try {
+    const locationId = req.body.locationId || (req as any).user.locationId;
+    const settings = await userSettingsVault.getSettings(locationId);
+    const baseUrl = settings.voxcpmBaseUrl || process.env.VOXCPM_BASE_URL;
+
+    if (!baseUrl) return res.status(400).json({ error: 'VoxCPM server URL not configured. Set your VoxCPM instance URL in Settings.' });
+
+    const { text, voiceDescription, referenceAudioUrl, referenceText, emotion, speed } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+
+    const result = await aiProviderService.generate(locationId, {
+      provider: 'voxcpm',
+      type: referenceAudioUrl ? 'voice_clone' : 'tts',
+      prompt: text,
+      options: { voiceDescription, referenceAudioUrl, referenceText, emotion, speed }
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/pipeline/voxcpm/health
+ * Check if user's VoxCPM server is online
+ */
+router.get('/voxcpm/health', async (req: Request, res: Response) => {
+  try {
+    const locationId = req.query.locationId as string || (req as any).user.locationId;
+    const settings = await userSettingsVault.getSettings(locationId);
+    const baseUrl = settings.voxcpmBaseUrl || process.env.VOXCPM_BASE_URL;
+
+    if (!baseUrl) return res.json({ online: false, error: 'VoxCPM server URL not configured' });
+
+    const health = await aiProviderService.checkVoxCPMHealth(baseUrl);
+    res.json(health);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============ KLING AI STATUS ============
 
 /**

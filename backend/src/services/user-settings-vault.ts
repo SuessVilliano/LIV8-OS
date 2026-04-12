@@ -27,6 +27,7 @@ export interface UserSettings {
     heygenApiKey?: string;
     freepikApiKey?: string;
     klingApiKey?: string;
+    voxcpmBaseUrl?: string;  // Self-hosted VoxCPM instance URL (not an API key)
 
     // Webhook Configuration
     webhookSecret?: string;
@@ -234,7 +235,9 @@ export const userSettingsVault = {
             hasWebhookSecret: !!settings.webhookSecret,
             hasHeygenKey: !!settings.heygenApiKey,
             hasFreepikKey: !!settings.freepikApiKey,
-            hasKlingKey: !!settings.klingApiKey
+            hasKlingKey: !!settings.klingApiKey,
+            voxcpmBaseUrl: settings.voxcpmBaseUrl || null,
+            hasVoxcpmUrl: !!settings.voxcpmBaseUrl
         };
     },
 
@@ -294,6 +297,9 @@ export const userSettingsVault = {
                 break;
             case 'kling':
                 delete settings.klingApiKey;
+                break;
+            case 'voxcpm' as any:
+                delete settings.voxcpmBaseUrl;
                 break;
         }
 
